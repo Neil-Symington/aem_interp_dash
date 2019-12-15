@@ -1,5 +1,5 @@
 
-dirList = glob('C:\Users\PCUser\Desktop\NSC_data\data\AEM\HE\garjmcmc\run4\output\pmaps\*.pmap');
+dirList = glob('C:\Users\PCUser\Desktop\NSC_data\data\AEM\HE\garjmcmc\combined\pmaps\*.pmap');
 
 % Loop through
 
