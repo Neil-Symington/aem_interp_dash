@@ -46,7 +46,6 @@ for filename in glob.glob(os.path.join(pmap_dir, "*.mat")):
                             filename.split('.')[4]]))
     pmap_files[fid] = filename
 
-print(pmap_files)
 # Iterate through the geodataframe
 for index, row in gdf_AEM.iterrows():
     fid = np.float(row['fiducial '])

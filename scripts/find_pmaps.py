@@ -12,7 +12,7 @@ if not os.path.exists(new_dir):
 
 # Iterate
 for dirpath, dirnames, filenames in os.walk(os.path.join(indir, ".")):
-    for filename in [f for f in filenames if f.endswith(".mat") or f.endswith('.pmap')]:
+    for filename in [f for f in filenames if f.endswith('.pmap')]:
         shutil.copyfile(os.path.join(dirpath, filename),
                         os.path.join(new_dir, filename))
             
