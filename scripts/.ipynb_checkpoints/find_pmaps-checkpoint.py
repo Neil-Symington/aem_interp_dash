@@ -13,6 +13,7 @@ if not os.path.exists(new_dir):
 # Iterate
 for dirpath, dirnames, filenames in os.walk(os.path.join(indir, ".")):
     for filename in [f for f in filenames if f.endswith('.pmap')]:
-        shutil.copyfile(os.path.join(dirpath, filename),
-                        os.path.join(new_dir, filename))
+        if not os.path.exists(os.path.join(new_dir, filename)):
+            shutil.copyfile(os.path.join(dirpath, filename),
+                            os.path.join(new_dir, filename))
             

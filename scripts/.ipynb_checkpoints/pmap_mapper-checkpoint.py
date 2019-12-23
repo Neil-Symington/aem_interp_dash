@@ -44,18 +44,27 @@ for filename in glob.glob(os.path.join(pmap_dir, "*.mat")):
     # Get the fid
     fid = np.float('.'.join([filename.split('.')[3],
                             filename.split('.')[4]]))
-    pmap_files[fid] = filename
+    seq = np.int(filename.split('.')[1])
+    pmap_files[(fid, seq)] = filename
 
 # Iterate through the geodataframe
 for index, row in gdf_AEM.iterrows():
     fid = np.float(row['fiducial '])
+    seq = np.int(row['uniqueid '])
     # Use this fid to find the pmap file from the directory
     for item in pmap_files.keys():
-        if np.round(item,1) == np.round(fid,1):
-            gdf_AEM.at[index, 'matfile'] = pmap_files[item]
-            continue
+        if np.round(item[0],1) == np.round(fid,1):
+            if seq == item[1]:
+                gdf_AEM.at[index, 'matfile'] = pmap_files[item]
+                continue
     
         
 # Export the file
 
 gdf_AEM.to_csv(infile + '_map.csv', index = False)
+
+# Now create a shapefile
+
+gdf_AEM.crs = {'init' :'epsg:28352'}
+
+gdf_AEM.to_file(infile + '.shp')
