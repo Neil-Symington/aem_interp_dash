@@ -25,6 +25,8 @@ Utility functions for dealing with netcdf data
 '''
 
 import netCDF4
+import numpy as np
+import spatial_functions
 
 def get_lines(dataset, line_numbers, variables):
     """
@@ -43,7 +45,7 @@ def get_lines(dataset, line_numbers, variables):
         line_numbers = [line_numbers]
 
     # Chekc netcdf dataset
-    if not netCDF_dataset.__class__ == netCDF4._netCDF4.Dataset:
+    if not dataset.__class__ == netCDF4._netCDF4.Dataset:
         raise ValueError("Input datafile is not netCDF4 format")
         return None
 
@@ -59,7 +61,7 @@ def get_lines(dataset, line_numbers, variables):
         yield line, line_dict
 
 
-def extract_rj_sounding(point_index = 0):
+def extract_rj_sounding(rj_dat, lci_dat, point_index = 0):
     """
     A function for extracting rj data into numpy arrays within a python dictionary
     """
@@ -99,7 +101,10 @@ def extract_rj_sounding(point_index = 0):
     p50 = np.power(10,rj_dat['p50_model'][point_index].data)
     p90 = np.power(10,rj_dat['p90_model'][point_index].data)
 
-    distances, indices = nearest_neighbours([easting, northing], lci_coords, max_distance = 50.)
+    lci_coords = np.column_stack((lci_dat['easting'][:],
+                          lci_dat['northing'][:]))
+
+    distances, indices = spatial_functions.nearest_neighbours([easting, northing], lci_coords, max_distance = 50.)
 
     point_ind_lci = indices[0]
 

@@ -28,7 +28,12 @@ from netcdf_utils import get_lines
 import spatial_functions
 import numpy as np
 import h5py
-import gc
+import gc, os
+import netCDF4
+import math
+import spatial_functions
+from scipy.interpolate import griddata
+from scipy.interpolate import interp1d
 
 class ConductivitySections:
     """
@@ -108,7 +113,7 @@ class ConductivitySections:
             var_dict['reverse_line'] = False
 
         # Find distance along the line
-        distances = coords2distance(utm_coordinates)
+        distances = spatial_functions.coords2distance(utm_coordinates)
         var_dict['distances'] = distances
 
         # Calculate 'grid' distances
@@ -153,7 +158,7 @@ class ConductivitySections:
             cond_var_dict['reverse_line'] = False
 
         # Add distance array to dictionary
-        cond_var_dict['distances'] = coords2distance(utm_coordinates)
+        cond_var_dict['distances'] = spatial_functions.coords2distance(utm_coordinates)
 
         # Add number of layers to the array
         cond_var_dict['nlayers'] = self.conductivity_model.dimensions['layer'].size
@@ -520,27 +525,57 @@ def interpolate_2d_vars(vars_2d, var_dict, xres, yres):
         # Yield the generator and the dictionary with added variables
         yield interpolated_var, var_dict
 
-def coords2distance(coordinate_array):
-    '''
-    From geophys_utils, transect_utils
 
-    Function to calculate cumulative distance in metres from native (lon/lat) coordinates
-    @param coordinate_array: Array of shape (n, 2) or iterable containing coordinate pairs
+# Pull data from h5py object to a dictionary
+def extract_hdf5_grids(f, plot_vars):
+    """
 
-    @return distance_array: Array of shape (n) containing cumulative distances from first coord
-    '''
-    coord_count = coordinate_array.shape[0]
-    distance_array = np.zeros((coord_count,), coordinate_array.dtype)
-    cumulative_distance = 0.0
-    distance_array[0] = cumulative_distance
-    last_point = coordinate_array[0]
+    :param f: hdf5 file
+    :param plot_vars:
+    :return:
+    dictionary with interpolated datasets
+    """
 
-    for coord_index in range(1, coord_count):
-        point = coordinate_array[coord_index]
-        distance = math.sqrt(math.pow(point[0] - last_point[0], 2.0) + math.pow(point[1] - last_point[1], 2.0))
-        distance = line_length((point, last_point))
-        cumulative_distance += distance
-        distance_array[coord_index] = cumulative_distance
-        last_point = point
+    datasets = {}
 
-    return distance_array
+    for item in f.values():
+        if item.name[1:] in plot_vars:
+            datasets[item.name[1:]] = item[()]
+        # We also need to know easting, northing, doi, elevations and grid elevations
+        if item.name[1:] == 'easting':
+            datasets['easting'] = item[()]
+        if item.name[1:] == 'northing':
+            datasets['northing'] = item[()]
+        if item.name[1:] == 'grid_elevations':
+            datasets['grid_elevations'] = item[()]
+        if item.name[1:] == 'depth_of_investigation':
+            datasets['depth_of_investigation'] = item[()]
+        if item.name[1:] == 'elevation':
+            datasets['elevation'] = item[()]
+        if item.name[1:] == 'grid_distances':
+            datasets['grid_distances'] = item[()]
+        if item.name[1:] == 'flm_layer_top_depth':
+            datasets['flm_layer_top_depth'] = item[()]
+
+    return datasets
+
+def interpolate_1d_vars(vars_1D, var_dict, resampling_method='linear'):
+    """
+    Interpolate the 1D variables onto regular distance axes
+
+    """
+    # Iterate through the 1D variables, interpolate them onto the distances that were used for
+    # the 2D variable gridding and add it to the dictionary
+
+    for var in vars_1D:
+
+        varray = griddata(var_dict['distances'],
+                          var_dict[var], var_dict['grid_distances'],
+                          method=resampling_method)
+
+        # Reverse the grid if it is west to east
+
+        if var_dict['reverse_line']:
+            varray = varray[::-1]
+
+        yield varray

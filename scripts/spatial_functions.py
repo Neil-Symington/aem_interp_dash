@@ -25,6 +25,7 @@ Spatial functions used for various bits an pieces
 
 from scipy.spatial.ckdtree import cKDTree
 import numpy as np
+import math
 
 def depth_to_thickness(depth):
     """
@@ -44,7 +45,7 @@ def depth_to_thickness(depth):
     elif len(depth.shape) == 2:
         thickness[:, 0:-1] = depth[:, 1:] - depth[:, :-1]
         return thickness
-        
+
     elif len(depth.shape) == 3:
 
         thickness[:-1,:,:] = depth[1:,:, :] - depth[:-1,:, :]
@@ -79,3 +80,38 @@ def nearest_neighbours(points, coords, points_required = 1,
         distances[~mask] = np.nan
 
     return distances, indices
+
+def line_length(line):
+    '''
+    Function to return length of line
+    @param line: iterable containing two two-ordinate iterables, e.g. 2 x 2 array or 2-tuple of 2-tuples
+
+    @return length: Distance between start & end points in native units
+    '''
+    return math.sqrt(math.pow(line[1][0] - line[0][0], 2.0) +
+                     math.pow(line[1][1] - line[0][1], 2.0))
+
+def coords2distance(coordinate_array):
+    '''
+    From geophys_utils, transect_utils
+
+    Function to calculate cumulative distance in metres from native (lon/lat) coordinates
+    @param coordinate_array: Array of shape (n, 2) or iterable containing coordinate pairs
+
+    @return distance_array: Array of shape (n) containing cumulative distances from first coord
+    '''
+    coord_count = coordinate_array.shape[0]
+    distance_array = np.zeros((coord_count,), coordinate_array.dtype)
+    cumulative_distance = 0.0
+    distance_array[0] = cumulative_distance
+    last_point = coordinate_array[0]
+
+    for coord_index in range(1, coord_count):
+        point = coordinate_array[coord_index]
+        distance = math.sqrt(math.pow(point[0] - last_point[0], 2.0) + math.pow(point[1] - last_point[1], 2.0))
+        distance = line_length((point, last_point))
+        cumulative_distance += distance
+        distance_array[coord_index] = cumulative_distance
+        last_point = point
+
+    return distance_array
