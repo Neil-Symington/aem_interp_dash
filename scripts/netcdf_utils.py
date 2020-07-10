@@ -130,3 +130,21 @@ def extract_rj_sounding(rj_dat, lci_dat, point_index = 0):
            "nchains": nchains, 'burnin': burnin, 'misfit': misfit, 'sample_no': sample_no, 'cond_cells': cond_cells, 'lci_cond': lci_cond,
            'lci_depth_top': lci_depth_top, 'lci_doi': lci_doi, 'line': line, 'northing': northing, 'easting': easting, 'fiducial': fiducial,
            'elevation': elevation}
+
+def testNetCDFDataset(netCDF_dataset):
+    """Test if datafile is netcdf.
+    TODO add a check of necessary parameters
+
+    Parameters
+    ----------
+    netCDF_dataset : object
+        netcdf AEM dataset.
+
+    Returns
+    -------
+    boolean
+
+    """
+
+
+    return netCDF_dataset.__class__ == netCDF4._netCDF4.Dataset
