@@ -349,14 +349,7 @@ class ConductivitySections:
         if return_dict:
             return interpolated
 
-def save_dict_to_hdf5(fname, dictionary):
-    """
-    Save a dictionary to hdf5
-    """
-    f = h5py.File(fname, "w")
-    for key in dictionary.keys():
-        dset = f.create_dataset(key, data=dictionary[key])
-    f.close()
+
 
 def purge_invalid_elevations(var_grid, grid_y, min_elevation_grid, max_elevation_grid, yres):
     """
@@ -558,24 +551,3 @@ def extract_hdf5_grids(f, plot_vars):
             datasets['flm_layer_top_depth'] = item[()]
 
     return datasets
-
-def interpolate_1d_vars(vars_1D, var_dict, resampling_method='linear'):
-    """
-    Interpolate the 1D variables onto regular distance axes
-
-    """
-    # Iterate through the 1D variables, interpolate them onto the distances that were used for
-    # the 2D variable gridding and add it to the dictionary
-
-    for var in vars_1D:
-
-        varray = griddata(var_dict['distances'],
-                          var_dict[var], var_dict['grid_distances'],
-                          method=resampling_method)
-
-        # Reverse the grid if it is west to east
-
-        if var_dict['reverse_line']:
-            varray = varray[::-1]
-
-        yield varray
