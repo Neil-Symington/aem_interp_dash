@@ -35,320 +35,44 @@ import spatial_functions
 from scipy.interpolate import griddata
 from scipy.interpolate import interp1d
 
-class ConductivitySections:
+def AEM_baseplot(stoch_inv, det_inv, layer_number = 1):
+    ## TODO add a plot parameter file
+    """Create the fig and axis for a base plot showing LCI grids and rj scatter
+    points.
+
+    Parameters
+    ----------
+    stoch_inv : object
+        Inversion class of type stochastic.
+    deth_inv : object
+        Inversion class of type deterministic.
+    layer_number: int
+        The layer number that will be plotted
+    Returns
+    -------
+    type
+        Matplotlib fig and axis.
+
     """
-    VerticalSectionPlot class for functions for creating vertical section plots
-    from netcdf file
-    """
-
-    def __init__(self,netCDFConductivityDataset = None, netCDFemDataset = None):
-
-        """
-        :param netCDFConductivityDataset: netcdf line dataset with
-         conductivity model
-        :param netCDFemDataset: netcdf line dataset with
-         EM measurements
-        """
-        if netCDFConductivityDataset is not None:
-            if not self.testNetCDFDataset(netCDFConductivityDataset):
-                raise ValueError("Input datafile is not netCDF4 format")
-            else:
-                self.conductivity_model = netCDFConductivityDataset
-                self.conductivity_variables = []
-        else:
-            self.conductivity_model = None
-
-        # If datafile is given then check it is a netcdf file
-
-        if netCDFemDataset is not None:
-            if not self.testNetCDFDataset(netCDFemDataset):
-                raise ValueError("Input datafile is not netCDF4 format")
-            else:
-                self.EM_data = netCDFemDataset
-                self.dataLineUtils = NetCDFLineUtils(self.EM_data)
-                self.EM_variables = []
-        else:
-            self.EM_data = None
-
-    def save_dict_to_hdf5(self, fname, dictionary):
-        """
-        Save a dictionary to hdf5
-        """
-        f = h5py.File(fname, "w")
-
-        for key in dictionary.keys():
-            dset = f.create_dataset(key, data=dictionary[key])
-        f.close()
-
-    def testNetCDFDataset(self, netCDF_dataset):
-        """
-        A  function to test if correctly if file is formatted netCDF4 file
-
-        :param netCDF_dataset: netCDF4 dataset
-        :return:
-
-        True if correct, False if not
-        """
-
-        return netCDF_dataset.__class__ == netCDF4._netCDF4.Dataset
-
-    def interpolate_data_coordinates(self, line, var_dict, gridding_params):
-        """
-
-        :param line:
-        :param var_dict:
-        :param gridding_params:
-        :return:
-        """
-        # Create a dictionary into whcih to write interpolated coordinates
-        interpolated = {}
-
-        # Define coordinates
-        utm_coordinates = np.columns_stack(var_dict['easting'],
-                                           var_dict['northing'])
-
-        if utm_coordinates[0, 0] > utm_coordinates[-1, 0]:
-            var_dict['reverse_line'] = True
-        else:
-            var_dict['reverse_line'] = False
-
-        # Find distance along the line
-        distances = spatial_functions.coords2distance(utm_coordinates)
-        var_dict['distances'] = distances
-
-        # Calculate 'grid' distances
-
-        var_dict['grid_distances'] = np.arange(distances[0], distances[-1], gridding_params['xres'])
-
-        # Interpolate the two coordinate variables
-        interp1d = interpolate_1d_vars(['easting', 'northing'],
-                                       var_dict, gridding_params['resampling_method'])
-
-        for var in ['easting', 'northing']:
-            # Generator yields the interpolated variable array
-            interpolated[var] = next(interp1d)
-
-        return interpolated, var_dict
-
-
-    def grid_conductivity_variables(self, line, cond_var_dict, gridding_params, smoothed = False):
-
-        """
-
-        :param line:
-        :param cond_var_dict:
-        :return:
-        """
-
-        # Create an empty dictionary
-        interpolated = {}
-
-        # If the line is west to east we want to reverse the coord
-        # array and flag it
-
-        # Define coordinates
-        utm_coordinates = np.column_stack((cond_var_dict['easting'],
-                                          cond_var_dict['northing']))
-
-
-        # Add the flag to the dictionary
-        if utm_coordinates[0, 0] > utm_coordinates[-1, 0]:
-            cond_var_dict['reverse_line'] = True
-        else:
-            cond_var_dict['reverse_line'] = False
-
-        # Add distance array to dictionary
-        cond_var_dict['distances'] = spatial_functions.coords2distance(utm_coordinates)
-
-        # Add number of layers to the array
-        cond_var_dict['nlayers'] = self.conductivity_model.dimensions['layer'].size
-
-        # Interpolate 2D and 1D variables
-
-        vars_2d = [v for v in self.conductivity_variables if cond_var_dict[v].ndim == 2]
-        vars_1d = [v for v in self.conductivity_variables if cond_var_dict[v].ndim == 1]
-
-        # Generator for inteprolating 2D variables from the vars_2d list
-        if not smoothed:
-            interp2d = interpolate_2d_vars(vars_2d, cond_var_dict, gridding_params['xres'],
-                                       gridding_params['yres'])
-        else:
-            interp2d = interpolate_2d_vars_smooth(vars_2d, cond_var_dict, gridding_params['xres'],
-                                           gridding_params['yres'], gridding_params['layer_subdivisions'],
-                                           gridding_params['resampling_method'])
-
-        for var in vars_2d:
-            # Generator yields the interpolated variable array
-            interpolated[var], cond_var_dict = next(interp2d)
-
-        # Add grid distances and elevations to the interpolated dictionary
-        interpolated['grid_distances'] = cond_var_dict['grid_distances']
-        interpolated['grid_elevations'] = cond_var_dict['grid_elevations']
-
-        # Generator for inteprolating 1D variables from the vars_1d list
-        interp1d = interpolate_1d_vars(vars_1d, cond_var_dict,
-                                       gridding_params['resampling_method'])
-
-        for var in vars_1d:
-            # Generator yields the interpolated variable array
-            interpolated[var] = next(interp1d)
-
-        return interpolated
-
-    def xy_2_var(self, grid_dict, xy, var):
-        """
-        Function for finding a variable for gridded AEM sections
-        given an input easting and northing
-        @ param: grid_dict :dictionary for gridded line data
-        @ param: xy: numpy array with easting and northing
-        @ param: var: string with variable name
-        returns
-        float: distance along line
-        """
-        utm_coords = np.column_stack((grid_dict['easting'],
-                                      grid_dict['northing']))
-
-        d, i = spatial_functions.nearest_neighbours(xy,
-                                                    utm_coords,
-                                                    points_required=1,
-                                                    max_distance=100.)
-        if np.isnan(d[0]):
-            return None
-
-        else:
-            near_ind = i[0]
-
-            return grid_dict[var][near_ind]
-
-    def grid_variables(self, xres, yres, lines,
-                       layer_subdivisions = None, resampling_method = 'linear',
-                       smoothed = False, save_hdf5 = False, hdf5_dir = None,
-                       overwrite_hdf5 = True, return_dict = True):
-        """
-        A function for interpolating 1D and 2d variables onto a vertical grid
-        cells size xres, yres
-        :param xres: Float horizontal cell size along the line
-        :param yres: Float vertical cell size
-        :param lines: int single line or list of lines to be gridded
-        :param layer_subdivisions:
-        :param resampling_method: str or int, optional - from scipy gridata
-        :param save_hdf5: Boolean parameter indicating whether interpolated variables
-         get saved as hdf or no
-        :param hdf5_dir: path of directory into which the hdf5 files are saved
-        :param overwrite_hdf5: Boolean parameter referring to if the user wants to
-         overwrite any pre-existing files
-        :param return_dict: Boolean parameter indicating if a dictionary is returned or not
-        :return:
-        dictionary with interpolated variables as numpy arrays
-        """
-
-        # Create a line utils for each object if the objects exist
-        if self.conductivity_model is not None:
-            # Flag for if dta was included in the plot section initialisation
-            plot_cond = True
-            # Add key variables if they aren't in the list to grid
-            for item in ['easting', 'northing', 'elevation', 'layer_top_depth']:
-                if item not in self.conductivity_variables:
-                    self.conductivity_variables.append(item)
-        else:
-            plot_cond = False
-
-        if self.EM_data is not None:
-            # Flag for if dta was included in the plot section initialisation
-            plot_dat = True
-
-        else:
-            plot_dat = False
-
-        # If line is not in an array like object then put it in a list
-        if type(lines) == int:
-            lines = [lines]
-        elif isinstance(lines ,(list, tuple, np.ndarray)):
-            pass
-        else:
-            raise ValueError("Check lines variable.")
-
-        # First create generators for returning coordinates and variables for the lines
-
-        if plot_cond:
-            cond_lines= get_lines(self.conductivity_model,
-                                  line_numbers=lines,
-                                  variables=self.conductivity_variables)
-        if plot_dat:
-            dat_lines = get_lines(self.EM_data, line_numbers=lines,
-                                  variables=self.EM_variables)
-
-        # Interpolated results will be added to a dictionary
-        interpolated = {}
-
-        # Create a gridding parameters dictionary
-
-        gridding_params = {'xres': xres, 'yres': yres,
-                          'layer_subdivisions': layer_subdivisions,
-                           'resampling_method': resampling_method}
-
-        # Iterate through the lines
-        for i in range(len(lines)):
-
-            # Extract the variables and coordinates for the line in question
-            if plot_cond:
-
-                line_no, cond_var_dict = next(cond_lines)
-
-                cond_var_dict['utm_coordinates'] = np.column_stack((cond_var_dict['easting'],
-                                                                    cond_var_dict['northing']))
-
-                interpolated[line_no] =  self.grid_conductivity_variables(line_no, cond_var_dict,
-                                                                          gridding_params, smoothed=smoothed)
-
-            if plot_dat:
-                # Extract variables from the data
-                line_no, data_var_dict = next(dat_lines)
-
-                data_var_dict['utm_coordinates'] = np.column_stack((cond_var_dict['easting'],
-                                                                    cond_var_dict['northing']))
-
-                # If the conductivity variables have not been plotted then we need to interpolate the coordinates
-
-                if not plot_cond:
-
-                    interpolated[line_no], data_var_dict = self.interpolate_data_coordinates(line_no,data_var_dict,
-                                                                                        gridding_params)
-
-                interpolated_utm = np.column_stack((interpolated[line_no]['easting'],
-                                              interpolated[line_no]['northing']))
-
-                # Generator for interpolating data variables from the data variables list
-                interp_dat = interpolate_data(self.EM_variables, data_var_dict, interpolated_utm,
-                                              resampling_method)
-
-                for var in self.EM_variables:
-
-                    interpolated[line_no][var] = next(interp_dat)
-
-            # Save to hdf5 file if the keyword is passed
-            if save_hdf5:
-                fname = os.path.join(hdf5_dir, str(line_no) + '.hdf5')
-                if overwrite_hdf5:
-                    self.save_dict_to_hdf5(fname, interpolated[line_no])
-                else:
-                    if os.path.exists(fname):
-                        print("File ", fname, " already exists")
-                    else:
-                        self.save_dict_to_hdf5(fname, interpolated[line_no])
-
-            # Many lines may fill up memory so if the dictionary is not being returned then
-            # we garbage collect
-            if not return_dict:
-
-                del interpolated[line_no]
-
-                # Collect the garbage
-                gc.collect()
-
-        if return_dict:
-            return interpolated
-
+    # Do some checks
+    assert hasattr(det_inv, 'layer_grids')
+    assert det_inv.inversion_type == 'deterministic'
+    assert stoch_inv.inversion_type == 'stochastic'
+
+    fig, ax = plt.subplots(1,1,figsize = (12,12))
+
+    grid = ax.imshow(np.log10(det_inv.layer_grids['Layer_' + str(layer_number)]['conductivity']),
+              extent = det_inv.layer_grids['bounds'], cmap = 'jet',
+              vmin = -3, vmax = 0)
+    fig.colorbar(grid)
+
+    ax.scatter(stoch_inv.coords[:,0],stoch_inv.coords[:,1], c='k', s=4.)
+
+    ax.set_xlim(stoch_inv.conductivity_data.geospatial_east_min - 500,
+                stoch_inv.conductivity_data.geospatial_east_max + 500)
+    ax.set_ylim(stoch_inv.conductivity_data.geospatial_north_min - 500,
+                stoch_inv.conductivity_data.geospatial_north_max + 500)
+    return fig, ax
 
 
 def purge_invalid_elevations(var_grid, grid_y, min_elevation_grid, max_elevation_grid, yres):

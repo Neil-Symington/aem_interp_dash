@@ -66,16 +66,22 @@ class AEM_inversion:
             # Check netcdf file
             if netcdf_dataset is not None:
                 if testNetCDFDataset(netcdf_dataset):
-                    self.conductivity_model = netcdf_dataset
+                    self.conductivity_data = netcdf_dataset
                 else:
                     raise ValueError("Input datafile is not netCDF4 format")
                     return None
+                # Create an instance variable of the coordinates
+                self.coords = np.column_stack((netcdf_dataset['easting'][:],
+                                               netcdf_dataset['northing'][:])).data
+                # Get some of the usefule metadata from the netcdf file
+                self.xmin = netcdf_dataset.geospatial_east_min
+                self.xmax = netcdf_dataset.geospatial_east_max
+                self.ymin = netcdf_dataset.geospatial_north_min
+                self.ymax = netcdf_dataset.geospatial_north_max
 
             else:
-                self.conductivity_model = None
-            # Create an instance variable of the coordinates
-            self.coords = np.column_stack((netcdf_dataset['easting'][:],
-                                           netcdf_dataset['northing'][:]))
+                self.conductivity_data = None
+
 
         def grid_sections(self, variables, lines, xres, yres, resampling_method = 'cubic', return_interpolated = False, save_hdf5 = True, hdf5_dir = None):
             """A function for gridding AEM inversoin variables into sections.

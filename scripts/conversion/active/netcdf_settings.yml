@@ -2,6 +2,8 @@ field_definitions:
   # 1D Variables
   x: {long_name: UTM Easting (x) ordinate, short_name: easting, units: m}
   y: {long_name: UTM Northing (y) ordinate, short_name: northing, units: m}
+  lat: {long_name: Latitude, short_name: latitude, units: degrees North}
+  lon: {long_name: Longitude, short_name: longitude, units: degrees East}
   line: {long_name: Line number, short_name: line}
   elevation: {long_name: Ground elevation relative to local datum, short_name: elevation,
     units: m}
@@ -73,5 +75,5 @@ dimension_fields:
   convergence_sample: {dimension_name: convergence_sample}
 
 crs:
-  projected: {name: GDA94_zone_52, egsg: 28352}
-  transformed: {name: GDA_2020, epsg: 7842}
+  projected: {epsg: 28352}
+  geographic: {epsg: 7844}

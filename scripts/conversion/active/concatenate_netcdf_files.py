@@ -33,8 +33,7 @@ import numpy as np
 import glob
 import yaml
 import datetime
-from pyproj import Proj, transform
-
+from pyproj import CRS,Transformer
 
 # Find the file paths from the pmap directory
 indir = r"C:\Users\PCUser\Desktop\NSC_data\data\AEM\DR\garjmcmctdem_workshop\combined\pmaps"
@@ -72,6 +71,13 @@ for key in settings["field_definitions"].keys():
         dtype = var.dtype
         arr = np.zeros(shape = shape, dtype = dtype)
         var_dict[key]['values'] = arr
+    # Special flag for longitude and latitudes if they aren't in the file
+    elif np.logical_or(key == 'lat',key == 'lon'):
+        shape = (n_files)
+        dtype = np.float64
+        arr = np.zeros(shape = shape, dtype = dtype)
+        var_dict[key]['values'] = arr
+
     # For scalar variables
     else:
         try:
@@ -81,7 +87,7 @@ for key in settings["field_definitions"].keys():
             arr = np.zeros(shape = shape, dtype = dtype)
             var_dict[key]['values'] = arr
         except AttributeError:
-            print(var, " is neither a scalar or variable. Check settings file")
+            print(key, " is neither a scalar or variable. Check settings file")
 
 # Now we populate the arrays
 dataset = None
@@ -89,7 +95,10 @@ for i, file in enumerate(fnames):
     dataset = netCDF4.Dataset(file)
 
     for key in var_dict:
-        if len(var_dict[key]['values'].shape) == 1:
+        # We will deal with these later
+        if np.logical_or(key == 'lat',key == 'lon'):
+            pass
+        elif len(var_dict[key]['values'].shape) == 1:
             # Get the scalar
             val = getattr(dataset, key)
             var_dict[key]['values'][i] = val
@@ -97,6 +106,18 @@ for i, file in enumerate(fnames):
             # Get the variable
             arr = dataset.variables[key][:]
             var_dict[key]['values'][i] = arr
+
+
+# Now we get our longitudes and latitudes using the crs defined in the settings file
+crs_projected = CRS.from_epsg(settings['crs']['projected']['epsg'])
+crs_geographic = CRS.from_epsg(settings['crs']['geographic']['epsg'])
+
+transformer = Transformer.from_crs(crs_projected, crs_geographic, always_xy=True)
+
+lon, lat = transformer.transform(var_dict['x']['values'],var_dict['y']['values'])
+
+var_dict['lon']['values'] = lon
+var_dict['lat']['values'] = lat
 
 # Now we want to create a dimensions dictionary with field names and sizes
 
@@ -129,7 +150,7 @@ for key in var_dict.keys():
 
 # Now we create a new netcdf file
 
-rootgrp = netCDF4.Dataset(r"..\DR_rjmcmc_pmaps_2.nc", "w", format="NETCDF4")
+rootgrp = netCDF4.Dataset(r"C:\Users\PCUser\Desktop\NSC_data\data\AEM\DR\garj_workshop2\DR_rjmcmc_pmaps.nc", "w", format="NETCDF4")
 
 point = rootgrp.createDimension("point", None)
 
@@ -162,67 +183,30 @@ for key in var_dict.keys():
     if 'units' in var_dict[key].keys():
         nc_vars[key].units = var_dict[key]['units']
 
-## TODO add latitude and longitudes
+## Add some key metadata information
 
 rootgrp.setncattr("value_parameterization",dataset.value_parameterization)
 rootgrp.setncattr("position_parameterization",dataset.position_parameterization)
 rootgrp.setncattr('keywords', settings['keywords'])
 rootgrp.setncattr('date_created', str(datetime.datetime.utcnow()))
-rootgrp.setncattr('crs', settings['crs']['projected']['name'])
+rootgrp.setncattr('crs', crs_projected.name)
+rootgrp.setncattr('crs_geographic',crs_geographic.name)
 
-# Now we will get the geographic coordiante system
-
-# First convert
-
-inepsg = "epsg:" + str(settings['crs']['transformed']['epsg'])
-inProj = Proj(init=inepsg)
-outProj = Proj(init='epsg:4326')
-x1,y1 = -11705274.6374,4826473.6922
-x2,y2 = transform(inProj,outProj,x1,y1)
-print x2,y2
-# Now we will add some additional attributes and variables
-
-
-try:
-
-    rootgrp.setncattr('geospatial_east_min', np.min(var_dict['x']['values']))
-    rootgrp.setncattr('geospatial_east_max', np.max(var_dict['x']['values']))
-    rootgrp.setncattr('geospatial_east_units', 'm')
-    rootgrp.setncattr('geospatial_north_min', np.min(var_dict['y']['values']))
-    rootgrp.setncattr('geospatial_north_max', np.max(var_dict['y']['values']))
-    rootgrp.setncattr('geospatial_north_units', 'm')
-    rootgrp.setncattr('geospatial_vertical_min', np.min(var_dict['elevation']['values']))
-    rootgrp.setncattr('geospatial_vertical_max', np.max(var_dict['elevation']['values']))
-    rootgrp.setncattr('geospatial_vertical_units', 'm')
-except Error:
-    pass
-
-['geospatial_east_min',
- 'geospatial_east_max',
- 'geospatial_east_units',
- 'geospatial_north_min',
- 'geospatial_north_max',
- 'geospatial_north_units',
- 'title',
- 'Conventions',
- 'featureType',
- 'geospatial_vertical_min',
- 'geospatial_vertical_max',
- 'geospatial_vertical_units',
- 'geospatial_vertical_resolution',
- 'geospatial_vertical_positive',
- 'history',
- 'date_created',
- 'geospatial_east_resolution',
- 'geospatial_north_resolution',
- 'geospatial_bounds',
- 'keywords',
- 'geospatial_lon_min',
- 'geospatial_lon_max',
- 'geospatial_lon_units',
- 'geospatial_lat_min',
- 'geospatial_lat_max',
- 'geospatial_lat_units']
-
+# Add some geospatial metdata
+rootgrp.setncattr('geospatial_east_min', np.min(var_dict['x']['values']))
+rootgrp.setncattr('geospatial_east_max', np.max(var_dict['x']['values']))
+rootgrp.setncattr('geospatial_east_units', 'm')
+rootgrp.setncattr('geospatial_north_min', np.min(var_dict['y']['values']))
+rootgrp.setncattr('geospatial_north_max', np.max(var_dict['y']['values']))
+rootgrp.setncattr('geospatial_north_units', 'm')
+rootgrp.setncattr('geospatial_vertical_min', np.min(var_dict['elevation']['values']))
+rootgrp.setncattr('geospatial_vertical_max', np.max(var_dict['elevation']['values']))
+rootgrp.setncattr('geospatial_vertical_units', 'm')
+rootgrp.setncattr('geospatial_lon_min', np.min(var_dict['lon']['values']))
+rootgrp.setncattr('geospatial_lon_max', np.max(var_dict['lon']['values']))
+rootgrp.setncattr('geospatial_lont_units', 'degrees East')
+rootgrp.setncattr('geospatial_lat_min', np.min(var_dict['lat']['values']))
+rootgrp.setncattr('geospatial_lon_max', np.max(var_dict['lat']['values']))
+rootgrp.setncattr('geospatial_lont_units', 'degrees North')
 
 rootgrp.close()
