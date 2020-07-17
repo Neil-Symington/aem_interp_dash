@@ -35,7 +35,7 @@ import spatial_functions
 from scipy.interpolate import griddata
 from scipy.interpolate import interp1d
 
-def AEM_baseplot(stoch_inv, det_inv, layer_number = 1):
+def AEM_baseplot(stoch_inv, det_inv, layer_number = 1, plot_args = {}):
     ## TODO add a plot parameter file
     """Create the fig and axis for a base plot showing LCI grids and rj scatter
     points.
@@ -46,34 +46,161 @@ def AEM_baseplot(stoch_inv, det_inv, layer_number = 1):
         Inversion class of type stochastic.
     deth_inv : object
         Inversion class of type deterministic.
-    layer_number: int
-        The layer number that will be plotted
+    plot_args: dictionary
+        Dictionary with plotting variables
     Returns
     -------
     type
         Matplotlib fig and axis.
 
     """
+    # custom plot vars
+    custom_args = {'Layer_number': 10, "vmin": 0.001, "vmax": 1,
+                   'colour_stretch': 'jet',
+                   "point_size": 4, "figsize": (12,12), "point_colour": 'k',
+                   'buffer': 500.}
+
+
     # Do some checks
     assert hasattr(det_inv, 'layer_grids')
     assert det_inv.inversion_type == 'deterministic'
     assert stoch_inv.inversion_type == 'stochastic'
 
+    for item in custom_args.keys():
+        if item not in plot_args.keys():
+            plot_args[item] = custom_args
+
+
     fig, ax = plt.subplots(1,1,figsize = (12,12))
 
-    grid = ax.imshow(np.log10(det_inv.layer_grids['Layer_' + str(layer_number)]['conductivity']),
-              extent = det_inv.layer_grids['bounds'], cmap = 'jet',
-              vmin = -3, vmax = 0)
-    fig.colorbar(grid)
+    layer_number = str(int(plot_args['Layer_number']))
 
-    ax.scatter(stoch_inv.coords[:,0],stoch_inv.coords[:,1], c='k', s=4.)
+    cond_grid = np.log10(det_inv.layer_grids['Layer_' + layer_number]['conductivity'])
 
-    ax.set_xlim(stoch_inv.conductivity_data.geospatial_east_min - 500,
-                stoch_inv.conductivity_data.geospatial_east_max + 500)
-    ax.set_ylim(stoch_inv.conductivity_data.geospatial_north_min - 500,
-                stoch_inv.conductivity_data.geospatial_north_max + 500)
-    return fig, ax
+    im = ax.imshow(cond_grid, extent = det_inv.layer_grids['bounds'],
+                     cmap = plot_args['colour_stretch'],
+                     vmin = np.log10(plot_args['vmin']),
+                     vmax =np.log10(plot_args['vmax']))
 
+    ax.scatter(stoch_inv.coords[:,0],stoch_inv.coords[:,1], c=plot_args['point_colour'],
+               s = plot_args['point_size'])
+
+    buffer = plot_args['buffer']
+    ax.set_xlim(stoch_inv.data.geospatial_east_min - buffer,
+                stoch_inv.data.geospatial_east_max + buffer)
+    ax.set_ylim(stoch_inv.data.geospatial_north_min - buffer,
+                stoch_inv.data.geospatial_north_max + buffer)
+
+    # Add tick axis
+    cax = fig.add_axes([0.9, 0.25, 0.02, 0.6])
+    cb = fig.colorbar(im, cax=cax)
+    cb.ax.set_yticklabels([round(10 ** x, 4) for x in cb.get_ticks()])
+
+    return fig, ax, cax
+
+def interpreted_surface_dual_plot(surface,
+                                 plot_args = {'Panel_1':{}, 'Panel_2': {}},
+                                 update_grid = True):
+    """Create a two panel plot showing the interpolated grids and interpreted
+    points. For examples this could be comparing layer_elevation and layer_depth.
+    Or it could be showing layer elevation and layer uncertainty.
+
+    Parameters
+    ----------
+    surface : object
+        An instance of modelled_oundary class
+    plot_args: dictionary
+        Dictionary with plotting arguments
+
+    Returns
+    -------
+    figure and axis objects
+        Description of returned object.
+
+    """
+    # custom plot vars
+    custom_args = {'Panel_1': {'variable': 'layer_elevation_grid',
+                         'grid': 'standard_deviation_grid',
+                         'interpolator': 'standard_deviation_gp',
+                          "vmin": -300., "vmax": 0.,
+                         'colour_stretch': 'viridis'},
+
+            'Panel_2': {'variable': 'layer_elevation_grid',
+                         'grid': 'layer_elevation_grid',
+                         'interpolator': 'layer_elevation_gp',
+                        "vmin": 0., "vmax": 50.,
+                        'colour_stretch': 'viridis'}}
+
+    # For ease of use
+    grid_names = [plot_args["Panel_1"]['grid'], plot_args["Panel_2"]['grid']]
+    interpolator_names = [plot_args["Panel_1"]['interpolator'], plot_args["Panel_2"]['interpolator']]
+    var_names = [plot_args["Panel_1"]['variable'], plot_args["Panel_2"]['variable']]
+    # Do some checks
+    for i in range(2):
+        assert hasattr(surface, grid_names[i])
+        assert hasattr(surface, interpolator_names[i])
+        assert var_names[i] in surface.interpreted_points.keys()
+    # If plot arguments are not given we use the custom
+    for panel in custom_args.keys():
+        for item in custom_args[panel].keys():
+            if item not in plot_args[panel].keys():
+                plot_args[panel][item] = custom_args
+
+    if update_grid:
+        for i in range(2):
+            surface.fit_interpolator(variable = var_names[i],
+                                     interpolator_name = interpolator_names[i])
+
+            surface.predict_on_grid(interpolator_name = interpolator_names[i],
+                                    grid_name = grid_names[i])
+
+    fig, ax_array = plt.subplots(1,2, figsize = (12,6))
+
+    extent = surface.bounds
+
+    grid_1 = getattr(surface, grid_names[0])
+
+    im1 = ax_array[0].imshow(grid_1,extent = extent,
+                     vmin = plot_args['Panel_1']['vmin'],
+                     vmax = plot_args['Panel_1']['vmax'],
+                     cmap = plot_args['Panel_1']['colour_stretch'])
+
+    cax = fig.add_axes([0.4, 0.6, 0.01, 0.25])
+
+    fig.colorbar(im1, cax=cax)
+
+    grid_2 = getattr(surface, grid_names[1])
+
+    im2 = ax_array[1].imshow(grid_2,extent = extent,
+                     vmin = plot_args['Panel_2']['vmin'],
+                     vmax = plot_args['Panel_2']['vmax'],
+                     cmap = plot_args['Panel_2']['colour_stretch'])
+
+    cax2 = fig.add_axes([0.85, 0.6, 0.01, 0.25])
+
+    fig.colorbar(im2, cax=cax2)
+
+
+    X = np.column_stack((surface.interpreted_points['easting'],
+                         surface.interpreted_points['northing']))
+
+
+    ax_array[0].scatter(X[:,0], X[:,1], marker = 'o',
+                c = surface.interpreted_points[var_names[0]],
+                vmin = plot_args['Panel_1']['vmin'],
+                vmax = plot_args['Panel_1']['vmax'],
+                edgecolors  = 'k')
+
+    ax_array[1].scatter(X[:,0], X[:,1], marker = 'o',
+                c = surface.interpreted_points[var_names[1]],
+                vmin = plot_args['Panel_2']['vmin'],
+                vmax = plot_args['Panel_2']['vmax'],
+                edgecolors  = 'k')
+
+    ax_array[0].set_title(var_names[0])
+    ax_array[1].set_title(var_names[1])
+
+    return fig, ax_array, [cax, cax2]
 
 def purge_invalid_elevations(var_grid, grid_y, min_elevation_grid, max_elevation_grid, yres):
     """
@@ -103,175 +230,3 @@ def purge_invalid_elevations(var_grid, grid_y, min_elevation_grid, max_elevation
             pass
 
     return var_grid
-
-
-def interpolate_2d_vars(vars_2d, var_dict, xres, yres):
-    """
-    Generator to interpolate 2d variables (i.e conductivity, uncertainty)
-
-    :param vars_2d:
-    :param var_dict:
-    :param xres:
-    :param yres:
-    :return:
-    """
-
-    nlayers = var_dict['nlayers']
-
-    # Get the thickness of the layers
-
-    layer_thicknesses = spatial_functions.depth_to_thickness(var_dict['layer_top_depth'])
-
-    # Give the bottom layer a thickness of 20 metres
-
-    layer_thicknesses[:,-1] = 20.
-
-    # Get the vertical limits, note guard against dummy values > 800m
-
-    elevations = var_dict['elevation']
-
-    # Guard against dummy values which are deeper than 900 metres
-
-    max_depth = np.max(var_dict['layer_top_depth'][var_dict['layer_top_depth'] < 900.])
-
-    vlimits = [np.min(elevations) - max_depth,
-               np.max(elevations) + 5]
-
-    # Get the horizontal limits
-
-    distances = var_dict['distances']
-
-    hlimits = [np.min(distances), np.max(distances)]
-
-    # Get the x and y dimension coordinates
-
-    xres = np.float(xres)
-    yres = np.float(yres)
-
-    grid_y, grid_x = np.mgrid[vlimits[1]:vlimits[0]:-yres,
-                     hlimits[0]:hlimits[1]:xres]
-
-    grid_distances = grid_x[0]
-
-    grid_elevations = grid_y[:, 0]
-
-    # Add to the variable dictionary
-
-    var_dict['grid_elevations'] = grid_elevations
-
-    var_dict['grid_distances'] = grid_distances
-
-    # Interpolate the elevation
-
-    f = interp1d(distances, elevations)
-
-    max_elevation = f(grid_distances)
-
-    # Interpolate the layer thicknesses
-
-    grid_thicknesses = np.nan*np.ones(shape = (grid_distances.shape[0],
-                                               grid_elevations.shape[0]),
-                                      dtype = layer_thicknesses.dtype)
-
-    for j in range(layer_thicknesses.shape[1]):
-        # Guard against nans
-
-        if not np.isnan(layer_thicknesses[:,j]).any():
-            # Grid in log10 space
-            layer_thickness = np.log10(layer_thicknesses[:, j])
-            f = interp1d(distances, layer_thickness)
-            grid_thicknesses[:,j] = f(grid_distances)
-
-    # Tranform back to linear space
-    grid_thicknesses = 10**grid_thicknesses
-
-    # Interpolate the variables
-
-    # Iterate through variables and interpolate onto new grid
-    for var in vars_2d:
-
-        interpolated_var = np.nan*np.ones(grid_thicknesses.shape,
-                                          dtype = var_dict[var].dtype)
-
-        # For conductivity we interpolate in log10 space
-
-        point_var = var_dict[var]
-
-        new_var = np.ones(shape = (len(grid_distances),
-                                   nlayers))
-
-        if var == 'conductivity':
-
-            point_var = np.log10(point_var)
-
-        for j in range(point_var.shape[1]):
-
-            f = interp1d(distances, point_var[:,j])
-            new_var[:, j] = f(grid_distances)
-
-        if var == 'conductivity':
-
-            new_var = 10**(new_var)
-
-        # Now we need to place the 2d variables on the new grid
-        for i in range(grid_distances.shape[0]):
-            dtop = 0.
-            for j in range(nlayers - 1):
-                # Get the thickness
-                thick = grid_thicknesses[i,j]
-                # Find the elevation top and bottom
-                etop = max_elevation[i] - dtop
-                ebot = etop - thick
-                # Get the indices for this elevation range
-                j_ind = np.where((etop >= grid_elevations) & (ebot <= grid_elevations))
-                # Populate the section
-                interpolated_var[i, j_ind] = new_var[i,j]
-                # Update the depth top
-                dtop += thick
-
-        # Reverse the grid if it is west to east
-
-        if var_dict['reverse_line']:
-
-            interpolated_var = np.flipud(interpolated_var)
-
-        # We also want to transpose the grid so the up elevations are up
-
-        interpolated_var = interpolated_var.T
-
-        # Yield the generator and the dictionary with added variables
-        yield interpolated_var, var_dict
-
-
-# Pull data from h5py object to a dictionary
-def extract_hdf5_grids(f, plot_vars):
-    """
-
-    :param f: hdf5 file
-    :param plot_vars:
-    :return:
-    dictionary with interpolated datasets
-    """
-
-    datasets = {}
-
-    for item in f.values():
-        if item.name[1:] in plot_vars:
-            datasets[item.name[1:]] = item[()]
-        # We also need to know easting, northing, doi, elevations and grid elevations
-        if item.name[1:] == 'easting':
-            datasets['easting'] = item[()]
-        if item.name[1:] == 'northing':
-            datasets['northing'] = item[()]
-        if item.name[1:] == 'grid_elevations':
-            datasets['grid_elevations'] = item[()]
-        if item.name[1:] == 'depth_of_investigation':
-            datasets['depth_of_investigation'] = item[()]
-        if item.name[1:] == 'elevation':
-            datasets['elevation'] = item[()]
-        if item.name[1:] == 'grid_distances':
-            datasets['grid_distances'] = item[()]
-        if item.name[1:] == 'flm_layer_top_depth':
-            datasets['flm_layer_top_depth'] = item[()]
-
-    return datasets

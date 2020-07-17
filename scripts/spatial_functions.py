@@ -55,8 +55,8 @@ def depth_to_thickness(depth):
         thickness[:-1,:,:] = depth[1:,:, :] - depth[:-1,:, :]
         return thickness
 
-def nearest_neighbours(points, coords, points_required = 1,
-                       max_distance = 250.):
+def nearest_neighbours(points, coords, points_required = 1,max_distance = 250.):
+
     """
     An implementation of nearest neaighbour for spatial data that uses kdtrees
 
@@ -277,3 +277,24 @@ def interpolate_2d_vars(vars_2d, var_dict, xres, yres):
 
         # Yield the generator and the dictionary with added variables
         yield interpolated_var, var_dict
+
+def xy_2_var(grid_dict, xy, var):
+    """
+    Function for finding a variable for gridded AEM sections
+    given an input easting and northing
+    @ param: grid_dict :dictionary for gridded line data
+    @ param: xy: numpy array with easting and northing
+    @ param: var: string with variable name
+    returns
+    float: distance along line
+    """
+    utm_coords = np.column_stack((grid_dict['easting'],
+                                  grid_dict['northing']))
+
+    d, i = nearest_neighbours(xy, utm_coords, max_distance=100.)
+    if np.isnan(d[0]):
+        return None
+
+    else:
+        near_ind = i[0]
+        return grid_dict[var][near_ind]
