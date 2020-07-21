@@ -98,9 +98,8 @@ def AEM_baseplot(stoch_inv, det_inv, layer_number = 1, plot_args = {}):
 
     return fig, ax, cax
 
-def interpreted_surface_dual_plot(surface,
-                                 plot_args = {'Panel_1':{}, 'Panel_2': {}},
-                                 update_grid = True):
+def interpreted_surface_dual_plot(surface,plot_args = {'Panel_1':{}, 'Panel_2': {}},update_grid = True):
+
     """Create a two panel plot showing the interpolated grids and interpreted
     points. For examples this could be comparing layer_elevation and layer_depth.
     Or it could be showing layer elevation and layer uncertainty.
@@ -129,7 +128,7 @@ def interpreted_surface_dual_plot(surface,
                          'grid': 'layer_elevation_grid',
                          'interpolator': 'layer_elevation_gp',
                         "vmin": 0., "vmax": 50.,
-                        'colour_stretch': 'viridis'}}
+                        'colour_stretch': 'magma'}}
 
     # For ease of use
     grid_names = [plot_args["Panel_1"]['grid'], plot_args["Panel_2"]['grid']]
@@ -189,13 +188,15 @@ def interpreted_surface_dual_plot(surface,
                 c = surface.interpreted_points[var_names[0]],
                 vmin = plot_args['Panel_1']['vmin'],
                 vmax = plot_args['Panel_1']['vmax'],
-                edgecolors  = 'k')
+                edgecolors  = 'k',
+                cmap = plot_args['Panel_1']['colour_stretch'])
 
     ax_array[1].scatter(X[:,0], X[:,1], marker = 'o',
                 c = surface.interpreted_points[var_names[1]],
                 vmin = plot_args['Panel_2']['vmin'],
                 vmax = plot_args['Panel_2']['vmax'],
-                edgecolors  = 'k')
+                edgecolors  = 'k',
+                cmap = plot_args['Panel_2']['colour_stretch'])
 
     ax_array[0].set_title(var_names[0])
     ax_array[1].set_title(var_names[1])
@@ -230,3 +231,166 @@ def purge_invalid_elevations(var_grid, grid_y, min_elevation_grid, max_elevation
             pass
 
     return var_grid
+
+def plot_grid(ax, gridded_variables, variable, panel_kwargs, x_ax_var='grid_distances'):
+    """Short summary.
+
+    Parameters
+    ----------
+    ax : type
+        Description of parameter `ax`.
+    gridded_variables : type
+        Description of parameter `gridded_variables`.
+    variable : type
+        Description of parameter `variable`.
+    panel_kwargs : type
+        Description of parameter `panel_kwargs`.
+    x_ax_var : type
+        Description of parameter `x_ax_var`.
+
+    Returns
+    -------
+    type
+        Description of returned object.
+
+    """
+
+
+    # Define extents based on kwarg max depth
+
+    try:
+        min_elevation = np.min(gridded_variables['elevation']) - panel_kwargs['max_depth']
+
+    except KeyError:
+
+        min_elevation = gridded_variables['grid_elevations'][-1]
+
+    extent = (gridded_variables[x_ax_var][0], gridded_variables[x_ax_var][-1],
+              gridded_variables['grid_elevations'][-1], gridded_variables['grid_elevations'][0])
+
+    # WE will make the ylim 10% of the depth range
+
+    max_elevation = gridded_variables['grid_elevations'][0] + 0.1 * (gridded_variables['grid_elevations'][0]
+                                                                     - min_elevation)
+
+    ax.set_ylim(min_elevation, max_elevation)
+
+    # Define stretch
+    # Flag for a logarithmic stretch
+
+    try:
+        log_stretch = panel_kwargs['log_plot']
+
+    except KeyError:
+        log_stretch = False  # False unless otherwise specified
+
+    if log_stretch:
+        # Tranform the plot data
+        data = np.log10(gridded_variables[variable])
+
+    else:
+        data = gridded_variables[variable]
+        # set automatic stretch values in case vmin and vmax aren't specified
+        vmin, vmax = 0, 0.5
+
+    # Define vmin an vmax if specified
+    if 'vmin' in panel_kwargs.keys():
+        vmin = panel_kwargs['vmin']
+    if 'vmax' in panel_kwargs.keys():
+        vmax = panel_kwargs['vmax']
+
+    if log_stretch:
+        vmin, vmax = np.log10(vmin), np.log10(vmax)
+
+    # Define cmap if it is specified
+    if 'cmap' in panel_kwargs.keys():
+        cmap = panel_kwargs['cmap']
+
+    else:
+        cmap = 'jet'
+
+    # Plot data
+
+    im = ax.imshow(data, vmin=vmin, vmax=vmax,
+                   extent=extent,
+                   aspect='auto',
+                   cmap=cmap)
+
+    # Plot the elevation as a line over the section
+    line_x = np.linspace(gridded_variables[x_ax_var][0], gridded_variables[x_ax_var][-1],
+                         np.shape(gridded_variables[variable])[1])
+
+    ax.plot(line_x, gridded_variables['elevation'], 'k')
+
+    # To remove gridded values that stick above this line we will fill the sky in as white
+    ax.fill_between(line_x, max_elevation * np.ones(np.shape(line_x)),
+                    gridded_variables['elevation'], interpolate=True, color='white', alpha=1)
+
+    # Add ylabel
+    try:
+        ylabel = panel_kwargs['ylabel']
+        ax.set_ylabel(ylabel)
+    except KeyError:
+        pass
+
+    # PLot depth of investigation and make area underneath more transparent if desired
+    if panel_kwargs['shade_doi']:
+        eoi = gridded_variables['elevation'] - gridded_variables['depth_of_investigation']
+
+        ax.plot(line_x, eoi, 'k')
+
+        grid_base = gridded_variables['grid_elevations'][-1]
+
+        # Shade the belwo doi areas
+
+        ax.fill_between(line_x, eoi, grid_base, interpolate=True, color='white', alpha=0.5)
+
+    return im
+
+def plot_single_line(ax, gridded_variables, variable, panel_kwargs,  x_ax_var='grid_distances'):
+
+    """
+
+    :param ax:
+    :param gridded_variables:
+    :param variables:
+    :param panel_kwargs:
+    :return:
+    """
+    # Define the array
+
+    data = gridded_variables[variable]
+
+    if 'colour' in panel_kwargs.keys():
+        colour = panel_kwargs['colour']
+    else:
+        colour = 'black'
+
+    lin = ax.plot(gridded_variables[x_ax_var], data, colour)
+
+    # Extract ymin and ymax if specified, otherwise assign based on the range with the line dataset
+    if 'ymin' in panel_kwargs.keys():
+        ymin = panel_kwargs['ymin']
+    else:
+        ymin = np.min(data) - 0.1 * np.min(data)
+
+    if 'ymax' in panel_kwargs.keys():
+        ymax = panel_kwargs['ymax']
+    else:
+        ymax = np.max(data) - 0.1 * np.max(data)
+
+    ax.set_ylim(bottom=ymin, top=ymax, auto=False)
+
+    try:
+        ylabel = panel_kwargs['ylabel']
+        ax.set_ylabel(ylabel)
+    except KeyError:
+        pass
+
+    try:
+        if panel_kwargs['legend']:
+            ax.legend()
+    except KeyError:
+        pass
+
+    return lin

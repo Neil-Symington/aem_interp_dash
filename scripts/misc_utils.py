@@ -44,3 +44,41 @@ def dict_to_hdf5(fname, dictionary):
     for key in dictionary.keys():
         dset = f.create_dataset(key, data=dictionary[key])
     f.close()
+
+def extract_hdf5_data(file, grid_vars):
+    """Short summary.
+
+    Parameters
+    ----------
+    file : type
+        Description of parameter `file`.
+    grid_vars : type
+        Description of parameter `grid_vars`.
+
+    Returns
+    -------
+    type
+        Description of returned object.
+
+    """
+
+    datasets = {}
+
+    for item in file.values():
+        if item.name[1:] in grid_vars:
+            datasets[item.name[1:]] = item[()]
+        # We also need to know easting, northing, doi, elevations and grid elevations
+        if item.name[1:] == 'easting':
+            datasets['easting'] = item[()]
+        if item.name[1:] == 'northing':
+            datasets['northing'] = item[()]
+        if item.name[1:] == 'grid_elevations':
+            datasets['grid_elevations'] = item[()]
+        if item.name[1:] == 'depth_of_investigation':
+            datasets['depth_of_investigation'] = item[()]
+        if item.name[1:] == 'elevation':
+            datasets['elevation'] = item[()]
+        if item.name[1:] == 'grid_distances':
+            datasets['grid_distances'] = item[()]
+
+    return datasets

@@ -60,7 +60,6 @@ def get_lines(dataset, line_numbers, variables):
 
         yield line, line_dict
 
-
 def extract_rj_sounding(rj, lci, point_index = 0):
     """
     TODO: clean up this function or consider removing!!!

@@ -103,14 +103,13 @@ class modelled_boundary:
 
         Returns
         -------
-        self, dictionary
-            dictionary with interpretations
+        self, dataframe
+            dataframe with interpretations
 
         """
-        df = pd.read_csv(infile_path)
+        df = pd.read_csv(infile_path).set_index('fiducial')
 
-        for key in self.interpreted_points.keys():
-            self.interpreted_points[key] += df[key].tolist()
+        self.interpreted_points = df
 
 
     def create_interpolator(self, kernel = Matern(length_scale=5000, nu = 1.5), name = 'interpolator_1'):
@@ -137,8 +136,8 @@ class modelled_boundary:
                                                      n_restarts_optimizer=5,
                                                      normalize_y=True))
 
-    def create_grid(self, xmin, xmax, ymin, ymax, cell_size = 500., convex_hull = True,
-                   convex_hull_buffer = 1000.):
+    def create_grid(self, xmin, xmax, ymin, ymax, cell_size = 500., convex_hull = True,convex_hull_buffer = 1000.):
+
         """Function for defining a grid for interpolating the boundary onto
 
         Parameters
@@ -169,7 +168,6 @@ class modelled_boundary:
         # Create a convex hull
         if convex_hull:
             self.convex_hull = self.get_convex_hull(convex_hull_buffer = convex_hull_buffer)
-
 
     def fit_interpolator(self, variable, interpolator_name):
         """Fit the gaussian process to generate a function for prediction.
@@ -262,3 +260,81 @@ class modelled_boundary:
 
         else:
             raise ValueError("Define grid coordinates")
+
+def full_width_half_max(D, max_idx, fmax):
+    """Find the width of the probability interval that is >0.5 times the local
+    max probability.
+
+    Parameters
+    ----------
+    D: dictionary
+        Dictionary of rj sounding data
+    max_idx : interger
+        The inte
+    fmax : type
+        Description of parameter `fmax`.
+
+    Returns
+    -------
+    type
+        Description of returned object.
+
+    """
+
+    idx_upper = None
+    idx_lower = None
+
+    # positive direction
+    for idx in np.arange(max_idx, D['depth_cells'].shape[0]):
+        if D['change_point_pdf'][idx] <= fmax/2.:
+            idx_upper = idx
+            break
+    # negative direction
+    for idx in np.arange(max_idx, -1, -1):
+        if D['change_point_pdf'][idx] <= fmax/2.:
+            idx_lower = idx
+            break
+    # Now calculate the width
+    if np.logical_and(idx_upper is not None, idx_lower is not None):
+        return D['depth_cells'][idx_upper] - D['depth_cells'][idx_lower]
+    else:
+        return None
+
+
+def click2estimate(D, yclick, snap_window = 16, stdev_ceiling = 50.):
+    """Function for snapping to a layer point probability maximum from a click
+
+    Parameters
+    ----------
+    D: dictionary
+        Dictionary of rj sounding data
+    yclick : type
+        Description of parameter `yclick`.
+
+    Returns
+    -------
+    type
+        Description of returned object.
+
+    """
+
+    ymin = yclick - snap_window/2
+    ymax = yclick + snap_window/2
+
+    # Get the change point probability array for the snap window interval
+
+    idx = np.where(np.logical_and(D['depth_cells']>ymin, D['depth_cells']<ymax))
+
+    # Now find the maximum cpp from this range
+    idx_max = np.argmax(D['change_point_pdf'][idx]) + np.min(idx)
+    fmax = D['change_point_pdf'][idx_max]
+    interpreted_depth = D['depth_cells'][idx_max]
+
+    # from https://en.wikipedia.org/wiki/Full_width_at_half_maximum
+    fwhm = full_width_half_max(D, idx_max, fmax)
+
+    if fwhm is not None:
+        stdev = fwhm/(2*np.sqrt(2*np.log(2)))
+    else:
+        stdev = stdev_ceiling
+    return interpreted_depth, stdev

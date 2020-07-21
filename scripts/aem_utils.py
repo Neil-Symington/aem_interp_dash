@@ -23,14 +23,14 @@ Created on 10/7/2019
 Code for creating AEM inversion and data objects
 
 '''
-
+import h5py
 import netCDF4
 import numpy as np
 import pandas as pd
 import spatial_functions
 import netCDF4
 from netcdf_utils import get_lines, testNetCDFDataset
-from misc_utils import check_list_arg, dict_to_hdf5
+from misc_utils import check_list_arg, dict_to_hdf5, extract_hdf5_data
 import gc, glob, os
 import rasterio
 import tempfile
@@ -155,7 +155,7 @@ class AEM_inversion:
 
                 # Save to hdf5 file if the keyword is passed
                 if save_hdf5:
-                    fname = os.path.join(hdf5_dir, str(line_no) + '.hdf5')
+                    fname = os.path.join(hdf5_dir, str(int(line_no)) + '.hdf5')
                     dict_to_hdf5(fname, interpolated[line_no])
 
                 # Many lines may fill up memory so if the dictionary is not being returned then
@@ -332,3 +332,35 @@ class AEM_inversion:
             layer_grids['bounds'] = bounds
 
             self.layer_grids = layer_grids
+
+        def load_sections_from_file(self, hdf5_dir, grid_vars):
+            """Load pre-gridded AEM sections from file.
+
+            Parameters
+            ----------
+            hdf5_dir : string
+                Path to hdf5 files.
+
+            grid_vars : list
+                A list of variables to load from hdf5 files
+
+            Returns
+            -------
+            self, dictionary
+                Python dictionary with gridded line data
+
+            """
+            interpolated = {}
+            # iterate through the files
+            for file in glob.glob(os.path.join(hdf5_dir, '*.hdf5')):
+                # get line name
+
+                line = int(file.split('\\')[-1].split('.')[0])
+
+                f = h5py.File(file, 'r')
+
+                interpolated[line] = extract_hdf5_data(f, grid_vars)
+
+                f.close()
+
+            self.section_data = interpolated
