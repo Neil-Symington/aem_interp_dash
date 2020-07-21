@@ -115,6 +115,7 @@ class AEM_inversion:
 
             """
             # Check some of the arguments to ensure they are lists
+
             lines = check_list_arg(lines)
             variables = check_list_arg(variables)
 
@@ -124,12 +125,13 @@ class AEM_inversion:
                 if item not in variables:
                     variables.append(item)
 
+            self.section_variables = variables
+
             # First create generators for returning coordinates and variables for the lines
 
-            cond_lines= get_lines(self.conductivity_model,
+            cond_lines= get_lines(self.data,
                                       line_numbers=lines,
                                       variables=self.section_variables)
-
 
             # Interpolated results will be added to a dictionary
             interpolated = {}
@@ -145,26 +147,20 @@ class AEM_inversion:
                 # Extract the variables and coordinates for the line in question
                 line_no, cond_var_dict = next(cond_lines)
 
-                cond_var_dict['utm_coordinates'] = np.column_stack((cond_var_dict['easting'],
-                                                                    cond_var_dict['northing']))
-
-                interpolated[line_no] =  self.grid_conductivity_variables(line_no, cond_var_dict,
+                interpolated[line_no] =  self.grid_variables(line_no, cond_var_dict,
                                                                           gridding_params)
+
+                #cond_var_dict['utm_coordinates'] = np.column_stack((cond_var_dict['easting'],
+            #                                                        cond_var_dict['northing']))
 
                 # Save to hdf5 file if the keyword is passed
                 if save_hdf5:
                     fname = os.path.join(hdf5_dir, str(line_no) + '.hdf5')
-                    if overwrite_hdf5:
-                        dict_to_hdf5(fname, interpolated[line_no])
-                    else:
-                        if os.path.exists(fname):
-                            print("File ", fname, " already exists")
-                        else:
-                            dict_to_hdf5(fname, interpolated[line_no])
+                    dict_to_hdf5(fname, interpolated[line_no])
 
                 # Many lines may fill up memory so if the dictionary is not being returned then
                 # we garbage collect
-                if not return_dict:
+                if not return_interpolated:
 
                     del interpolated[line_no]
 
@@ -172,9 +168,9 @@ class AEM_inversion:
                     gc.collect()
 
             if return_interpolated:
-                self.section_variables = interpolated
+                self.section_data = interpolated
             else:
-                self.section_variables = None
+                self.section_data = None
 
         def grid_variables(self, line, cond_var_dict, gridding_params):
             """Function controlling the vertical gridding of 2D and 1D variable
@@ -192,11 +188,8 @@ class AEM_inversion:
             Returns
             -------
             dictionary
-                Ddictionary of inteprolated variables
+                Dictionary of inteprolated variables
             """
-            # Create path if it doesn't exist
-            if not os.path.exists(hdf5_dir):
-                os.mkdir(hdf5_dir)
 
             # Create an empty dictionary
             interpolated = {}
@@ -218,12 +211,12 @@ class AEM_inversion:
             cond_var_dict['distances'] = spatial_functions.coords2distance(utm_coordinates)
 
             # Add number of layers to the array
-            cond_var_dict['nlayers'] = self.conductivity_model.dimensions['layer'].size
+            cond_var_dict['nlayers'] = self.data.dimensions['layer'].size
 
             # Interpolate 2D and 1D variables
 
-            vars_2d = [v for v in self.conductivity_variables if cond_var_dict[v].ndim == 2]
-            vars_1d = [v for v in self.conductivity_variables if cond_var_dict[v].ndim == 1]
+            vars_2d = [v for v in self.section_variables if cond_var_dict[v].ndim == 2]
+            vars_1d = [v for v in self.section_variables if cond_var_dict[v].ndim == 1]
 
             # Generator for inteprolating 2D variables from the vars_2d list
             interp2d = spatial_functions.interpolate_2d_vars(vars_2d, cond_var_dict,

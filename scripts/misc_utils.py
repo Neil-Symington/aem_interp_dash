@@ -15,8 +15,9 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 #===============================
-import collections
+from collections import Sequence
 import h5py
+import numpy as np
 
 def check_list_arg(object):
     """Function for checking if
@@ -30,7 +31,7 @@ def check_list_arg(object):
     list object
 
     """
-    if isinstance(object, collections.Sequence):
+    if isinstance(object, (Sequence, np.ndarray)):
         return object
     else:
         return [object]

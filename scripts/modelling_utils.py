@@ -194,7 +194,7 @@ class modelled_boundary:
         gp = getattr(self,interpolator_name)
         gp.fit(X,y)
 
-    def predict_at_points(self, coordinates, interpolator_name):
+    def predict_at_points(self, coordinates, interpolator_name, return_std = True):
         """A function for predicting the from our Gaussian process.
 
         Parameters
@@ -208,9 +208,9 @@ class modelled_boundary:
 
         """
         gp = getattr(self,interpolator_name)
-        return gp.predict(coordinates)
+        return gp.predict(coordinates, return_std = return_std)
 
-    def predict_on_grid(self, interpolator_name, grid_name):
+    def predict_on_grid(self, interpolator_name, grid_name, return_std = True):
         """A function for predicting onto every point on our grid.
 
         convex_hull_buffer: float
@@ -229,7 +229,10 @@ class modelled_boundary:
 
         # Check grid coordinates are defined
         if not self.grid_coords is None:
-            grid = self.predict_at_points(self.grid_coords, interpolator_name)
+            if return_std:
+                grid, grid_std = self.predict_at_points(self.grid_coords, interpolator_name)
+            else:
+                grid = self.predict_at_points(self.grid_coords, interpolator_name, return_std = False)
 
             # If a convex hull exists then we will use it to create a mask for
             # our inteprolated grid
@@ -242,9 +245,19 @@ class modelled_boundary:
                 grid[~mask] = np.nan
                 # reshape for easy plotting
                 grid = grid.reshape((self.height,self.width)).T
+
+                ## TODO add flag
+                if return_std:
+                    grid_std = grid_std.flatten()
+                    grid_std[~mask] = np.nan
+                    # reshape for easy plotting
+                    grid_std = grid_std.reshape((self.height,self.width)).T
             except AttributeError:
                 pass
             setattr(self, grid_name, grid)
+            if return_std:
+                setattr(self, grid_name + '_std', grid_std)
+
 
 
         else:

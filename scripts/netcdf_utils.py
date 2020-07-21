@@ -61,15 +61,18 @@ def get_lines(dataset, line_numbers, variables):
         yield line, line_dict
 
 
-def extract_rj_sounding(rj_dat, lci_dat, point_index = 0):
+def extract_rj_sounding(rj, lci, point_index = 0):
     """
-    A function for extracting rj data into numpy arrays within a python dictionary
+    TODO: clean up this function or consider removing!!!
     """
+
+    rj_dat = rj.data
+    lci_dat = lci.data
 
     freq = rj_dat['log10conductivity_histogram'][point_index].data.astype(np.float)
 
-    easting = np.float(rj_dat['x'][point_index].data)
-    northing = np.float(rj_dat['y'][point_index].data)
+    easting = np.float(rj_dat['easting'][point_index].data)
+    northing = np.float(rj_dat['northing'][point_index].data)
 
     cond_pdf = freq / freq.sum(axis =1)[0]
 
@@ -83,28 +86,28 @@ def extract_rj_sounding(rj_dat, lci_dat, point_index = 0):
 
     lay_prob = laybins / freq.sum(axis =1)[0]
 
-    condmin, condmax = rj_dat.vmin, rj_dat.vmax
+    condmin, condmax = rj_dat.min_log10_conductivity, rj_dat.max_log10_conductivity
 
-    ncond_cells = rj_dat.dimensions['value'].size
+    ncond_cells = rj_dat.dimensions['conductivity_cells'].size
 
     cond_cells = np.linspace(condmin, condmax, ncond_cells)
 
-    pmin, pmax = rj_dat.pmin, rj_dat.pmax
+    pmin, pmax = rj_dat.min_depth, rj_dat.max_depth
 
-
-    depth_cells = rj_dat['depth'][point_index].data
+    depth_cells = rj_dat['layer_centre_depth'][:]
 
     extent = [cond_cells.min(), cond_cells.max(), depth_cells.max(), depth_cells.min()]
 
-    mean = np.power(10,rj_dat['mean_model'][point_index].data)
-    p10 = np.power(10,rj_dat['p10_model'][point_index].data)
-    p50 = np.power(10,rj_dat['p50_model'][point_index].data)
-    p90 = np.power(10,rj_dat['p90_model'][point_index].data)
+    mean = np.power(10,rj_dat['conductivity_mean'][point_index].data)
+    p10 = np.power(10,rj_dat['conductivity_p10'][point_index].data)
+    p50 = np.power(10,rj_dat['conductivity_p50'][point_index].data)
+    p90 = np.power(10,rj_dat['conductivity_p90'][point_index].data)
 
-    lci_coords = np.column_stack((lci_dat['easting'][:],
-                          lci_dat['northing'][:]))
+    lci_coords = np.column_stack
 
-    distances, indices = spatial_functions.nearest_neighbours([easting, northing], lci_coords, max_distance = 50.)
+    distances, indices = spatial_functions.nearest_neighbours([easting, northing],
+                                                              lci.coords,
+                                                               max_distance = 50.)
 
     point_ind_lci = indices[0]
 
@@ -117,7 +120,7 @@ def extract_rj_sounding(rj_dat, lci_dat, point_index = 0):
 
     burnin = rj_dat.nburnin
     nsamples = rj_dat.nsamples
-    sample_no = rj_dat['convergence_sample'][point_index].data
+    sample_no = np.arange(1,rj_dat.dimensions['convergence_sample'].size + 1)
     nchains = rj_dat.nchains
     elevation = rj_dat['elevation'][point_index]
     line = int(rj_dat['line'][point_index])
