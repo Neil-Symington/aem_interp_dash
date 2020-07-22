@@ -71,7 +71,7 @@ def AEM_baseplot(stoch_inv, det_inv, layer_number = 1, plot_args = {}):
             plot_args[item] = custom_args
 
 
-    fig, ax = plt.subplots(1,1,figsize = (12,12))
+    fig, ax = plt.subplots(1,1,figsize = plot_args['figsize'])
 
     layer_number = str(int(plot_args['Layer_number']))
 
@@ -124,11 +124,12 @@ def interpreted_surface_dual_plot(surface,plot_args = {'Panel_1':{}, 'Panel_2': 
                           "vmin": -300., "vmax": 0.,
                          'colour_stretch': 'viridis'},
 
-            'Panel_2': {'variable': 'layer_elevation_grid',
+                 'Panel_2': {'variable': 'layer_elevation_grid',
                          'grid': 'layer_elevation_grid',
                          'interpolator': 'layer_elevation_gp',
-                        "vmin": 0., "vmax": 50.,
-                        'colour_stretch': 'magma'}}
+                         "vmin": 0., "vmax": 50.,
+                         'colour_stretch': 'magma'},
+                  'fig_args': {'figsize': (10,10)}}
 
     # For ease of use
     grid_names = [plot_args["Panel_1"]['grid'], plot_args["Panel_2"]['grid']]
@@ -139,11 +140,14 @@ def interpreted_surface_dual_plot(surface,plot_args = {'Panel_1':{}, 'Panel_2': 
         assert hasattr(surface, grid_names[i])
         assert hasattr(surface, interpolator_names[i])
         assert var_names[i] in surface.interpreted_points.keys()
+        
     # If plot arguments are not given we use the custom
-    for panel in custom_args.keys():
-        for item in custom_args[panel].keys():
-            if item not in plot_args[panel].keys():
-                plot_args[panel][item] = custom_args
+    for key in custom_args.keys():
+        
+        for item in custom_args[key].keys():
+            if item not in plot_args[key].keys():
+                plot_args[key][item] = custom_args
+    
 
     if update_grid:
         for i in range(2):
@@ -153,7 +157,7 @@ def interpreted_surface_dual_plot(surface,plot_args = {'Panel_1':{}, 'Panel_2': 
             surface.predict_on_grid(interpolator_name = interpolator_names[i],
                                     grid_name = grid_names[i])
 
-    fig, ax_array = plt.subplots(1,2, figsize = (12,6))
+    fig, ax_array = plt.subplots(1,2, figsize = plot_args['fig_args']['figsize'])
 
     extent = surface.bounds
 
@@ -182,7 +186,6 @@ def interpreted_surface_dual_plot(surface,plot_args = {'Panel_1':{}, 'Panel_2': 
 
     X = np.column_stack((surface.interpreted_points['easting'],
                          surface.interpreted_points['northing']))
-
 
     ax_array[0].scatter(X[:,0], X[:,1], marker = 'o',
                 c = surface.interpreted_points[var_names[0]],

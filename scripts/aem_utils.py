@@ -355,7 +355,7 @@ class AEM_inversion:
             for file in glob.glob(os.path.join(hdf5_dir, '*.hdf5')):
                 # get line name
 
-                line = int(file.split('\\')[-1].split('.')[0])
+                line = int(file.split('/')[-1].split('.')[0])
 
                 f = h5py.File(file, 'r')
 
