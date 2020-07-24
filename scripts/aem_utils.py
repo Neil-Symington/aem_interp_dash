@@ -23,6 +23,7 @@ Created on 10/7/2019
 Code for creating AEM inversion and data objects
 
 '''
+import pickle
 import h5py
 import netCDF4
 import numpy as np
@@ -32,7 +33,7 @@ import netCDF4
 from netcdf_utils import get_lines, testNetCDFDataset
 from misc_utils import check_list_arg, dict_to_hdf5, extract_hdf5_data
 import gc, glob, os
-import rasterio
+#import rasterio
 import tempfile
 
 
@@ -298,38 +299,43 @@ class AEM_inversion:
                 dictionary with layer grids and metadata
 
             """
+            # This is a hack to remove the need for rasterio. We have preloaded the data into a pickle file
+            
             assert os.path.exists(inDir)
-            inDir = os.path.join(inDir, "*.ers")
+            #inDir = os.path.join(inDir, "*.ers")
+            infile = os.path.join(inDir, "lci_layer_grids.p")
+            layer_grids = pickle.load( open( infile, "rb" ) )
 
             # Dictionary to write results into
-            layer_grids = {}
+            #layer_grids = {}
 
-            for file in glob.glob(inDir):
-                layer = int(file.split('Con')[1].split('_')[0])
-                if not layer == nlayers:
-                    depth_from = float(file.split("gm_")[-1].split('.ers')[0].split('-')[0])
-                    depth_to = float(file.split("gm_")[-1].split('.ers')[0].split('-')[1].split('m')[0])
-                else:
-                    depth_from = float(file.split("gm_")[-1].split('.ers')[0].split('-')[0].split('m+')[0])
+            #for file in glob.glob(inDir):
+            #    layer = int(file.split('Con')[1].split('_')[0])
+            #    if not layer == nlayers:
+            #        depth_from = float(file.split("gm_")[-1].split('.ers')[0].split('-')[0])
+            #        depth_to = float(file.split("gm_")[-1].split('.ers')[0].split('-')[1].split('m')[0])
+            #    else:
+            #        depth_from = float(file.split("gm_")[-1].split('.ers')[0].split('-')[0].split('m+')[0])
+            #
+            #    cond_dataset = rasterio.open(file)
+            #    arr = cond_dataset.read(1)
+            #    arr[arr == cond_dataset.get_nodatavals()] = np.nan
+            #    # convert to S/m
+            #    if conversion_to_SI:
+            #        arr = arr/1000.
+            #    key = "Layer_" + str(layer)
+            #    layer_grids[key] = {}
+            #    layer_grids[key]['conductivity'] = arr
+            #    layer_grids[key]['depth_from'] = depth_from
+            #   layer_grids[key]['depth_to'] = depth_to
 
-                cond_dataset = rasterio.open(file)
-                arr = cond_dataset.read(1)
-                arr[arr == cond_dataset.get_nodatavals()] = np.nan
-                # convert to S/m
-                if conversion_to_SI:
-                    arr = arr/1000.
-                key = "Layer_" + str(layer)
-                layer_grids[key] = {}
-                layer_grids[key]['conductivity'] = arr
-                layer_grids[key]['depth_from'] = depth_from
-                layer_grids[key]['depth_to'] = depth_to
-
-            layer_grids['raster_transform'] = cond_dataset.transform
+            #layer_grids['raster_transform'] = cond_dataset.transform
             # make bounds similar to extent in matplotlib for ease of plotting
-            bounds = [cond_dataset.bounds.left, cond_dataset.bounds.right,
-                      cond_dataset.bounds.bottom, cond_dataset.bounds.top]
+            #bounds = [cond_dataset.bounds.left, cond_dataset.bounds.right,
+            #          cond_dataset.bounds.bottom, cond_dataset.bounds.top]
 
-            layer_grids['bounds'] = bounds
+            #layer_grids['bounds'] = bounds
+            
 
             self.layer_grids = layer_grids
 

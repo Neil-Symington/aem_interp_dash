@@ -71,7 +71,7 @@ def AEM_baseplot(stoch_inv, det_inv, layer_number = 1, plot_args = {}):
             plot_args[item] = custom_args
 
 
-    fig, ax = plt.subplots(1,1,figsize = plot_args['figsize'])
+    fig, ax = plt.subplots(1,1,figsize = (6,6))#plot_args['figsize'])
 
     layer_number = str(int(plot_args['Layer_number']))
 
@@ -94,7 +94,7 @@ def AEM_baseplot(stoch_inv, det_inv, layer_number = 1, plot_args = {}):
     # Add tick axis
     cax = fig.add_axes([0.9, 0.25, 0.02, 0.6])
     cb = fig.colorbar(im, cax=cax)
-    cb.ax.set_yticklabels([round(10 ** x, 4) for x in cb.get_ticks()])
+    #cb.ax.set_yticklabels([round(10 ** x, 4) for x in cb.get_ticks()])
 
     return fig, ax, cax
 

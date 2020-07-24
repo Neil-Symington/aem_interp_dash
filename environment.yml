@@ -1,4 +1,4 @@
-name: garjmcmctdem
+name: AEM_workshop
 channels:
   - defaults
   - conda-forge
