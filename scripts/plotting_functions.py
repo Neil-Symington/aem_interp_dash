@@ -572,3 +572,98 @@ def pmap_plot(D, pmap_kwargs, surface, lci, figsize = (8,8), outfile = None):
     ax_array = np.array([ax1, ax2, ax3, ax4, ax5, ax6, ax7])
     
     return fig, ax_array   
+
+def point_selection_plot(surface, coords, plot_args = {'Panel_1':{}, 'Panel_2': {}}, update_grid = True):
+
+    """
+
+    """
+    # custom plot vars
+    custom_args = {'Panel_1': {'variable': 'layer_elevation_grid',
+                               'grid': 'standard_deviation_grid',
+                               'interpolator': 'standard_deviation_gp',
+                                "vmin": -300., "vmax": 0.,
+                                'colour_stretch': 'viridis'},
+
+                 'Panel_2': {"vmin": 0., "vmax": 50.,
+                         'colour_stretch': 'magma'},
+                  'fig_args': {'figsize': (10,10)}}
+
+    # For ease of use
+    grid_names = [plot_args["Panel_1"]['grid'], plot_args["Panel_1"]['grid'] + '_std']
+    interpolator_name = plot_args["Panel_1"]['interpolator']
+    var_name = plot_args["Panel_1"]['variable']
+    # Do some checks
+    for i in range(2):
+        assert hasattr(surface, grid_names[i])
+    
+    assert hasattr(surface, interpolator_name)
+    assert var_name in surface.interpreted_points.keys()
+        
+    # If plot arguments are not given we use the custom
+    for key in custom_args.keys():
+        
+        for item in custom_args[key].keys():
+            if item not in plot_args[key].keys():
+                plot_args[key][item] = custom_args
+    
+
+    if update_grid:
+        surface.fit_interpolator(variable = var_name,
+                                 interpolator_name = interpolator_name)
+        surface.predict_on_grid(interpolator_name = interpolator_name,
+                                    grid_name = grid_names[0])
+
+    fig, ax_array = plt.subplots(1,2, figsize = plot_args['fig_args']['figsize'])
+
+    extent = surface.bounds
+
+    grid_1 = getattr(surface, grid_names[0])
+
+    im1 = ax_array[0].imshow(grid_1,extent = extent,
+                     vmin = plot_args['Panel_1']['vmin'],
+                     vmax = plot_args['Panel_1']['vmax'],
+                     cmap = plot_args['Panel_1']['colour_stretch'])
+
+    cax = fig.add_axes([0.4, 0.6, 0.01, 0.25])
+
+    fig.colorbar(im1, cax=cax)
+
+    grid_2 = getattr(surface, grid_names[1])
+
+    im2 = ax_array[1].imshow(grid_2,extent = extent,
+                     vmin = plot_args['Panel_2']['vmin'],
+                     vmax = plot_args['Panel_2']['vmax'],
+                     cmap = plot_args['Panel_2']['colour_stretch'])
+
+    cax2 = fig.add_axes([0.85, 0.6, 0.01, 0.25])
+
+    fig.colorbar(im2, cax=cax2)
+
+
+    X = np.column_stack((surface.interpreted_points['easting'],
+                         surface.interpreted_points['northing']))
+
+    ax_array[0].scatter(X[:,0], X[:,1], marker = 'o',
+                c = surface.interpreted_points[var_name],
+                vmin = plot_args['Panel_1']['vmin'],
+                vmax = plot_args['Panel_1']['vmax'],
+                edgecolors  = 'k',
+                cmap = plot_args['Panel_1']['colour_stretch'])
+
+    ax_array[1].scatter(X[:,0], X[:,1], marker = 'o',
+                facecolors='none',
+                vmin = plot_args['Panel_2']['vmin'],
+                vmax = plot_args['Panel_2']['vmax'],
+                edgecolors  = 'k')
+                  
+    ax_array[0].scatter(coords[:,0], coords[:,1], c = 'k', marker = 'x', s = 2)
+    ax_array[1].scatter(coords[:,0], coords[:,1], c = 'k', marker = 'x', s  = 2)
+
+    ax_array[0].set_xlim(surface.bounds[:2])
+    ax_array[0].set_ylim(surface.bounds[2:])
+    ax_array[1].set_xlim(surface.bounds[:2])
+    ax_array[1].set_ylim(surface.bounds[2:])
+
+
+    return fig, ax_array, [cax, cax2]

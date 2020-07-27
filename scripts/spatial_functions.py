@@ -299,7 +299,9 @@ def xy_2_var(grid_dict, xy, var):
         near_ind = i[0]
         return grid_dict[var][near_ind]
 
-def validify_points(points, rj, surface):
+def return_valid_points(points, coords, extent):
     # Now get points that are within our survey area
-    mask = [Point(rj.coords[id]).within(surface.extent) for id in points]
-    return np.unique(np.array(points)[mask])
+    mask = [Point(coords[id]).within(extent) for id in points]
+    u, indices = np.unique(np.array(points)[mask], return_index = True)
+    
+    return u[indices]
