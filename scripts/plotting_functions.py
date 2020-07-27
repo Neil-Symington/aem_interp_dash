@@ -69,13 +69,14 @@ def AEM_baseplot(stoch_inv, det_inv, layer_number = 1, plot_args = {}):
     for item in custom_args.keys():
         if item not in plot_args.keys():
             plot_args[item] = custom_args
+    
+    layer = det_inv.layer_grids['Layer_{}'.format(plot_args['Layer_number'])]
 
-
-    fig, ax = plt.subplots(1,1,figsize = (6,6))#plot_args['figsize'])
+    fig, ax = plt.subplots(1,1,figsize = plot_args['figsize'])
 
     layer_number = str(int(plot_args['Layer_number']))
 
-    cond_grid = np.log10(det_inv.layer_grids['Layer_' + layer_number]['conductivity'])
+    cond_grid = np.log10(layer['conductivity'])
 
     im = ax.imshow(cond_grid, extent = det_inv.layer_grids['bounds'],
                      cmap = plot_args['colour_stretch'],
@@ -88,13 +89,20 @@ def AEM_baseplot(stoch_inv, det_inv, layer_number = 1, plot_args = {}):
     buffer = plot_args['buffer']
     ax.set_xlim(stoch_inv.data.geospatial_east_min - buffer,
                 stoch_inv.data.geospatial_east_max + buffer)
+    
     ax.set_ylim(stoch_inv.data.geospatial_north_min - buffer,
                 stoch_inv.data.geospatial_north_max + buffer)
 
     # Add tick axis
-    cax = fig.add_axes([0.9, 0.25, 0.02, 0.6])
+    cax = fig.add_axes([0.92, 0.25, 0.01, 0.6])
     cb = fig.colorbar(im, cax=cax)
-    #cb.ax.set_yticklabels([round(10 ** x, 4) for x in cb.get_ticks()])
+    cb.ax.set_yticklabels([round(10 ** x, 4) for x in cb.get_ticks()])
+    cb.ax.tick_params(labelsize=8)
+    
+    depth_from = layer['depth_from']
+    depth_to = layer['depth_to']
+    
+    ax.set_title('Conductivity grid for {} to {} mBGL'.format(depth_from, depth_to))
 
     return fig, ax, cax
 
