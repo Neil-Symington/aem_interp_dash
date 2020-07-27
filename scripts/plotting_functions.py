@@ -293,7 +293,7 @@ def plot_grid(ax, gridded_variables, variable, panel_kwargs, x_ax_var='grid_dist
         log_stretch = panel_kwargs['log_plot']
 
     except KeyError:
-        log_stretch = False  # False unless otherwise specified
+        log_stretch = True  # False unless otherwise specified
 
     if log_stretch:
         # Tranform the plot data
@@ -405,3 +405,171 @@ def plot_single_line(ax, gridded_variables, variable, panel_kwargs,  x_ax_var='g
         pass
 
     return lin
+
+def pmap_plot(D, pmap_kwargs, surface, lci, figsize = (8,8), outfile = None):
+    
+    fig = plt.figure(figsize = figsize)
+
+    ax1 = fig.add_axes([0.05, 0.35, 0.35, 0.62])
+    ax2 = fig.add_axes([0.45, 0.35, 0.2, 0.62])
+    ax3 = fig.add_axes([0.70, 0.52, 0.2, 0.2])
+    ax4 = fig.add_axes([0.72, 0.32, 0.16, 0.16])
+    ax5 = fig.add_axes([0.1, 0.18, 0.76, 0.05])
+    ax6 = fig.add_axes([0.1, 0.05, 0.76, 0.13])
+    ax7 = fig.add_axes([0.70, 0.78, 0.2, 0.2])
+    cbar_ax1 = fig.add_axes([0.05, 0.29, 0.35, 0.01])
+    cbar_ax2 = fig.add_axes([0.88, 0.05, 0.01, 0.2])
+    cbar_ax3 = fig.add_axes([0.9, 0.52, 0.01, 0.2])
+    
+
+    # Plot probability map
+    
+    # ax1
+    im = ax1.imshow(D['conductivity_pdf'], extent = D['conductivity_extent'],
+                    aspect = 'auto', cmap = pmap_kwargs['panel_1']['cmap'])
+    
+    #  PLot the median, and percentile plots
+    ax1.plot(np.log10(D['cond_p10']), D['depth_cells'], c = 'k',linestyle='dashed', label = 'p10')
+    ax1.plot(np.log10(D['cond_p90']), D['depth_cells'], c = 'k',linestyle='dashed', label = 'p90')
+    ax1.plot(np.log10(D['cond_p50']), D['depth_cells'], c = 'k',label = 'p50')
+    ax1.plot(np.log10(D['cond_mean']), D['depth_cells'], c = 'grey',label = 'mean')
+    
+    ax1.set_xticklabels([round(10 ** float(x), 4) for x in ax1.get_xticks()])
+
+    # for lci layered model we do some processing
+    lci_expanded = np.zeros(shape=2 * len(D['lci_cond']) + 1,
+                                 dtype=np.float)
+
+    lci_expanded[1:] = np.repeat(D['lci_cond'], 2)
+
+    depth_expanded = (np.max(D['lci_depth_top']) + 10) * np.ones(shape=len(lci_expanded),
+                                                            dtype=np.float)
+
+    depth_expanded[:-1] = np.repeat(D['lci_depth_top'], 2)
+
+    ax1.plot(np.log10(lci_expanded), depth_expanded, c = 'pink',
+             linestyle = 'dashed', label = 'lci')
+    ax1.plot(ax1.get_xlim(), [D['lci_doi'], D['lci_doi']], c = 'yellow',
+             label = 'LCI doi')
+    ax1.set_title('rj-MCMC probability map')
+    ax1.set_ylabel('depth (mBGL)')
+    ax1.set_xlabel('Conductivity (S/m)')
+    ax1.grid(which = 'both')
+    
+    ax1.set_ylim(pmap_kwargs['panel_1']['max_depth'],
+                 pmap_kwargs['panel_1']['min_depth'])
+
+    ax1.legend(loc = 3)
+    
+    # Ax 2
+    ax2.plot(D['change_point_pdf'], D['depth_cells'], label = 'P(change point)')
+    ax2.set_ylim(ax2.get_ylim()[::-1])
+    ax2.set_yticks(np.arange(0, 500, 20.))
+    ax2.set_title('change point probability')
+    ax2.set_ylim(D['conductivity_extent'][2], D['conductivity_extent'][3])
+               
+    if not pmap_kwargs['panel_2']['auto_xlim']:
+        ax2.set_xlim(pmap_kwargs['panel_2']['pmin'],
+                    pmap_kwargs['panel_2']['pmax'])
+               
+    ax2.legend()
+    ax2.grid(which = 'both')
+    
+    elevation_grid = surface.layer_elevation_grid
+    extent = surface.bounds
+    
+    im3 = ax3.imshow(elevation_grid,extent = extent,
+                     vmin = pmap_kwargs['panel_3']['vmin'],
+                     vmax = pmap_kwargs['panel_3']['vmax'])
+    
+    ax3.scatter(surface.interpreted_points['easting'],
+                surface.interpreted_points['northing'], c='k',
+                marker = '+', s = 0.5)
+
+    ax3.plot(D['easting'],D['northing'],  'x', c = 'red')
+        
+    # Ax 4
+    sample = D['sample_no'][:]
+    
+    # Add the misfit
+    for i in range(D['misfit'].shape[0]):
+       
+        misfits = D['misfit'][i]
+        ax4.plot(sample, misfits/D['ndata'])
+
+    ax4.plot([1, D['nsamples']], [1,1], 'k')
+    ax4.plot([D['burnin'], D['burnin']],[0.01,1e4], 'k')
+    ax4.set_xlim([1, D['misfit'].shape[1]])
+    ax4.set_ylim(pmap_kwargs['panel_4']['misfit_min'],
+                 pmap_kwargs['panel_4']['misfit_max'])
+
+    ax4.set_xscale('log')
+    ax4.set_yscale('log')
+
+    ax4.set_xlabel("sample #")
+    ax4.set_ylabel("Normalised misfit")
+    
+    # Ax 5
+    line = D['line']
+                      
+    dist = D['lci_dist']
+
+    res1 = plot_single_line(ax5, D['lci_line'],
+                                 'data_residual', pmap_kwargs['panel_5'])
+
+    ax5.set_title('LCI conductivity section - ' + str(line))
+    
+    # Ax 6
+    
+    # Find distance along the lci section
+    
+
+    im2 = plot_grid(ax6, D['lci_line'], 'conductivity',
+                              panel_kwargs = pmap_kwargs['panel_6'])
+
+    ax6.plot([dist, dist], [-500, 500], 'pink')
+    ax6.set_xlabel("Distance along line (m)")
+    
+    ax5.set_xlim(dist - pmap_kwargs['panel_5']['buffer'],
+                 dist + pmap_kwargs['panel_5']['buffer'])
+    ax6.set_xlim(dist - pmap_kwargs['panel_6']['buffer'], 
+                 dist + pmap_kwargs['panel_6']['buffer'])
+
+    # Ax7
+    layer = pmap_kwargs['panel_7']['Layer_number']
+    cond_grid = np.log10(lci.layer_grids['Layer_{}'.format(layer)]['conductivity'])
+
+    im7 = ax7.imshow(cond_grid, extent = lci.layer_grids['bounds'],
+                     cmap = pmap_kwargs['panel_7']['cmap'],
+                     vmin = np.log10(pmap_kwargs['panel_7']['vmin']),
+                     vmax =np.log10(pmap_kwargs['panel_7']['vmax']))
+    
+    ax7.set_xlim(D['easting'] - pmap_kwargs['panel_7']['buffer'],
+                 D['easting'] + pmap_kwargs['panel_7']['buffer'])
+    ax7.set_ylim(D['northing'] - pmap_kwargs['panel_7']['buffer'],
+                 D['northing'] + pmap_kwargs['panel_7']['buffer'])
+    ax7.plot(D['easting'],D['northing'],  'x', c = 'k')
+    
+    p1 = [lci.section_data[line]['easting'][0], lci.section_data[line]['easting'][-1]]
+    p2 = [lci.section_data[line]['northing'][0], lci.section_data[line]['northing'][-1]]
+    ax7.plot(p1, p2, 'k', linewidth = 0.5)
+    ax7.set_title('LCI layer slice {}'.format(layer), fontsize=10)
+    ax7.tick_params(axis='both', which='major', labelsize=8)
+    ax7.tick_params(axis='both', which='minor', labelsize=8)
+    
+    # cbar axes
+    cb1 = fig.colorbar(im, cax=cbar_ax1, orientation='horizontal')
+    cb1.set_label('probabilitiy', fontsize=10)
+    
+        
+    cb2 = fig.colorbar(im2, cax=cbar_ax2, orientation='vertical')
+    
+    cb2.ax.set_yticklabels([round(10 ** x, 4) for x in cb2.get_ticks()])
+    cb2.set_label('conductivity (S/m)', fontsize=10)
+    
+    cb3 =  fig.colorbar(im3, cax=cbar_ax3, orientation='vertical')
+    cb3.set_label('surface elevation mAHD')
+
+    ax_array = np.array([ax1, ax2, ax3, ax4, ax5, ax6, ax7])
+    
+    return fig, ax_array   

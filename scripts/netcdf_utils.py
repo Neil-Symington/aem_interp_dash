@@ -106,8 +106,7 @@ def extract_rj_sounding(rj, lci, point_index = 0):
 
     distances, indices = spatial_functions.nearest_neighbours([easting, northing],
                                                               lci.coords,
-                                                               max_distance = 50.)
-
+                                                               max_distance = 100.)
     point_ind_lci = indices[0]
 
     lci_cond = lci_dat['conductivity'][point_ind_lci].data
@@ -125,13 +124,17 @@ def extract_rj_sounding(rj, lci, point_index = 0):
     line = int(rj_dat['line'][point_index])
     fiducial = float(rj_dat['fiducial'][point_index])
     elevation = rj_dat['elevation'][point_index]
+    
+    dist = spatial_functions.xy_2_var(lci.section_data[line],
+                                      np.array([[easting, northing]]),
+                                      'grid_distances')
 
     return {'conductivity_pdf': cond_pdf, "change_point_pdf": cp_pdf, "conductivity_extent": extent,
            'cond_p10': p10, 'cond_p50': p50, 'cond_p90': p90, 'cond_mean': mean, 'depth_cells': depth_cells,
            'nlayer_bins': laybins, 'nlayer_prob': lay_prob, 'nsamples': nsamples, 'ndata': rj_dat.dimensions['data'].size,
            "nchains": nchains, 'burnin': burnin, 'misfit': misfit, 'sample_no': sample_no, 'cond_cells': cond_cells, 'lci_cond': lci_cond,
-           'lci_depth_top': lci_depth_top, 'lci_doi': lci_doi, 'line': line, 'northing': northing, 'easting': easting, 'fiducial': fiducial,
-           'elevation': elevation}
+           'lci_depth_top': lci_depth_top, 'lci_doi': lci_doi, 'line': line, 'northing': northing, 'easting': easting, 'fiducial':fiducial,
+           'elevation': elevation, 'lci_dist': dist, 'lci_line': lci.section_data[line]}
 
 def testNetCDFDataset(netCDF_dataset):
     """Test if datafile is netcdf.
