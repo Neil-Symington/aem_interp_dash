@@ -29,7 +29,7 @@ import math
 from scipy.interpolate import griddata
 from scipy.interpolate import interp1d
 import math
-
+from shapely.geometry import Point
 
 def depth_to_thickness(depth):
     """
@@ -298,3 +298,8 @@ def xy_2_var(grid_dict, xy, var):
     else:
         near_ind = i[0]
         return grid_dict[var][near_ind]
+
+def validify_points(points, rj, surface):
+    # Now get points that are within our survey area
+    mask = [Point(rj.coords[id]).within(surface.extent) for id in points]
+    return np.unique(np.array(points)[mask])

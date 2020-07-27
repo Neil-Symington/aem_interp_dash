@@ -36,7 +36,6 @@ from scipy.interpolate import griddata
 from scipy.interpolate import interp1d
 
 def AEM_baseplot(stoch_inv, det_inv, layer_number = 1, plot_args = {}):
-    ## TODO add a plot parameter file
     """Create the fig and axis for a base plot showing LCI grids and rj scatter
     points.
 
