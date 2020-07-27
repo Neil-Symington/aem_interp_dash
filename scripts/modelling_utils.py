@@ -30,6 +30,7 @@ import pandas as pd
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import Matern
 from shapely.geometry import Point, MultiPoint, Polygon
+import geopandas as gpd
 
 class modelled_boundary:
     """
@@ -136,7 +137,7 @@ class modelled_boundary:
                                                      n_restarts_optimizer=5,
                                                      normalize_y=True))
 
-    def create_grid(self, xmin, xmax, ymin, ymax, cell_size = 500., convex_hull = True,convex_hull_buffer = 1000.):
+    def create_grid(self, xmin, xmax, ymin, ymax, cell_size = 500., convex_hull = False,convex_hull_buffer = 1000.):
 
         """Function for defining a grid for interpolating the boundary onto
 
@@ -220,6 +221,7 @@ class modelled_boundary:
             2D gridded array
 
         """
+        spatial_mask = False
         # first check the interpolator exists
         if not hasattr(self, interpolator_name):
             print('That interpolator does not exist. Please create one or check the interpolator_name keyword argument.')
@@ -234,10 +236,14 @@ class modelled_boundary:
 
             # If a convex hull exists then we will use it to create a mask for
             # our inteprolated grid
-            try:
+            if hasattr(self, 'extent'):
+                poly = self.extent
+                spatial_mask = True
+            elif hasattr(self, 'convex_hull'):
                 poly = self.convex_hull
+                spatial_mask = True
+            if spatial_mask:
                 mask = np.array([Point(x).within(poly) for x in self.grid_coords])
-
                 # Assign all values outside of the convex hull nan
                 grid = grid.flatten()
                 grid[~mask] = np.nan
@@ -250,16 +256,19 @@ class modelled_boundary:
                     grid_std[~mask] = np.nan
                     # reshape for easy plotting
                     grid_std = grid_std.reshape((self.height,self.width)).T
-            except AttributeError:
+            else:
                 pass
             setattr(self, grid_name, grid)
             if return_std:
                 setattr(self, grid_name + '_std', grid_std)
-
-
-
         else:
             raise ValueError("Define grid coordinates")
+            
+    def load_extent_from_file(self, infile):
+        """A function for loading the extent geometry from a shapefile.
+        """
+        self.extent = gpd.read_file(infile)['geometry'].values[0]
+            
 
 def full_width_half_max(D, max_idx, fmax):
     """Find the width of the probability interval that is >0.5 times the local
