@@ -465,7 +465,7 @@ def pmap_plot(D, pmap_kwargs, surface, lci, figsize = (8,8), outfile = None):
     ax2.set_ylim(ax2.get_ylim()[::-1])
     ax2.set_yticks(np.arange(0, 500, 20.))
     ax2.set_title('change point probability')
-    ax2.set_ylim(D['conductivity_extent'][2], D['conductivity_extent'][3])
+    ax2.set_ylim(ax1.get_ylim())
                
     if not pmap_kwargs['panel_2']['auto_xlim']:
         ax2.set_xlim(pmap_kwargs['panel_2']['pmin'],
@@ -474,18 +474,22 @@ def pmap_plot(D, pmap_kwargs, surface, lci, figsize = (8,8), outfile = None):
     ax2.legend()
     ax2.grid(which = 'both')
     
-    elevation_grid = surface.layer_elevation_grid
-    extent = surface.bounds
+    if hasattr(surface, "layer_elevation_grid"):
+        elevation_grid = surface.layer_elevation_grid
+        extent = surface.bounds
     
-    im3 = ax3.imshow(elevation_grid,extent = extent,
-                     vmin = pmap_kwargs['panel_3']['vmin'],
-                     vmax = pmap_kwargs['panel_3']['vmax'])
+        im3 = ax3.imshow(elevation_grid,extent = extent,
+                         vmin = pmap_kwargs['panel_3']['vmin'],
+                         vmax = pmap_kwargs['panel_3']['vmax'])
     
-    ax3.scatter(surface.interpreted_points['easting'],
-                surface.interpreted_points['northing'], c='k',
-                marker = '+', s = 0.5)
+        ax3.scatter(surface.interpreted_points['easting'],
+                    surface.interpreted_points['northing'], c='k',
+                    marker = '+', s = 0.5)
 
-    ax3.plot(D['easting'],D['northing'],  'x', c = 'red')
+        ax3.plot(D['easting'],D['northing'],  'x', c = 'red')
+        
+        cb3 =  fig.colorbar(im3, cax=cbar_ax3, orientation='vertical')
+        cb3.set_label('surface elevation mAHD')
         
     # Ax 4
     sample = D['sample_no'][:]
@@ -566,8 +570,6 @@ def pmap_plot(D, pmap_kwargs, surface, lci, figsize = (8,8), outfile = None):
     cb2.ax.set_yticklabels([round(10 ** x, 4) for x in cb2.get_ticks()])
     cb2.set_label('conductivity (S/m)', fontsize=10)
     
-    cb3 =  fig.colorbar(im3, cax=cbar_ax3, orientation='vertical')
-    cb3.set_label('surface elevation mAHD')
 
     ax_array = np.array([ax1, ax2, ax3, ax4, ax5, ax6, ax7])
     

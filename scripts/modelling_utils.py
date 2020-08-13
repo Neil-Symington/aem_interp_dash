@@ -264,10 +264,10 @@ class modelled_boundary:
         else:
             raise ValueError("Define grid coordinates")
             
-    def load_extent_from_file(self, infile):
+    def load_extent_from_file(self, infile, index = 0):
         """A function for loading the extent geometry from a shapefile.
         """
-        self.extent = gpd.read_file(infile)['geometry'].values[0]
+        self.extent = gpd.read_file(infile)['geometry'].values[index]
             
 
 def full_width_half_max(D, max_idx, fmax):

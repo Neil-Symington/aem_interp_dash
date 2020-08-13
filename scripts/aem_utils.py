@@ -73,10 +73,10 @@ class AEM_inversion:
                 self.coords = np.column_stack((netcdf_dataset['easting'][:],
                                                netcdf_dataset['northing'][:])).data
                 # Get some of the usefule metadata from the netcdf file
-                self.xmin = netcdf_dataset.geospatial_east_min
-                self.xmax = netcdf_dataset.geospatial_east_max
-                self.ymin = netcdf_dataset.geospatial_north_min
-                self.ymax = netcdf_dataset.geospatial_north_max
+                self.xmin = np.min(netcdf_dataset['easting'][:])
+                self.xmax = np.max(netcdf_dataset['easting'][:])
+                self.ymin = np.min(netcdf_dataset['northing'][:])
+                self.ymax = np.max(netcdf_dataset['northing'][:])
 
             else:
                 self.conductivity_data = None
