@@ -54,6 +54,21 @@ def depth_to_thickness(depth):
 
         thickness[:-1,:,:] = depth[1:,:, :] - depth[:-1,:, :]
         return thickness
+    
+def thickness_to_depth(thickness):
+    """
+    Function for calculating depth top from a thickness array
+    :param depth: an array of thicknesses
+    :return:
+    a flat array of depth
+    """
+    # Create a new thickness array
+    depth = np.zeros(shape=thickness.shape,
+                               dtype=np.float)
+    # Iterate through the depth array
+    depth[1:] = np.cumsum(thickness[:-1])
+    
+    return depth
 
 def nearest_neighbours(points, coords, points_required = 1,max_distance = 250.):
 
@@ -158,9 +173,9 @@ def interpolate_2d_vars(vars_2d, var_dict, xres, yres):
 
     layer_thicknesses = depth_to_thickness(var_dict['layer_top_depth'])
 
-    # Give the bottom layer a thickness of 20 metres
+    # Give the bottom layer the tickness of the second bottom layer
 
-    layer_thicknesses[:,-1] = 20.
+    layer_thicknesses[:,-1] = layer_thicknesses[:,-2]
 
     # Get the vertical limits, note guard against dummy values > 800m
 
