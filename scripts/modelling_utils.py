@@ -36,7 +36,8 @@ class modelled_boundary:
     """
     Class for handling interpreted stratigraphic boundaries
     """
-    def __init__(self, name = None, outfile_path = None):
+    def __init__(self, name = None, outfile_path = None,
+                 interpreted_point_headings = None):
         """Initialise instance of modelled boundary.
 
         Parameters
@@ -52,12 +53,12 @@ class modelled_boundary:
         else:
             self.name = "Unnamed_boundary"
         # Create points dataset
-        self.interpreted_points = {'fiducial': [],
-                                   'easting': [],
-                                   'northing': [],
-                                   'layer_depth': [],
-                                   'layer_elevation': [],
-                                   'standard_deviation': []}
+        if interpreted_point_headings is not None:
+            self.interpreted_points = pd.DataFrame(columns = interpreted_point_headings)
+        else:
+            self.interpreted_points = pd.DataFrame(columns = ['fiducial', 'easting', 'northing',
+                                                              'layer_depth', 'layer_elevation',
+                                                              'standard_deviation']).set_index('fiducial')
         if outfile_path is not None:
             assert os.path.exists(os.path.dirname(outfile_path))
             assert outfile_path.split('.')[-1] == 'csv'
