@@ -256,12 +256,11 @@ class modelled_boundary:
                     grid_std = grid_std.flatten()
                     grid_std[~mask] = np.nan
                     # reshape for easy plotting
-                    grid_std = grid_std.reshape((self.height,self.width)).T
             else:
                 pass
-            setattr(self, grid_name, grid)
+            setattr(self, grid_name, grid.reshape((self.height,self.width)).T)
             if return_std:
-                setattr(self, grid_name + '_std', grid_std)
+                setattr(self, grid_name + '_std', grid_std.reshape((self.height,self.width)).T)
         else:
             raise ValueError("Define grid coordinates")
             
