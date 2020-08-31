@@ -28,6 +28,28 @@ import netCDF4
 import numpy as np
 import spatial_functions
 
+def object2array(variable, dtype):
+    """Helper function for converting single variables to a list
+
+    Parameters
+    ----------
+    variable : object
+        Python object
+    dtype : python datatype
+
+    Returns
+    -------
+    list
+        If variable is a single variables return the variable within a list
+
+    """
+
+    single_var = (type(variable) == dtype)
+    if single_var:
+        return [variable]
+    else:
+        return variable
+
 def get_lines(dataset, line_numbers, variables):
     """
     A function for extracting variables from a particular AEM line
@@ -36,13 +58,11 @@ def get_lines(dataset, line_numbers, variables):
     @param: list of integer variables)
     """
     # Allow single variable to be given as a string
-    single_var = (type(variables) == str)
-    if single_var:
-        variables = [variables]
+
+    variable = object2array(variable, str)
     # Allow single line
-    single_line = (type(line_numbers) == int)
-    if single_line:
-        line_numbers = [line_numbers]
+
+    line_numbers = object2array(line_numbers, int)
 
     # Chekc netcdf dataset
     if not dataset.__class__ == netCDF4._netCDF4.Dataset:
@@ -124,7 +144,7 @@ def extract_rj_sounding(rj, lci, point_index = 0):
     line = int(rj_dat['line'][point_index])
     fiducial = float(rj_dat['fiducial'][point_index])
     elevation = rj_dat['elevation'][point_index]
-    
+
     dist = spatial_functions.xy_2_var(lci.section_data[line],
                                       np.array([[easting, northing]]),
                                       'grid_distances')
@@ -153,3 +173,25 @@ def testNetCDFDataset(netCDF_dataset):
 
 
     return netCDF_dataset.__class__ == netCDF4._netCDF4.Dataset
+
+def get_lookup_mask(lines, netCDF_dataset):
+    """A function for return a mask for an AEM line/ lines
+
+    Parameters
+    ----------
+    lines : array like
+        array of line numbers
+    netCDF_dataset:
+        netcdf dataset with variables 'line' and 'line_index'
+
+    Returns
+    -------
+    self, boolean array
+        Boolean mask for lines
+
+    """
+    lines = object2array(lines, int)
+
+    line_inds = np.where(np.isin(netCDF_dataset['line'][:], lines))[0]
+
+    return np.isin(netCDF_dataset['line_index'],line_inds)
