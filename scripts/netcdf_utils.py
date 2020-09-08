@@ -27,6 +27,7 @@ Utility functions for dealing with netcdf data
 import netCDF4
 import numpy as np
 import spatial_functions
+import pandas as pd
 
 def object2array(variable, dtype):
     """Helper function for converting single variables to a list
@@ -59,7 +60,7 @@ def get_lines(dataset, line_numbers, variables):
     """
     # Allow single variable to be given as a string
 
-    variable = object2array(variable, str)
+    variables = object2array(variables, str)
     # Allow single line
 
     line_numbers = object2array(line_numbers, int)
@@ -195,3 +196,92 @@ def get_lookup_mask(lines, netCDF_dataset):
     line_inds = np.where(np.isin(netCDF_dataset['line'][:], lines))[0]
 
     return np.isin(netCDF_dataset['line_index'],line_inds)
+
+def write_inversion_ready_file(dataset, outpath, nc_variables,
+                               nc_formats, other_variables = None,
+                               mask = None):
+    """A function for writing an inversion ready.dat file. This file can be
+     inverted using GA-AEM inversion algorithms.
+
+    Parameters
+    ----------
+    dataset : object
+        Netcdf dataset
+    outpath : string
+        Path of inversion ready file.
+    nc_variables : list
+        List of variables from dataset.
+        eg ["ga_project", "utc_date", "flight", "line", "fiducial",
+            "easting", "northing", "tx_height_measured", "elevation",
+            "gps_height", "roll", "pitch", "yaw", "TxRx_dx", "TxRx_dy",
+            "TxRx_dz", "low_moment_Z-component_EM_data",
+            "high_moment_Z-component_EM_data"]
+    nc_formats : list
+        List of formats for variables.
+        eg  ['{:5d}','{:9.0F}','{:12.2F}','{:8.0F}','{:12.2F}','{:10.2F}',
+             '{:11.2F}','{:8.1F}','{:9.2F}', '{:9.2F}','{:7.2F}','{:7.2F}',
+             '{:7.2F}','{:7.2F}','{:7.2F}','{:7.2F}', '{:15.6E}', '{:15.6E}']
+    other_variables : dictionary
+        dictionary of additional variables with the name of the variable as the
+        key, 'array' key as the
+        e.g.{'rel_uncertainty_low_moment_Z-component':
+             {'data': numpy array, 'format': {:15.6E}} }
+    mask: boolean array
+
+    """
+    # Now create a mask if none exists
+    if mask is None:
+        mask = np.ones(shape = (dataset.dimensions['point'].size), dtype = np.bool)
+    # Create an empty dataframe
+    df = pd.DataFrame(index = range(mask.sum()))
+
+    # Create a dictionary with arrays, formats and variable name
+    data = {}
+    for i, var in enumerate(nc_variables):
+        if var == 'line':
+            line_inds = dataset['line_index'][mask]
+            arr = dataset[var][line_inds].data
+        elif var == 'flight':
+            flight_inds = dataset['flight_index'][mask]
+            arr = dataset[var][flight_inds].data
+        # Scalar variables
+        elif len(dataset[var].shape) == 0:
+            arr = np.repeat(dataset[var][:].data, mask.sum())
+        else:
+            arr = dataset[var][mask].data
+        # Add to dictionary
+        data[var] = {'array': arr,
+                    'format': nc_formats[i]}
+    # Now we add the additional columns
+    if other_variables is not None:
+        for item in other_variables.keys():
+            # apply mask
+            data[item] = {'array': other_variables[item]['array'][mask],
+                          'format': other_variables[item]['format']}
+    # build pandas dataframe
+    for item in data:
+        print(item)
+        arr = data[item]['array']
+
+        if len(arr.shape) < 2:
+            df[item] = [data[item]['format'].format(x) for x in arr]
+        # For 3d variables like the EM data
+        else:
+            for i in range(arr.shape[1]):
+                df[item + '_' + str(i+1)] = [data[item]['format'].format(x) for x in arr[:,i]]
+    # Note use a pipe so we can easily delete later
+
+    df.apply(lambda row: ''.join(map(str, row)), axis=1).to_csv(outpath, sep = ',', index = False, header = False)
+
+    # Now write the .hdr file
+    header_file = '.'.join(outfile.split('.')[:-1]) + '.hdr'
+    counter = 1
+    with open(header_file, 'w') as f:
+        for item in data.keys():
+            shape = data[item]['array'].shape
+            if len(shape) == 1:
+                f.write(''.join([item, ' ', str(counter), '\n']))
+                counter += 1
+            else:
+                f.write(''.join([item,' ',str(counter),'-',str(counter + shape[1] - 1),'\n']))
+                counter += shape[1]
