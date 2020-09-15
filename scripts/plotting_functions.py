@@ -68,7 +68,7 @@ def AEM_baseplot(stoch_inv, det_inv, layer_number = 1, plot_args = {}):
     for item in custom_args.keys():
         if item not in plot_args.keys():
             plot_args[item] = custom_args
-    
+
     layer = det_inv.layer_grids['Layer_{}'.format(plot_args['Layer_number'])]
 
     fig, ax = plt.subplots(1,1,figsize = plot_args['figsize'])
@@ -88,7 +88,7 @@ def AEM_baseplot(stoch_inv, det_inv, layer_number = 1, plot_args = {}):
     buffer = plot_args['buffer']
     ax.set_xlim(stoch_inv.data.geospatial_east_min - buffer,
                 stoch_inv.data.geospatial_east_max + buffer)
-    
+
     ax.set_ylim(stoch_inv.data.geospatial_north_min - buffer,
                 stoch_inv.data.geospatial_north_max + buffer)
 
@@ -97,10 +97,10 @@ def AEM_baseplot(stoch_inv, det_inv, layer_number = 1, plot_args = {}):
     cb = fig.colorbar(im, cax=cax)
     cb.ax.set_yticklabels([round(10 ** x, 4) for x in cb.get_ticks()])
     cb.ax.tick_params(labelsize=8)
-    
+
     depth_from = layer['depth_from']
     depth_to = layer['depth_to']
-    
+
     ax.set_title('Conductivity grid for {} to {} mBGL'.format(depth_from, depth_to))
 
     return fig, ax, cax
@@ -147,14 +147,14 @@ def interpreted_surface_dual_plot(surface,plot_args = {'Panel_1':{}, 'Panel_2': 
         assert hasattr(surface, grid_names[i])
         assert hasattr(surface, interpolator_names[i])
         assert var_names[i] in surface.interpreted_points.keys()
-        
+
     # If plot arguments are not given we use the custom
     for key in custom_args.keys():
-        
+
         for item in custom_args[key].keys():
             if item not in plot_args[key].keys():
                 plot_args[key][item] = custom_args
-    
+
 
     if update_grid:
         for i in range(2):
@@ -406,7 +406,7 @@ def plot_single_line(ax, gridded_variables, variable, panel_kwargs,  x_ax_var='g
     return lin
 
 def pmap_plot(D, pmap_kwargs, surface, lci, figsize = (8,8), outfile = None):
-    
+
     fig = plt.figure(figsize = figsize)
 
     ax1 = fig.add_axes([0.05, 0.35, 0.35, 0.62])
@@ -419,20 +419,20 @@ def pmap_plot(D, pmap_kwargs, surface, lci, figsize = (8,8), outfile = None):
     cbar_ax1 = fig.add_axes([0.05, 0.29, 0.35, 0.01])
     cbar_ax2 = fig.add_axes([0.88, 0.05, 0.01, 0.2])
     cbar_ax3 = fig.add_axes([0.9, 0.52, 0.01, 0.2])
-    
+
 
     # Plot probability map
-    
+
     # ax1
     im = ax1.imshow(D['conductivity_pdf'], extent = D['conductivity_extent'],
                     aspect = 'auto', cmap = pmap_kwargs['panel_1']['cmap'])
-    
+
     #  PLot the median, and percentile plots
     ax1.plot(np.log10(D['cond_p10']), D['depth_cells'], c = 'k',linestyle='dashed', label = 'p10')
     ax1.plot(np.log10(D['cond_p90']), D['depth_cells'], c = 'k',linestyle='dashed', label = 'p90')
     ax1.plot(np.log10(D['cond_p50']), D['depth_cells'], c = 'k',label = 'p50')
     ax1.plot(np.log10(D['cond_mean']), D['depth_cells'], c = 'grey',label = 'mean')
-    
+
     ax1.set_xticklabels([round(10 ** float(x), 4) for x in ax1.get_xticks()])
 
     # for lci layered model we do some processing
@@ -454,55 +454,55 @@ def pmap_plot(D, pmap_kwargs, surface, lci, figsize = (8,8), outfile = None):
     ax1.set_ylabel('depth (mBGL)')
     ax1.set_xlabel('Conductivity (S/m)')
     ax1.grid(which = 'both')
-    
+
     ax1.set_ylim(pmap_kwargs['panel_1']['max_depth'],
                  pmap_kwargs['panel_1']['min_depth'])
 
     ax1.legend(loc = 3)
-    
+
     # Ax 2
     ax2.plot(D['change_point_pdf'], D['depth_cells'], label = 'P(change point)')
     ax2.set_ylim(ax2.get_ylim()[::-1])
     ax2.set_yticks(np.arange(0, 500, 20.))
     ax2.set_title('change point probability')
     ax2.set_ylim(ax1.get_ylim())
-               
+
     if not pmap_kwargs['panel_2']['auto_xlim']:
         ax2.set_xlim(pmap_kwargs['panel_2']['pmin'],
                     pmap_kwargs['panel_2']['pmax'])
-               
+
     ax2.legend()
     ax2.grid(which = 'both')
-    
+
     if hasattr(surface, "layer_elevation_grid"):
         elevation_grid = surface.layer_elevation_grid
         extent = surface.bounds
-    
+
         im3 = ax3.imshow(elevation_grid,extent = extent,
                          vmin = pmap_kwargs['panel_3']['vmin'],
                          vmax = pmap_kwargs['panel_3']['vmax'])
-    
+
         ax3.scatter(surface.interpreted_points['easting'],
                     surface.interpreted_points['northing'], c='k',
                     marker = '+', s = 0.5)
 
         ax3.plot(D['easting'],D['northing'],  'x', c = 'red')
-        
+
         cb3 =  fig.colorbar(im3, cax=cbar_ax3, orientation='vertical')
         cb3.set_label('surface elevation mAHD')
-        
+
     # Ax 4
     sample = D['sample_no'][:]
-    
+
     # Add the misfit
     for i in range(D['misfit'].shape[0]):
-       
+
         misfits = D['misfit'][i]
         ax4.plot(sample, misfits/D['ndata'])
 
     ax4.plot([1, D['nsamples']], [1,1], 'k')
     ax4.plot([D['burnin'], D['burnin']],[0.01,1e4], 'k')
-    ax4.set_xlim([1, D['misfit'].shape[1]])
+    #ax4.set_xlim([1, D['misfit'].shape[1]])
     ax4.set_ylim(pmap_kwargs['panel_4']['misfit_min'],
                  pmap_kwargs['panel_4']['misfit_max'])
 
@@ -511,31 +511,31 @@ def pmap_plot(D, pmap_kwargs, surface, lci, figsize = (8,8), outfile = None):
 
     ax4.set_xlabel("sample #")
     ax4.set_ylabel("Normalised misfit")
-    
+
     # Ax 5
     line = D['line']
-                      
+
     dist = D['lci_dist']
 
     res1 = plot_single_line(ax5, D['lci_line'],
                                  'data_residual', pmap_kwargs['panel_5'])
 
     ax5.set_title('LCI conductivity section - ' + str(line))
-    
+
     # Ax 6
-    
+
     # Find distance along the lci section
-    
+
 
     im2 = plot_grid(ax6, D['lci_line'], 'conductivity',
                               panel_kwargs = pmap_kwargs['panel_6'])
 
     ax6.plot([dist, dist], [-500, 500], 'pink')
     ax6.set_xlabel("Distance along line (m)")
-    
+
     ax5.set_xlim(dist - pmap_kwargs['panel_5']['buffer'],
                  dist + pmap_kwargs['panel_5']['buffer'])
-    ax6.set_xlim(dist - pmap_kwargs['panel_6']['buffer'], 
+    ax6.set_xlim(dist - pmap_kwargs['panel_6']['buffer'],
                  dist + pmap_kwargs['panel_6']['buffer'])
 
     # Ax7
@@ -546,34 +546,34 @@ def pmap_plot(D, pmap_kwargs, surface, lci, figsize = (8,8), outfile = None):
                      cmap = pmap_kwargs['panel_7']['cmap'],
                      vmin = np.log10(pmap_kwargs['panel_7']['vmin']),
                      vmax =np.log10(pmap_kwargs['panel_7']['vmax']))
-    
+
     ax7.set_xlim(D['easting'] - pmap_kwargs['panel_7']['buffer'],
                  D['easting'] + pmap_kwargs['panel_7']['buffer'])
     ax7.set_ylim(D['northing'] - pmap_kwargs['panel_7']['buffer'],
                  D['northing'] + pmap_kwargs['panel_7']['buffer'])
     ax7.plot(D['easting'],D['northing'],  'x', c = 'k')
-    
+
     p1 = [lci.section_data[line]['easting'][0], lci.section_data[line]['easting'][-1]]
     p2 = [lci.section_data[line]['northing'][0], lci.section_data[line]['northing'][-1]]
     ax7.plot(p1, p2, 'k', linewidth = 0.5)
     ax7.set_title('LCI layer slice {}'.format(layer), fontsize=10)
     ax7.tick_params(axis='both', which='major', labelsize=8)
     ax7.tick_params(axis='both', which='minor', labelsize=8)
-    
+
     # cbar axes
     cb1 = fig.colorbar(im, cax=cbar_ax1, orientation='horizontal')
     cb1.set_label('probabilitiy', fontsize=10)
-    
-        
+
+
     cb2 = fig.colorbar(im2, cax=cbar_ax2, orientation='vertical')
-    
+
     cb2.ax.set_yticklabels([round(10 ** x, 4) for x in cb2.get_ticks()])
     cb2.set_label('conductivity (S/m)', fontsize=10)
-    
+
 
     ax_array = np.array([ax1, ax2, ax3, ax4, ax5, ax6, ax7])
-    
-    return fig, ax_array   
+
+    return fig, ax_array
 
 def point_selection_plot(surface, coords, plot_args = {'Panel_1':{}, 'Panel_2': {}}, update_grid = True):
 
@@ -598,17 +598,17 @@ def point_selection_plot(surface, coords, plot_args = {'Panel_1':{}, 'Panel_2': 
     # Do some checks
     for i in range(2):
         assert hasattr(surface, grid_names[i])
-    
+
     assert hasattr(surface, interpolator_name)
     assert var_name in surface.interpreted_points.keys()
-        
+
     # If plot arguments are not given we use the custom
     for key in custom_args.keys():
-        
+
         for item in custom_args[key].keys():
             if item not in plot_args[key].keys():
                 plot_args[key][item] = custom_args
-    
+
 
     if update_grid:
         surface.fit_interpolator(variable = var_name,
@@ -658,7 +658,7 @@ def point_selection_plot(surface, coords, plot_args = {'Panel_1':{}, 'Panel_2': 
                 vmin = plot_args['Panel_2']['vmin'],
                 vmax = plot_args['Panel_2']['vmax'],
                 edgecolors  = 'k')
-                  
+
     ax_array[0].scatter(coords[:,0], coords[:,1], c = 'k', marker = 'x', s = 2)
     ax_array[1].scatter(coords[:,0], coords[:,1], c = 'k', marker = 'x', s  = 2)
 

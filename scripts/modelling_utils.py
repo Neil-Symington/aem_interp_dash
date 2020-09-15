@@ -69,6 +69,7 @@ class modelled_boundary:
                                              self.name + "_interpreted_points.csv")
         # Create an instance variable of grid coordinates
         self.grid_coords = None
+
     def get_convex_hull(self, convex_hull_buffer = 1000.):
         """
         Function for finding the convex hull of our boundary given current
@@ -263,12 +264,12 @@ class modelled_boundary:
                 setattr(self, grid_name + '_std', grid_std.reshape((self.height,self.width)).T)
         else:
             raise ValueError("Define grid coordinates")
-            
+
     def load_extent_from_file(self, infile, index = 0):
         """A function for loading the extent geometry from a shapefile.
         """
         self.extent = gpd.read_file(infile)['geometry'].values[index]
-            
+
 
 def full_width_half_max(D, max_idx, fmax):
     """Find the width of the probability interval that is >0.5 times the local

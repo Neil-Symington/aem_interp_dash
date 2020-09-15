@@ -81,6 +81,30 @@ class AEM_inversion:
         else:
             self.data = None
 
+    def sort_variables(self, var_dict):
+        """Function for sorting a dictionary of variables by fiducial then easting.
+        Assumes 'easting' and fiducial are in dictionary
+
+        Parameters
+        ----------
+        var_dict : dicitonary
+           Dictionary of variables.
+
+        Returns
+        -------
+        dictionary
+           dictionary of sorted array
+
+        """
+        # First sort on fiducial
+        sort_mask = np.argsort(var_dict['fiducial'])
+        # Now sort from east to west if need be
+        if var_dict['easting'][sort_mask][0] > var_dict['easting'][sort_mask][-1]:
+           sort_mask = sort_mask[::-1]
+        # now apply the mask to every variable
+        for item in var_dict:
+           var_dict[item] = var_dict[item][sort_mask]
+        return var_dict
 
     def grid_sections(self, variables, lines, xres, yres, resampling_method = 'cubic', return_interpolated = False, save_hdf5 = True, hdf5_dir = None):
         """A function for gridding AEM inversoin variables into sections.
@@ -122,8 +146,8 @@ class AEM_inversion:
 
 
         # Add key variables if they aren't in the list to grid
-        for item in ['easting', 'northing', 'elevation', 'layer_top_depth']:
-            if item not in variables:
+        for item in ['easting', 'northing', 'elevation', 'fiducial', 'layer_top_depth', 'layer_centre_depth']:
+            if np.logical_and(item not in variables, item in self.data.variables):
                 variables.append(item)
 
         self.section_variables = variables
@@ -131,8 +155,8 @@ class AEM_inversion:
         # First create generators for returning coordinates and variables for the lines
 
         cond_lines= get_lines(self.data,
-                                  line_numbers=lines,
-                                  variables=self.section_variables)
+                              line_numbers=lines,
+                              variables=self.section_variables)
 
         # Interpolated results will be added to a dictionary
         interpolated = {}
@@ -148,12 +172,18 @@ class AEM_inversion:
             # Extract the variables and coordinates for the line in question
             line_no, cond_var_dict = next(cond_lines)
 
+            # Now we need to sort the cond_var_dict and run it east to west
+            cond_var_dict = self.sort_variables(cond_var_dict)
+
+            # If there is no 'layer_top_depth' add it
+            if np.logical_and('layer_top_depth' not in cond_var_dict,
+                              'layer_centre_depth' in cond_var_dict):
+
+                cond_var_dict['layer_top_depth'] = spatial_functions.layer_centre_to_top(cond_var_dict['layer_centre_depth'])
+                #del cond_var_dict['layer_centre_depth']
+
             interpolated[line_no] =  self.grid_variables(line_no, cond_var_dict,
-                                                                      gridding_params)
-
-            #cond_var_dict['utm_coordinates'] = np.column_stack((cond_var_dict['easting'],
-        #                                                        cond_var_dict['northing']))
-
+                                                         gridding_params)
             # Save to hdf5 file if the keyword is passed
             if save_hdf5:
                 fname = os.path.join(hdf5_dir, str(int(line_no)) + '.hdf5')
@@ -194,24 +224,26 @@ class AEM_inversion:
         # Create an empty dictionary
         interpolated = {}
 
-        # If the line is west to east we want to reverse the coord
-        # array and flag it
+        # Create a sort mask in cases where the lines are not in order
 
         # Define coordinates
         utm_coordinates = np.column_stack((cond_var_dict['easting'],
                                           cond_var_dict['northing']))
 
         # Add the flag to the dictionary
-        if utm_coordinates[0, 0] > utm_coordinates[-1, 0]:
-            cond_var_dict['reverse_line'] = True
-        else:
-            cond_var_dict['reverse_line'] = False
+        #if utm_coordinates[0, 0] > utm_coordinates[-1, 0]:
+        #    cond_var_dict['reverse_line'] = True
+        #else:
+        #    cond_var_dict['reverse_line'] = False
 
         # Add distance array to dictionary
         cond_var_dict['distances'] = spatial_functions.coords2distance(utm_coordinates)
 
-        # Add number of layers to the array
-        cond_var_dict['nlayers'] = self.data.dimensions['layer'].size
+        # Add number of epth cells to the array
+        if 'depth' in self.data.dimensions:
+            cond_var_dict['ndepth_cells'] = self.data.dimensions['depth'].size
+        else:
+            cond_var_dict['ndepth_cells'] = self.data.dimensions['layer'].size
 
         # Interpolate 2D and 1D variables
 
@@ -222,10 +254,10 @@ class AEM_inversion:
         interp2d = spatial_functions.interpolate_2d_vars(vars_2d, cond_var_dict,
                                                         gridding_params['xres'],
                                                         gridding_params['yres'])
-
         for var in vars_2d:
             # Generator yields the interpolated variable array
             interpolated[var], cond_var_dict = next(interp2d)
+
 
         # Add grid distances and elevations to the interpolated dictionary
         interpolated['grid_distances'] = cond_var_dict['grid_distances']
@@ -279,66 +311,26 @@ class AEM_inversion:
                 datasets['flm_layer_top_depth'] = item[()]
 
         return datasets
-
-    def load_lci_layer_grids(self, inDir, conversion_to_SI = True, nlayers = 30):
-        """A function for loading layer lci layer grids. This will only
-        work if the file names follow this particular convention
-        ##TODO make a more general function
+    def load_lci_layer_grids_from_pickle(self, pickle_file):
+        """This is a hack to remove the need for rasterio.
+        We have preloaded the data into a pickle file
 
         Parameters
         ----------
-        inDir : string
-            path to directory with grids
-        conversion_to_SI : boolean
-            Description of parameter `conversion_to_SI`.
-
+        pickle_file : string
+            path to pickle file
         Returns
         -------
         self, dictionary
             dictionary with layer grids and metadata
 
         """
-        # This is a hack to remove the need for rasterio. We have preloaded the data into a pickle file
 
-        assert os.path.exists(inDir)
-        #inDir = os.path.join(inDir, "*.ers")
-        infile = os.path.join(inDir, "lci_layer_grids.p")
-        layer_grids = pickle.load( open( infile, "rb" ) )
-
-        # Dictionary to write results into
-        #layer_grids = {}
-
-        #for file in glob.glob(inDir):
-        #    layer = int(file.split('Con')[1].split('_')[0])
-        #    if not layer == nlayers:
-        #        depth_from = float(file.split("gm_")[-1].split('.ers')[0].split('-')[0])
-        #        depth_to = float(file.split("gm_")[-1].split('.ers')[0].split('-')[1].split('m')[0])
-        #    else:
-        #        depth_from = float(file.split("gm_")[-1].split('.ers')[0].split('-')[0].split('m+')[0])
-        #
-        #    cond_dataset = rasterio.open(file)
-        #    arr = cond_dataset.read(1)
-        #    arr[arr == cond_dataset.get_nodatavals()] = np.nan
-        #    # convert to S/m
-        #    if conversion_to_SI:
-        #        arr = arr/1000.
-        #    key = "Layer_" + str(layer)
-        #    layer_grids[key] = {}
-        #    layer_grids[key]['conductivity'] = arr
-        #    layer_grids[key]['depth_from'] = depth_from
-        #   layer_grids[key]['depth_to'] = depth_to
-
-        #layer_grids['raster_transform'] = cond_dataset.transform
-        # make bounds similar to extent in matplotlib for ease of plotting
-        #bounds = [cond_dataset.bounds.left, cond_dataset.bounds.right,
-        #          cond_dataset.bounds.bottom, cond_dataset.bounds.top]
-
-        #layer_grids['bounds'] = bounds
-
-
+        layer_grids = pickle.load( open( pickle_file, "rb" ) )
         self.layer_grids = layer_grids
 
-    def load_sections_from_file(self, hdf5_dir, grid_vars):
+
+    def load_sections_from_file(self, hdf5_dir, grid_vars, lines = []):
         """Load pre-gridded AEM sections from file.
 
         Parameters
@@ -357,9 +349,14 @@ class AEM_inversion:
         """
         interpolated = {}
         # iterate through the files
-        for file in glob.glob(os.path.join(hdf5_dir, '*.hdf5')):
+        if lines == []:
+            for file in glob.glob(os.path.join(hdf5_dir, '*.hdf5')):
+                line = int(os.path.basename(file).split('.')[0])
+                lines.append(line)
 
-            line = int(os.path.basename(file).split('.')[0])
+        for line in lines:
+
+            file = os.path.join(hdf5_dir, str(line) + '.hdf5')
 
             f = h5py.File(file, 'r')
 

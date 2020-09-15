@@ -72,12 +72,15 @@ def get_lines(dataset, line_numbers, variables):
 
     # Iterate through lines and get the point indices
     for line in line_numbers:
-        point_mask = mask = dataset['line_index'][:] == np.where(dataset['line'][:] == line)[0]
+        point_mask = dataset['line_index'][:] == np.where(dataset['line'][:] == line)[0]
         # Iterate through the variables and add the masked arrays to a dictionary
         line_dict = {}
 
         for var in variables:
-            line_dict[var] = dataset[var][point_mask]
+            if dataset[var].dimensions[0] == 'point':
+                line_dict[var] = dataset[var][point_mask]
+            elif dataset[var].dimensions[0] == 'depth':
+                line_dict[var] = np.tile(dataset[var][:], [point_mask.sum(),1])
 
         yield line, line_dict
 
@@ -135,7 +138,7 @@ def extract_rj_sounding(rj, lci, point_index = 0):
 
     lci_doi = lci_dat['depth_of_investigation'][point_ind_lci].data
 
-    misfit = np.sqrt(rj_dat['misfit'][point_index].data)
+    misfit = rj_dat['misfit'][point_index].data
 
     burnin = rj_dat.nburnin
     nsamples = rj_dat.nsamples
@@ -171,7 +174,6 @@ def testNetCDFDataset(netCDF_dataset):
     boolean
 
     """
-
 
     return netCDF_dataset.__class__ == netCDF4._netCDF4.Dataset
 

@@ -73,7 +73,8 @@ dimension_fields:
   layer: {dimension_name: 'layer'}
   chain: {dimension_name: 'chain'}
   convergence_sample: {dimension_name: convergence_sample}
+  line: {dimension_name: 'line'}
 
 crs:
-  projected: {epsg: 28352}
+  projected: {epsg: 28353}
   geographic: {epsg: 7844}

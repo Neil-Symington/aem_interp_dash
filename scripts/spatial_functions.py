@@ -54,7 +54,7 @@ def depth_to_thickness(depth):
 
         thickness[:-1,:,:] = depth[1:,:, :] - depth[:-1,:, :]
         return thickness
-    
+
 def thickness_to_depth(thickness):
     """
     Function for calculating depth top from a thickness array
@@ -67,7 +67,7 @@ def thickness_to_depth(thickness):
                                dtype=np.float)
     # Iterate through the depth array
     depth[1:] = np.cumsum(thickness[:-1])
-    
+
     return depth
 
 def nearest_neighbours(points, coords, points_required = 1,max_distance = 250.):
@@ -99,6 +99,26 @@ def nearest_neighbours(points, coords, points_required = 1,max_distance = 250.):
         distances[~mask] = np.nan
 
     return distances, indices
+
+def  layer_centre_to_top(layer_centre_depth):
+    """Function for getting layer top depth from layer centre depths. Assumes
+    that depth starts at zero.
+
+    Parameters
+    ----------
+    layer_centre_depth : array
+        Description of parameter `layer_centre_depth`.
+
+    Returns
+    -------
+    array
+        Layer top depth
+
+    """
+    layer_top_depth = np.zeros(shape = layer_centre_depth.shape,
+                              dtype = layer_centre_depth.dtype)
+    layer_top_depth[:,1:] = layer_centre_depth[:,1:] - layer_centre_depth[:, :1]
+    return layer_top_depth
 
 def line_length(line):
     '''
@@ -151,8 +171,8 @@ def interpolate_1d_vars(vars_1D, var_dict, resampling_method='linear'):
 
         # Reverse the grid if it is west to east
 
-        if var_dict['reverse_line']:
-            varray = varray[::-1]
+        #if var_dict['reverse_line']:
+        #    varray = varray[::-1]
 
         yield varray
 
@@ -167,9 +187,9 @@ def interpolate_2d_vars(vars_2d, var_dict, xres, yres):
     :return:
     """
 
-    nlayers = var_dict['nlayers']
+    ndepth_cells = var_dict['ndepth_cells']
 
-    # Get the thickness of the layers
+    # Find the depth variable
 
     layer_thicknesses = depth_to_thickness(var_dict['layer_top_depth'])
 
@@ -177,14 +197,13 @@ def interpolate_2d_vars(vars_2d, var_dict, xres, yres):
 
     layer_thicknesses[:,-1] = layer_thicknesses[:,-2]
 
-    # Get the vertical limits, note guard against dummy values > 800m
+    # Get the vertical limits
 
     elevations = var_dict['elevation']
 
-    # Guard against dummy values which are deeper than 900 metres
+    max_depth = np.max(var_dict['layer_top_depth'])
 
-    max_depth = np.max(var_dict['layer_top_depth'][var_dict['layer_top_depth'] < 900.])
-
+    # elevation limits
     vlimits = [np.min(elevations) - max_depth,
                np.max(elevations) + 5]
 
@@ -193,6 +212,7 @@ def interpolate_2d_vars(vars_2d, var_dict, xres, yres):
     distances = var_dict['distances']
 
     hlimits = [np.min(distances), np.max(distances)]
+
 
     # Get the x and y dimension coordinates
 
@@ -206,6 +226,8 @@ def interpolate_2d_vars(vars_2d, var_dict, xres, yres):
 
     grid_elevations = grid_y[:, 0]
 
+    assert len(grid_elevations) > ndepth_cells
+
     # Add to the variable dictionary
 
     var_dict['grid_elevations'] = grid_elevations
@@ -218,24 +240,26 @@ def interpolate_2d_vars(vars_2d, var_dict, xres, yres):
 
     max_elevation = f(grid_distances)
 
-    # Interpolate the layer thicknesses
+    # Interpolate the layer thicknesses ont our grid
 
     grid_thicknesses = np.nan*np.ones(shape = (grid_distances.shape[0],
                                                grid_elevations.shape[0]),
                                       dtype = layer_thicknesses.dtype)
 
+    # Iterate through each one of the layers and iterpolate
+    # Nb if all layers are equally thick then this block does nothing
     for j in range(layer_thicknesses.shape[1]):
         # Guard against nans
-
         if not np.isnan(layer_thicknesses[:,j]).any():
             # Grid in log10 space
             layer_thickness = np.log10(layer_thicknesses[:, j])
+
             f = interp1d(distances, layer_thickness)
             grid_thicknesses[:,j] = f(grid_distances)
 
+
     # Tranform back to linear space
     grid_thicknesses = 10**grid_thicknesses
-
     # Interpolate the variables
 
     # Iterate through variables and interpolate onto new grid
@@ -249,7 +273,7 @@ def interpolate_2d_vars(vars_2d, var_dict, xres, yres):
         point_var = var_dict[var]
 
         new_var = np.ones(shape = (len(grid_distances),
-                                   nlayers))
+                                   ndepth_cells))
 
         if var == 'conductivity':
 
@@ -260,14 +284,14 @@ def interpolate_2d_vars(vars_2d, var_dict, xres, yres):
             f = interp1d(distances, point_var[:,j])
             new_var[:, j] = f(grid_distances)
 
-        if var == 'conductivity':
+        if var.startswith('conductivity'):
 
             new_var = 10**(new_var)
 
         # Now we need to place the 2d variables on the new grid
         for i in range(grid_distances.shape[0]):
             dtop = 0.
-            for j in range(nlayers - 1):
+            for j in range(ndepth_cells - 1):
                 # Get the thickness
                 thick = grid_thicknesses[i,j]
                 # Find the elevation top and bottom
@@ -280,11 +304,11 @@ def interpolate_2d_vars(vars_2d, var_dict, xres, yres):
                 # Update the depth top
                 dtop += thick
 
+
         # Reverse the grid if it is west to east
 
-        if var_dict['reverse_line']:
-
-            interpolated_var = np.flipud(interpolated_var)
+        #if var_dict['reverse_line']:
+        #    interpolated_var = np.flipud(interpolated_var)
 
         # We also want to transpose the grid so the up elevations are up
 
@@ -318,5 +342,5 @@ def return_valid_points(points, coords, extent):
     # Now get points that are within our survey area
     mask = [Point(coords[id]).within(extent) for id in points]
     u, indices = np.unique(np.array(points)[mask], return_index = True)
-    
+
     return u[indices]

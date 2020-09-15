@@ -36,7 +36,9 @@ import datetime
 from pyproj import CRS,Transformer
 
 # Find the file paths from the pmap directory
-indir = r"C:\Users\PCUser\Desktop\NSC_data\data\AEM\DR\garjmcmctdem_workshop\combined\pmaps"
+indir = r"C:\Users\PCUser\Desktop\AEM\rjmcmc\nc_subset"
+yml_file = r"C:\Users\PCUser\OneDrive\GitHub\garjmcmctdem_utils\scripts\conversion\active\netcdf_settings.yml"
+nc_outfile = r"C:\temp\test.nc"
 
 fnames  = []
 
@@ -47,14 +49,11 @@ n_files = len(fnames)
 
 # Now parse the yaml file
 
-yml_file = r"C:\Users\PCUser\OneDrive\GitHub\garjmcmctdem_utils\scripts\conversion\active\netcdf_settings.yml"
-
 settings = yaml.safe_load(open(yml_file))
 
 # We will use the first dataset as a template to get key information about
 # dimeension and variable sizes and shapes
 dataset = netCDF4.Dataset(fnames[0])
-
 
 # Create a dictionary for all variabes
 var_dict = {}
@@ -64,8 +63,16 @@ var_dict = {}
 
 for key in settings["field_definitions"].keys():
     var_dict[key] = settings["field_definitions"][key].copy()
+    # Lines are a special case
+    if key == 'line':
+        # Instead we create a line index variable. Our line varibale will be a dimension
+        # with length np.uniqe(lines)
+        shape = [n_files]
+        dtype = np.int
+        arr = np.zeros(shape = shape, dtype = dtype)
+        var_dict['line_index']  = {'values': arr, 'short_name': 'line_index'}
     # For array variables
-    if key in dataset.variables.keys():
+    elif key in dataset.variables.keys():
         var = dataset.variables[key]
         shape = [n_files] + list(var.shape)
         dtype = var.dtype
@@ -89,15 +96,21 @@ for key in settings["field_definitions"].keys():
         except AttributeError:
             print(key, " is neither a scalar or variable. Check settings file")
 
+
 # Now we populate the arrays
 dataset = None
 for i, file in enumerate(fnames):
     dataset = netCDF4.Dataset(file)
 
     for key in var_dict:
+        print(key)
         # We will deal with these later
-        if np.logical_or(key == 'lat',key == 'lon'):
+        if key == 'lat' or key == 'lon' or key == 'line':
             pass
+        elif key == 'line_index':
+            # We will reindex at a later time
+            val = getattr(dataset, 'line')
+            var_dict[key]['values'][i] = val
         elif len(var_dict[key]['values'].shape) == 1:
             # Get the scalar
             val = getattr(dataset, key)
@@ -106,6 +119,17 @@ for i, file in enumerate(fnames):
             # Get the variable
             arr = dataset.variables[key][:]
             var_dict[key]['values'][i] = arr
+# Now we are able to create the line variable as we know which lines we are
+# had data for
+
+lines = np.unique(var_dict['line_index']['values'])
+var_dict['line']['values'] = lines
+# Now we want to change the line index values to index lines
+
+
+for i, line in enumerate(lines):
+    inds = np.where(var_dict['line_index']['values']== line)
+    var_dict['line_index']['values'][inds] = i
 
 
 # Now we get our longitudes and latitudes using the crs defined in the settings file
@@ -125,8 +149,11 @@ dim_dict = {}
 
 for key in settings['dimension_fields'].keys():
     dim_dict[key] = settings['dimension_fields'][key].copy()
-    dim_dict[key]['size'] = dataset.dimensions[key].size
-
+    if key == 'line':
+        dim_dict[key]['size'] = len(var_dict['line']['values'])
+    else:
+        dim_dict[key]['size'] = dataset.dimensions[key].size
+dim_dict
 # Refine the dimension definition
 
 for key in var_dict.keys():
@@ -148,9 +175,12 @@ for key in var_dict.keys():
     else:
         var_dict[key]['dimensions'].insert(0, 'point')
 
+var_dict['line']['dimensions'] = 'line'
+
+
 # Now we create a new netcdf file
 
-rootgrp = netCDF4.Dataset(r"C:\Users\PCUser\Desktop\NSC_data\data\AEM\DR\garj_workshop2\DR_rjmcmc_pmaps.nc", "w", format="NETCDF4")
+rootgrp = netCDF4.Dataset(nc_outfile, "w", format="NETCDF4")
 
 point = rootgrp.createDimension("point", None)
 
