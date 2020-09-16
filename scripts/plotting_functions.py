@@ -34,6 +34,8 @@ import math
 import spatial_functions
 from scipy.interpolate import griddata
 from scipy.interpolate import interp1d
+from matplotlib.colors import Normalize
+import matplotlib as mpl
 
 def AEM_baseplot(stoch_inv, det_inv, layer_number = 1, plot_args = {}):
     """Create the fig and axis for a base plot showing LCI grids and rj scatter
@@ -669,3 +671,87 @@ def point_selection_plot(surface, coords, plot_args = {'Panel_1':{}, 'Panel_2': 
 
 
     return fig, ax_array, [cax, cax2]
+
+def percentiles2pnci(p10, p90, upper_threshold = 0.9, lower_threshold = 0.1):
+    """Estimate the prior-normalised credibility interval from the 10th
+    and 90th percentile gridded sections. This can be used on section plots as
+    an alpha value of on its own
+
+    Parameters
+    ----------
+    p10 : array
+        Description of parameter `p10`.
+    p90 : array
+        Description of parameter `p90`.
+    upper_threshold : float
+        Description of parameter `upper_threshold`.
+    lower_threshold : float
+        Description of parameter `lower_threshold`.
+
+    Returns
+    -------
+    array
+        pnci array with identical shape to p10, p90
+
+    """
+    deltaP = np.log10(p90) - np.log10(p10)
+
+    #credible interval
+    ci = p90-p10
+    frac = ci/deltaP
+
+    frac_max = upper_threshold * np.ones(shape = p90.shape, dtype = np.float)
+    frac_min = lower_threshold * np.ones(shape = p90.shape, dtype = np.float)
+
+    alpha = 0 + (frac_max - frac)/(frac_max - frac_min)
+    # Make alpha = 1 if the frac is less than lower threshold
+    alpha[frac < frac_min] = 1.
+    # Make alpha 0 if frac is higher than the upper threshold
+    alpha[frac > frac_max] = 0.
+    return alpha
+
+def array2rgba(section_data, line, vmin, vmax, cmap,
+               upper_threshold = 0.9, lower_threshold = 0.1):
+    """Function for getting the rgba .
+
+    Parameters
+    ----------
+    section_data : type
+        Description of parameter `dataset`.
+    line : type
+        Description of parameter `line`.
+    vmin : type
+        Description of parameter `vmin`.
+    vmax : type
+        Description of parameter `vmax`.
+    cmap : type
+        Description of parameter `cmap`.
+    upper_threshold : type
+        Description of parameter `upper_threshold`.
+    lower_threshold : type
+        Description of parameter `lower_threshold`.
+
+    Returns
+    -------
+    type
+        Description of returned object.
+
+    """
+
+    p10 = section_data[line]['conductivity_p10']
+    p90 = section_data[line]['conductivity_p90']
+    p50 = section_data[line]['conductivity_p50']
+
+    vmin, vmax = np.log10(vmin), np.log10(vmax)
+
+    rgb = Normalize(vmin,vmax)(np.log10(p50))
+
+    alphas = percentiles2pnci(p10,p90, upper_threshold, lower_threshold)
+
+    cmap = getattr(plt.cm, cmap)
+
+    colours = cmap(rgb)
+
+    colours[..., -1] = alphas
+
+    return colours

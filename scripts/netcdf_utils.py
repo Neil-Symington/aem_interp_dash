@@ -145,7 +145,9 @@ def extract_rj_sounding(rj, lci, point_index = 0):
     sample_no = np.arange(1,rj_dat.dimensions['convergence_sample'].size + 1)
     nchains = rj_dat.nchains
     elevation = rj_dat['elevation'][point_index]
-    line = int(rj_dat['line'][point_index])
+    # get line under new schema
+    line_index = int(rj_dat['line_index'][point_index])
+    line = int(rj_dat['line'][line_index])
     fiducial = float(rj_dat['fiducial'][point_index])
     elevation = rj_dat['elevation'][point_index]
 
@@ -287,3 +289,50 @@ def write_inversion_ready_file(dataset, outpath, nc_variables,
             else:
                 f.write(''.join([item,' ',str(counter),'-',str(counter + shape[1] - 1),'\n']))
                 counter += shape[1]
+
+def get_sorted_line_inds(dataset, line, how = "east-west", subset = 1):
+    """A function for returning the indices for a line that has been sorted,
+    north-south, east-west or vice versa.
+
+    Parameters
+    ----------
+    dataset : netcdf dataset
+        Description of parameter `dataset`.
+    line : integer
+        Description of parameter `line`.
+    how : string
+        one of 'east-west', 'west-east', 'north-south', 'south-north'
+    subset : integer
+        how to subset the points
+
+    Returns
+    -------
+    array
+        Array of point indices
+
+    """
+
+    # make sure the how is correctly specified
+    err_message = 'Please specify one of \'east-west\', \'west-east\',\'north-south\', or \'south-north\''
+    assert how in ['east-west', 'west-east', 'north-south', 'south-north'], err_message
+    # get line indices
+    line_inds = np.where(get_lookup_mask([line],dataset))[0]
+
+    sort_mask = line_inds[np.argsort(dataset['fiducial'][line_inds])]
+
+    #sort_mask = dataset['fiducial']
+    # sort first on fiducials
+    if how == 'east-west':
+        if dataset['easting'][sort_mask][0] < dataset['easting'][sort_mask][-1]:
+            sort_mask = sort_mask[::-1]
+    elif how == 'west-east':
+        if dataset['easting'][sort_mask][0] > dataset['easting'][sort_mask][-1]:
+            sort_mask = sort_mask[::-1]
+    elif how == 'north-south':
+        if dataset['northing'][sort_mask][0] < dataset['northing'][sort_mask][-1]:
+            sort_mask = sort_mask[::-1]
+    elif how == 'south-north':
+        if dataset['northing'][sort_mask][0] > dataset['northing'][sort_mask][-1]:
+            sort_mask = sort_mask[::-1]
+
+    return sort_mask[::subset]
