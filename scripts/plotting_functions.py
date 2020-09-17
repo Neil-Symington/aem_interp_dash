@@ -420,9 +420,7 @@ def pmap_plot(D, pmap_kwargs, surface, lci, figsize = (8,8), outfile = None):
     ax7 = fig.add_axes([0.70, 0.78, 0.2, 0.2])
     cbar_ax1 = fig.add_axes([0.05, 0.29, 0.35, 0.01])
     cbar_ax2 = fig.add_axes([0.88, 0.05, 0.01, 0.2])
-    cbar_ax3 = fig.add_axes([0.9, 0.52, 0.01, 0.2])
-
-
+    
     # Plot probability map
 
     # ax1
@@ -460,7 +458,8 @@ def pmap_plot(D, pmap_kwargs, surface, lci, figsize = (8,8), outfile = None):
     ax1.set_ylim(pmap_kwargs['panel_1']['max_depth'],
                  pmap_kwargs['panel_1']['min_depth'])
 
-    ax1.legend(loc = 3)
+    if pmap_kwargs['panel_1']['legend']:
+        ax1.legend(loc = 3)
 
     # Ax 2
     ax2.plot(D['change_point_pdf'], D['depth_cells'], label = 'P(change point)')
@@ -472,8 +471,9 @@ def pmap_plot(D, pmap_kwargs, surface, lci, figsize = (8,8), outfile = None):
     if not pmap_kwargs['panel_2']['auto_xlim']:
         ax2.set_xlim(pmap_kwargs['panel_2']['pmin'],
                     pmap_kwargs['panel_2']['pmax'])
-
-    ax2.legend()
+        
+    if pmap_kwargs['panel_2']['legend']:
+        ax2.legend()
     ax2.grid(which = 'both')
 
     if hasattr(surface, "layer_elevation_grid"):
@@ -489,6 +489,8 @@ def pmap_plot(D, pmap_kwargs, surface, lci, figsize = (8,8), outfile = None):
                     marker = '+', s = 0.5)
 
         ax3.plot(D['easting'],D['northing'],  'x', c = 'red')
+        
+        cbar_ax3 = fig.add_axes([0.9, 0.52, 0.01, 0.2])
 
         cb3 =  fig.colorbar(im3, cax=cbar_ax3, orientation='vertical')
         cb3.set_label('surface elevation mAHD')
@@ -504,7 +506,7 @@ def pmap_plot(D, pmap_kwargs, surface, lci, figsize = (8,8), outfile = None):
 
     ax4.plot([1, D['nsamples']], [1,1], 'k')
     ax4.plot([D['burnin'], D['burnin']],[0.01,1e4], 'k')
-    #ax4.set_xlim([1, D['misfit'].shape[1]])
+    ax4.set_xlim([1, D['misfit'].shape[1]])
     ax4.set_ylim(pmap_kwargs['panel_4']['misfit_min'],
                  pmap_kwargs['panel_4']['misfit_max'])
 
@@ -532,7 +534,7 @@ def pmap_plot(D, pmap_kwargs, surface, lci, figsize = (8,8), outfile = None):
     im2 = plot_grid(ax6, D['lci_line'], 'conductivity',
                               panel_kwargs = pmap_kwargs['panel_6'])
 
-    ax6.plot([dist, dist], [-500, 500], 'pink')
+    ax6.plot([dist, dist], [-1000, 1000], 'pink')
     ax6.set_xlabel("Distance along line (m)")
 
     ax5.set_xlim(dist - pmap_kwargs['panel_5']['buffer'],
@@ -755,3 +757,20 @@ def array2rgba(section_data, line, vmin, vmax, cmap,
     colours[..., -1] = alphas
 
     return colours
+
+def layer_point_prob_plot(ax, section_data, line):
+    # Flatten into x,z, probability
+    c = section_data[line]['interface_depth_histogram'].flatten()
+    x = np.tile(section_data[line]['grid_distances'],len(section_data[line]['grid_elevations']))
+    y = np.repeat(section_data[line]['grid_elevations'],len(section_data[line]['grid_distances']))
+
+    elev = section_data[line]['elevation']
+    dist = section_data[line]['grid_distances']
+
+    x = x[np.isfinite(c)]
+    y = y[np.isfinite(c)]
+    c = c[np.isfinite(c)]
+    
+    ax.scatter(x,y, s = 1, c = c, cmap = 'gist_yarg')
+    ax.plot(dist, elev, 'k')
+    return ax
