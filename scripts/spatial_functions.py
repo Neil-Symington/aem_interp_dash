@@ -344,3 +344,39 @@ def return_valid_points(points, coords, extent):
     u, indices = np.unique(np.array(points)[mask], return_index = True)
 
     return u[indices]
+
+def interp2scatter(surface, line, gridded_data, easting_col = 'X',
+                   northing_col = 'Y', elevation_col = 'ELEVATION',
+                   line_col = 'SURVEY_LINE'):
+    """Function for taking .
+
+    Parameters
+    ----------
+    surface : instance of modelling class
+        From modelling_utils.
+    line : int
+        line number.
+    gridded_data : dictionary
+        dictionary of section grids.
+
+    Returns
+    -------
+    grid_dists
+        Array of grid distances.
+    elevs
+        Array of elevations
+    fids
+        Array of fiducials
+
+    """
+    mask = surface.interpreted_points[line_col] == line
+    utm_coords = np.column_stack((gridded_data[line]['easting'],
+                                  gridded_data[line]['northing']))
+
+    dist, inds = nearest_neighbours(surface.interpreted_points[mask][[easting_col,northing_col]].values,
+                                                      utm_coords, max_distance=100.)
+
+    grid_dists = gridded_data[line]['grid_distances'][inds]
+    elevs = surface.interpreted_points[mask][elevation_col].values
+    fids = surface.interpreted_points[mask].index
+    return  grid_dists, elevs, fids
