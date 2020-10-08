@@ -25,16 +25,12 @@ Code for creating AEM inversion and data objects
 '''
 import pickle
 import h5py
-import netCDF4
 import numpy as np
-import pandas as pd
 import spatial_functions
-import netCDF4
-from netcdf_utils import get_lines, testNetCDFDataset, get_lookup_mask
-from misc_utils import check_list_arg, dict_to_hdf5, extract_hdf5_data
+from .netcdf_utils import get_lines, testNetCDFDataset, get_lookup_mask
+from .misc_utils import check_list_arg, dict_to_hdf5, extract_hdf5_data
 import gc, glob, os
-#import rasterio
-import tempfile
+
 
 
 class AEM_inversion:
@@ -292,7 +288,7 @@ class AEM_inversion:
         datasets = {}
         # Iterate through h5py objects
         for item in f.values():
-            if item.name[1:] in plot_vars:
+            if item.name[1:] in gridded_vars:
                 datasets[item.name[1:]] = item[()]
             # We also need to know easting, northing, doi, elevations and grid elevations
             if item.name[1:] == 'easting':
