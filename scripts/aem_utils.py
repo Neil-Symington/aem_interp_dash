@@ -27,10 +27,10 @@ import pickle
 import h5py
 import numpy as np
 import spatial_functions
-from .netcdf_utils import get_lines, testNetCDFDataset, get_lookup_mask
-from .misc_utils import check_list_arg, dict_to_hdf5, extract_hdf5_data
+from netcdf_utils import get_lines, testNetCDFDataset, get_lookup_mask
+from misc_utils import check_list_arg, dict_to_hdf5, extract_hdf5_data
 import gc, glob, os
-
+from shapely.geometry import LineString
 
 
 class AEM_inversion:
@@ -361,6 +361,30 @@ class AEM_inversion:
             f.close()
 
         self.section_data = interpolated
+
+    def create_flightline_polylines(self):
+        """
+        Create polylines from the AEM flight lines
+        Returns
+        self, dictionary
+           dictionary of polyline with line number as the key
+        -------
+
+        """
+        assert np.logical_and("line" in self.data.variables,
+                              "line_index" in self.data.variables)
+        self.flight_lines = {}
+
+        for i, line in enumerate(self.data['line'][:]):
+            mask = np.where(self.data['line_index'][:] == i)
+            # First sort by fiducial
+            sort_mask = np.argsort(self.data['fiducial'][mask])
+            # now get the easting and northing and sort
+            easting = self.data['easting'][mask][sort_mask]
+            northing = self.data['northing'][mask][sort_mask]
+
+            # add the polyline to the attribute
+            self.flight_lines[line] = LineString(np.column_stack((easting, northing)))
 
 class AEM_data:
     """
