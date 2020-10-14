@@ -82,3 +82,37 @@ def extract_hdf5_data(file, grid_vars):
             datasets['grid_distances'] = item[()]
 
     return datasets
+
+def return_floats(string):
+    try:
+        return [float(x) for x in string.split()]
+    except ValueError:
+        return None
+
+def RepresentsInt(s):
+    try:
+        int(s)
+        return True
+    except ValueError:
+        return False
+
+
+def RepresentsFloat(s):
+    try:
+        float(s)
+        return True
+    except ValueError:
+        return False
+
+def block_to_array(file):
+    """
+    Function for return blocks of floats from text files to a numpy array
+    :param file:
+    :return:
+    """
+    line = next(file)
+    L = []
+    while return_floats(line) is not None:
+        L.append(return_floats(line))
+        line = next(file)
+    return np.array(L)
