@@ -330,12 +330,12 @@ def xy_2_var(grid_dict, xy, var):
                                   grid_dict['northing']))
 
     d, i = nearest_neighbours(xy, utm_coords, max_distance=100.)
-    if np.isnan(d[0]):
+
+    if np.isnan(d).all():
         return None
 
     else:
-        near_ind = i[0]
-        return grid_dict[var][near_ind]
+        return grid_dict[var][i]
 
 def return_valid_points(points, coords, extent):
     # Now get points that are within our survey area
