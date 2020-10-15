@@ -452,7 +452,8 @@ class AEM_data:
 
 
 
-    def calculate_noise(self, data_variable, noise_variable = None, multiplicative_noise = 0.03, high_altitude_lines = None):
+    def calculate_noise(self, data_variable, noise_variable = None, additive_noise_variable = None,
+                        multiplicative_noise = 0.03, high_altitude_lines = None):
         """A function for calculating the noise for AEM data.
 
         Parameters
@@ -477,7 +478,9 @@ class AEM_data:
 
         """
         if noise_variable is None:
-            noise_variable = data_variable + "_noise"
+            noise_variable = data_variable.replace('-', '_') + "_noise"
+        if additive_noise_variable is None:
+            additive_noise_variable = data_variable.replace('-', '_') + "_additive_noise"
         if high_altitude_lines is None:
             high_altitude_lines =  [x for x in self.data['line'][:] if x>913000]
         # Get a high alitute line mask
@@ -490,6 +493,9 @@ class AEM_data:
 
         # Calculate the additive noies
         additive_noise_arr = self.calculate_additive_noise(aem_gate_data, high_altitude_mask)
+
+        # Set the additive noise as an attribute
+        setattr(self, additive_noise_variable, (additive_noise_arr[0]))
 
         # Calculate multiplicative noise
         mulitplicative_noise_arr = multiplicative_noise * aem_gate_data

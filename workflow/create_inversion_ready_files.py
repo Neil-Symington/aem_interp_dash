@@ -46,6 +46,7 @@ def write_inversion_ready_file(dataset, outpath, nc_variables,
         # Add to dictionary
         data[var] = {'array': arr,
                      'format': nc_formats[i]}
+
     # Now we add the additional columns
     if other_variables is not None:
         for item in other_variables.keys():
@@ -81,6 +82,7 @@ def write_inversion_ready_file(dataset, outpath, nc_variables,
                 f.write(''.join([item, ' ', str(counter), '-', str(counter + shape[1] - 1), '\n']))
                 counter += shape[1]
 
+
 infile = r"C:\Users\symin\OneDrive\Documents\GA\AEM\EM\AUS_10024_InJune_EM_MGA55.nc"
 
 injune = aem_utils.AEM_data(name = 'Southern Stuart Corridor AEM data',
@@ -89,10 +91,10 @@ injune = aem_utils.AEM_data(name = 'Southern Stuart Corridor AEM data',
 
 # use inbuilt functions to calculate the noise
 injune.calculate_noise("low_moment_Z-component_EM_data", noise_variable = "low_moment_Z_component_noise",
-                    multiplicative_noise = 0.03)
+                       multiplicative_noise = 0.03)
 
 injune.calculate_noise("high_moment_Z-component_EM_data", noise_variable = "high_moment_Z_component_noise",
-                    multiplicative_noise = 0.03)
+                       multiplicative_noise = 0.03)
 
 # Noise is root of sum of the squares
 lm_noise = injune.low_moment_Z_component_noise
@@ -121,15 +123,15 @@ aem_coords = injune.coords
 dist, inds = spatial_functions.nearest_neighbours(interp_coords[:,1:], aem_coords)
 
 # Now we have the AEM indices that are proximal to interpretation.
-# We only use every 10th unique point
+# We only use every 5th unique point
 
-final_inds = np.unique(inds)[::10]
+final_inds = np.unique(inds)[::5]
 
-# Create a mask array
+# Create a boolean mask array
 
-mask_array = np.zeros(injune.data.dimensions['point'].size, dtype=int)
+mask_array = np.zeros(injune.data.dimensions['point'].size, dtype=np.bool)
 
-mask_array[final_inds] = 1
+mask_array[final_inds] = True
 
 # Now write these data to a .dat file with the variables that are important for inversion.
 
@@ -146,10 +148,24 @@ other_data = {'rel_uncertainty_low_moment_Z-component': {'array': lm_runc, 'form
               'rel_uncertainty_high_moment_Z-component': {'array': hm_runc, 'format': '{:15.6E}'}}
 
 # Define the outfile
-outfile = r"C:\Users\symin\OneDrive\Documents\GA\AEM\EM\ASEG_gdf\Injune_Petrel_suset_n10_inversion_ready.dat"
+outfile = r"C:\Users\symin\OneDrive\Documents\GA\AEM\inversion_ready\Injune_Petrel_ss_inversion_ready.dat"
 
+# Write the inversion file to disc
 write_inversion_ready_file(injune.data, outfile, nc_variables,
                                nc_formats, other_variables = other_data,
                                mask = mask_array)
+
+# Here we write the additive noise to a file. This allows us to copy and past it into a control file,
+# which is required by some inversions
+
+outfile = r"C:\Users\symin\OneDrive\Documents\GA\AEM\inversion_ready\hm_additive_noise.txt"
+
+with open(outfile, 'w') as f:
+    f.write('\t'.join(map(str,injune.high_moment_Z_component_EM_data_additive_noise)))
+
+outfile = r"C:\Users\symin\OneDrive\Documents\GA\AEM\inversion_ready\lm_additive_noise.txt"
+
+with open(outfile, 'w') as f:
+    f.write('\t'.join(map(str,injune.low_moment_Z_component_EM_data_additive_noise)))
 
 injune.data.close()

@@ -90,7 +90,6 @@ d = netCDF4.Dataset(nc_out_path, "a")
 skytem = AEM_System("SkyTEM312Fast", dual_moment = True)
 
 
-
 # Parse
 skytem.parse_stm_file(lm_file, 'LM')
 
