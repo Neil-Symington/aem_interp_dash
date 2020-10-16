@@ -76,5 +76,5 @@ dimension_fields:
   line: {dimension_name: 'line'}
 
 crs:
-  projected: {epsg: 28353}
+  projected: {epsg: 28355}
   geographic: {epsg: 7844}

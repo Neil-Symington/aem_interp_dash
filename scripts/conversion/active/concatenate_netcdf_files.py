@@ -34,13 +34,14 @@ import glob
 import yaml
 import datetime
 from pyproj import CRS,Transformer
+import gc
 
 # Find the file paths from the pmap directory
-indir = r"C:\Users\PCUser\Desktop\AEM\rjmcmc\nc_subset"
-yml_file = r"C:\Users\PCUser\OneDrive\GitHub\garjmcmctdem_utils\scripts\conversion\active\netcdf_settings.yml"
-nc_outfile = r"C:\temp\test.nc"
+indir = "/scratch/z67/njs547/AEM/Injune/output/pmaps"
+yml_file = "netcdf_settings.yml"
+nc_outfile = "../Injune_petrel_rjmcmc_pmaps.nc"
 
-fnames  = []
+fnames = []
 
 for file in glob.glob(os.path.join(indir,"*.nc")):
     fnames.append(file)
@@ -103,7 +104,6 @@ for i, file in enumerate(fnames):
     dataset = netCDF4.Dataset(file)
 
     for key in var_dict:
-        print(key)
         # We will deal with these later
         if key == 'lat' or key == 'lon' or key == 'line':
             pass
