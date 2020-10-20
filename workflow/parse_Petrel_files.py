@@ -54,7 +54,7 @@ for file in glob.glob(os.path.join(r"C:\Users\symin\github\garjmcmctdem_utils\da
         df = df.append(df_temp)
 
 # Save interpretation as a csv
-
+df.reset_index()
 df.to_csv(r"C:\Users\symin\github\garjmcmctdem_utils\data\Surat_basin_AEM_interpretations.csv")
 
 
