@@ -378,4 +378,4 @@ def interp2scatter(surface, line, gridded_data, easting_col = 'X',
     grid_dists = gridded_data[line]['grid_distances'][inds]
     elevs = surface.interpreted_points[mask][elevation_col].values
     fids = surface.interpreted_points[mask].index
-    return  grid_dists, elevs, fids
+    return grid_dists, elevs, fids

@@ -25,7 +25,7 @@ lci = aem_utils.AEM_inversion(name = 'Laterally Contrained Inversion (LCI)',
                               netcdf_dataset = netCDF4.Dataset(infile))
 
 
-df = pd.DataFrame(columns = ['line', 'easting', 'northing', 'depth_mBGL', 'interface', 'fiducial'])
+df = pd.DataFrame(columns = ['line', 'easting', 'northing', 'depth_mBGL', 'elevation_mAHD', 'interface', 'fiducial'])
 
 
 
@@ -38,9 +38,16 @@ for file in glob.glob(os.path.join(r"C:\Users\symin\github\garjmcmctdem_utils\da
         dist, inds = spatial_functions.nearest_neighbours(dat[:, 1:3], lci.coords)
 
         fids = lci.data['fiducial'][inds]
+
+        ground_elevation = lci.data['elevation'][inds]
+
+        interp_elevation = dat[:,3]
+        interp_depth = ground_elevation - interp_elevation
+
         # Create temporary dataframe
         df_temp = pd.DataFrame(data = {'line': dat[:,0], 'easting':dat[:,1],
-                                       'northing': dat[:,2], 'depth_mBGL': dat[:,3],
+                                       'northing': dat[:,2], 'depth_mBGL': interp_depth,
+                                       'elevation_mAHD': interp_elevation,
                                        'interface': os.path.basename(file),
                                        'fiducial': fids})
         # Append to main dataframe
