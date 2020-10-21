@@ -53,17 +53,20 @@ def rollpitchyaw_array(roll, pitch, yaw):
 
 root = r"C:\Users\symin\OneDrive\Documents\GA\AEM\EM"
 
-#nc_out_path = os.path.join(root, "AUS_10024_InJune_EM_MGA55.nc")
-nc_out_path = os.path.join(root, "AUS_10024_InJune_Orana_MGA56.nc")
+nc_out_path = os.path.join(root, "AUS_10024_InJune_EM_MGA55.nc")
+#nc_out_path = os.path.join(root, "AUS_10024_Orana_MGA56.nc")
+#nc_out_path = os.path.join(root, "AUS_10023_SSC_EM_MGA53.nc")
 
-#dat_in_path = os.path.join(root, 'ASEG_gdf', 'AUS_10024_InJune_EM_MGA55.dat')
-dat_in_path = os.path.join(root, 'ASEG_gdf', 'AUS_10024_Orana_EM_MGA56.dat')
+dat_in_path = os.path.join(root, 'ASEG_gdf', 'AUS_10024_InJune_EM_MGA55.dat')
+#dat_in_path = os.path.join(root, 'ASEG_gdf', 'AUS_10024_Orana_EM_MGA56.dat')
+#dat_in_path = r"C:\Users\symin\OneDrive\Documents\GA\AEM\delivered\Delivered_20171113\01_EM\AUS_10023_SouthernStuart_EM\AUS_10023_SouthernStuart_EM.dat"
 
-#dfn_in_path = os.path.join(root, 'ASEG_gdf', 'AUS_10024_InJune_EM_MGA55.dfn')
-dfn_in_path = os.path.join(root, 'ASEG_gdf', 'AUS_10024_Orana_EM_MGA56.dfn')
+dfn_in_path = os.path.join(root, 'ASEG_gdf', 'AUS_10024_InJune_EM_MGA55.dfn')
+#dfn_in_path = os.path.join(root, 'ASEG_gdf', 'AUS_10024_Orana_EM_MGA56.dfn')
+#dfn_in_path = r"C:\Users\symin\OneDrive\Documents\GA\AEM\delivered\Delivered_20171113\01_EM\AUS_10023_SouthernStuart_EM\AUS_10023_SouthernStuart_EM.dfn"
 
 # GDA94 MGA zone 55
-crs_string = "EPSG:28356"
+crs_string = "EPSG:28355"
 
 # Open the lm and hm files
 root = r"C:\Users\symin\OneDrive\Documents\GA\AEM\STM"
@@ -136,8 +139,6 @@ gate_openclose = d.createDimension("gate_open_close",
                                    2)
 gates = d.createVariable("gate_open_close","i1",("gate_open_close",))
 
-
-
 lm_window_times =  d.createVariable("low_moment_window_time","f8",("low_moment_gate",
                                                                   "gate_open_close"))
 
@@ -152,8 +153,6 @@ hm_gates = skytem.HM['Receiver']['WindowTimes']
 lm_window_times[:] = lm_gates
 hm_window_times[:] = hm_gates
 
-
-
 rx_x_pos = d.createVariable("Rx_z_component_position_x","f8",())
 rx_x_pos[:] = -13.37
 rx_x_pos.units = 'm'
@@ -164,13 +163,13 @@ rx_y_pos = d.createVariable("Rx_z_component_position_y","f8",())
 rx_y_pos[:] = 0.
 rx_y_pos.units = 'm'
 rx_y_pos.long_name = 'Z-component EM sensor relative position from centre of horizontal frame, perpendicular to flight direction'
-rx_y_pos.sign_convention = 'Starboard of frame is positive'
+rx_y_pos.sign_convention = 'Port of frame is positive' # GA-AEM conventions
 
 rx_z_pos = d.createVariable("Rx_z_component_position_z","f8",())
-rx_z_pos[:] = -2.
+rx_z_pos[:] = 2. # GA-AEM conventions
 rx_z_pos.units = 'm'
 rx_z_pos.long_name = 'Z-component EM sensor relative position from centre of horizontal frame, in vertical direction'
-rx_z_pos.sign_convention = 'Down is positive'
+rx_z_pos.sign_convention = 'Up is positive'
 
 rx_x_x_pos = d.createVariable("Rx_x_component_position_x","f8",())
 rx_x_x_pos[:] = -14.75
@@ -218,7 +217,7 @@ try:
 except KeyError:
     print('Variable not found')
 
-# We need to recalcualte for the GA convention
+# We need to recalculate for the GA convention
 d2r = math.pi/180
 r2d = 180/math.pi
 try:
@@ -261,8 +260,6 @@ v0 = np.array([txrx_dx, txrx_dy, txrx_dz])
 
 V = np.matmul(v0, R)
 
-
-
 # Create variables
 
 txrx_dx = d.createVariable("TxRx_dx","f8",('point'))
@@ -283,7 +280,7 @@ txrx_dz = d.createVariable("TxRx_dz","f8",('point'))
 txrx_dz[:] = V[:,2]
 txrx_dz.units = 'm'
 txrx_dz.aseg_gdf_format = 'E7.2'
-txrx_dz.long_name = 'X-component EM sensor relative position from centre of frame, in vertical direction'
+txrx_dz.long_name = 'Z-component EM sensor relative position from centre of frame, in vertical direction'
 txrx_dz.sign_convention = 'Down is positive'
 
 d.close()

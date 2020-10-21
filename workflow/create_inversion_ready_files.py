@@ -83,7 +83,7 @@ def write_inversion_ready_file(dataset, outpath, nc_variables,
                 counter += shape[1]
 
 
-infile = r"C:\Users\symin\OneDrive\Documents\GA\AEM\EM\AUS_10024_InJune_EM_MGA55.nc"
+infile = r"C:\Users\symin\OneDrive\Documents\GA\AEM\EM\AUS_10023_SSC_EM_MGA53.nc"
 
 injune = aem_utils.AEM_data(name = 'Southern Stuart Corridor AEM data',
                               system_name = 'SkyTEM312',
@@ -122,16 +122,13 @@ aem_coords = injune.coords
 
 dist, inds = spatial_functions.nearest_neighbours(interp_coords[:,1:], aem_coords)
 
-# Now we have the AEM indices that are proximal to interpretation.
-# We only use every 5th unique point
-
-final_inds = np.unique(inds)[::5]
+final_inds = np.unique(inds)#[::5]
 
 # Create a boolean mask array
 
 mask_array = np.zeros(injune.data.dimensions['point'].size, dtype=np.bool)
 
-mask_array[final_inds] = True
+#mask_array[final_inds] = True
 
 # Now write these data to a .dat file with the variables that are important for inversion.
 
@@ -148,22 +145,22 @@ other_data = {'rel_uncertainty_low_moment_Z-component': {'array': lm_runc, 'form
               'rel_uncertainty_high_moment_Z-component': {'array': hm_runc, 'format': '{:15.6E}'}}
 
 # Define the outfile
-outfile = r"C:\Users\symin\OneDrive\Documents\GA\AEM\inversion_ready\Injune_Petrel_ss_inversion_ready.dat"
+outfile = r"C:\Users\symin\OneDrive\Documents\GA\AEM\inversion_ready\SSC_inversion_ready.dat"
 
 # Write the inversion file to disc
 write_inversion_ready_file(injune.data, outfile, nc_variables,
                                nc_formats, other_variables = other_data,
-                               mask = mask_array)
+                               mask = None)#mask_array)
 
 # Here we write the additive noise to a file. This allows us to copy and past it into a control file,
 # which is required by some inversions
 
-outfile = r"C:\Users\symin\OneDrive\Documents\GA\AEM\inversion_ready\hm_additive_noise.txt"
+outfile = r"C:\Users\symin\OneDrive\Documents\GA\AEM\inversion_ready\SSC_hm_additive_noise.txt"
 
 with open(outfile, 'w') as f:
     f.write('\t'.join(map(str,injune.high_moment_Z_component_EM_data_additive_noise)))
 
-outfile = r"C:\Users\symin\OneDrive\Documents\GA\AEM\inversion_ready\lm_additive_noise.txt"
+outfile = r"C:\Users\symin\OneDrive\Documents\GA\AEM\inversion_ready\SSC_lm_additive_noise.txt"
 
 with open(outfile, 'w') as f:
     f.write('\t'.join(map(str,injune.low_moment_Z_component_EM_data_additive_noise)))
