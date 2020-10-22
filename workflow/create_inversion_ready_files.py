@@ -150,7 +150,7 @@ outfile = r"C:\Users\symin\OneDrive\Documents\GA\AEM\inversion_ready\SSC_inversi
 # Write the inversion file to disc
 write_inversion_ready_file(injune.data, outfile, nc_variables,
                                nc_formats, other_variables = other_data,
-                               mask = None)#mask_array)
+                               mask = mask_array)
 
 # Here we write the additive noise to a file. This allows us to copy and past it into a control file,
 # which is required by some inversions

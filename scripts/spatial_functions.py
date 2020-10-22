@@ -163,7 +163,6 @@ def interpolate_1d_vars(vars_1D, var_dict, resampling_method='linear'):
     # the 2D variable gridding and add it to the dictionary
 
     for var in vars_1D:
-
         varray = griddata(var_dict['distances'],
                           var_dict[var], var_dict['grid_distances'],
                           method=resampling_method)
@@ -204,14 +203,13 @@ def interpolate_2d_vars(vars_2d, var_dict, xres, yres):
 
     # elevation limits
     vlimits = [np.min(elevations) - max_depth,
-               np.max(elevations) + 5]
+               np.max(elevations) + yres]
 
     # Get the horizontal limits
 
     distances = var_dict['distances']
 
     hlimits = [np.min(distances), np.max(distances)]
-
 
     # Get the x and y dimension coordinates
 
@@ -302,13 +300,6 @@ def interpolate_2d_vars(vars_2d, var_dict, xres, yres):
                 interpolated_var[i, j_ind] = new_var[i,j]
                 # Update the depth top
                 dtop += thick
-
-
-        # Reverse the grid if it is west to east
-
-        #if var_dict['reverse_line']:
-        #    interpolated_var = np.flipud(interpolated_var)
-
         # We also want to transpose the grid so the up elevations are up
 
         interpolated_var = interpolated_var.T

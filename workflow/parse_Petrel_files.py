@@ -13,16 +13,14 @@ import netCDF4
 sys.path.append(r"C:/Users/symin/github/garjmcmctdem_utils/scripts")
 import aem_utils, spatial_functions
 
-# First we bring in the lci data. This is so we can pair the points with a fiducial
+# Path to netcdf file
+infile = r"C:\Users\symin\OneDrive\Documents\GA\AEM\rjmcmc\Injune_petrel_rjmcmc_pmaps.nc"
 
-root = r"C:\Users\symin\OneDrive\Documents\GA\AEM\LCI"
+# Create instance
+rj = aem_utils.AEM_inversion(name = 'GARJMCMCTDEM',
+                             inversion_type = 'stochastic',
+                             netcdf_dataset = netCDF4.Dataset(infile))
 
-infile = os.path.join(root, "Injune_lci_MGA55.nc")
-
-# Create an instance
-lci = aem_utils.AEM_inversion(name = 'Laterally Contrained Inversion (LCI)',
-                              inversion_type = 'deterministic',
-                              netcdf_dataset = netCDF4.Dataset(infile))
 
 
 df = pd.DataFrame(columns = ['line', 'easting', 'northing', 'depth_mBGL', 'elevation_mAHD', 'interface', 'fiducial'])
@@ -35,11 +33,11 @@ for file in glob.glob(os.path.join(r"C:\Users\symin\github\garjmcmctdem_utils\da
         # just get the line number and coordinates for now
         dat = np.loadtxt(file, skiprows = 1, usecols = [0,2,3,4])
         # nearest neightbor to get fiducials
-        dist, inds = spatial_functions.nearest_neighbours(dat[:, 1:3], lci.coords)
+        dist, inds = spatial_functions.nearest_neighbours(dat[:, 1:3], rj.coords)
 
-        fids = lci.data['fiducial'][inds]
+        fids = rj.data['fiducial'][inds]
 
-        ground_elevation = lci.data['elevation'][inds]
+        ground_elevation = rj.data['elevation'][inds]
 
         interp_elevation = dat[:,3]
         interp_depth = ground_elevation - interp_elevation

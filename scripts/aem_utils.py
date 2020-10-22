@@ -103,7 +103,8 @@ class AEM_inversion:
            var_dict[item] = var_dict[item][sort_mask]
         return var_dict
 
-    def grid_sections(self, variables, lines, xres, yres, resampling_method = 'cubic', return_interpolated = False, save_hdf5 = True, hdf5_dir = None):
+    def grid_sections(self, variables, lines, xres, yres, resampling_method = 'cubic',
+                      return_interpolated = False, save_hdf5 = True, hdf5_dir = None):
         """A function for gridding AEM inversoin variables into sections.
            This method can handle both 1D and 2D variables
 
@@ -169,6 +170,7 @@ class AEM_inversion:
             # Extract the variables and coordinates for the line in question
             line_no, cond_var_dict = next(cond_lines)
 
+
             # Now we need to sort the cond_var_dict and run it east to west
             cond_var_dict = self.sort_variables(cond_var_dict)
 
@@ -177,10 +179,8 @@ class AEM_inversion:
                               'layer_centre_depth' in cond_var_dict):
 
                 cond_var_dict['layer_top_depth'] = spatial_functions.layer_centre_to_top(cond_var_dict['layer_centre_depth'])
-                #del cond_var_dict['layer_centre_depth']
 
-            interpolated[line_no] =  self.grid_variables(line_no, cond_var_dict,
-                                                         gridding_params)
+            interpolated[line_no] =  self.grid_variables(line_no, cond_var_dict,  gridding_params)
             # Save to hdf5 file if the keyword is passed
             if save_hdf5:
                 fname = os.path.join(hdf5_dir, str(int(line_no)) + '.hdf5')
@@ -235,6 +235,7 @@ class AEM_inversion:
 
         # Add distance array to dictionary
         cond_var_dict['distances'] = spatial_functions.coords2distance(utm_coordinates)
+
 
         # Add number of epth cells to the array
         if 'depth' in self.data.dimensions:
