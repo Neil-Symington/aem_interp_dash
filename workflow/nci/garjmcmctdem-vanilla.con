@@ -1,0 +1,121 @@
+Control Begin
+
+	NumberOfSystems = 2
+
+	EMSystem1 Begin
+		SystemFile       = ../../stm_files/Skytem312Fast-LM_pV.stm
+		UseXComponent    = no
+		UseYComponent    = no
+		UseZComponent    = yes
+		InvertTotalField = no
+
+		EstimateNoiseFromModel = yes
+		InvertMultiplicativeNoise = no 
+		ZMultiplicativeNoiseMinimum = 1.0
+		ZMultiplicativeNoiseMaximum = 5.0
+		ZMultiplicativeNoiseSTD = 1.5
+		ZMultiplicativeNoise   = 3.0
+		ZAdditiveNoise         = 9.89594	5.9269915	6.085174	3.487861	2.5628643	1.9418052	1.6538417	1.1150274	0.9367636	0.7680351	0.6154915	0.46615016	0.34284297	0.26505026	0.24139066	0.17660597	0.16791523	0.16748479
+		ZComponentSecondary    = -Column 17
+		//ZComponentNoise      = 
+	EMSystem1 End
+
+	EMSystem2 Begin
+		SystemFile       = ../../stm_files/Skytem312Fast-HM_pV.stm
+		UseXComponent    = no
+		UseYComponent    = no
+		UseZComponent    = yes
+		InvertTotalField = no
+
+		EstimateNoiseFromModel = yes
+		InvertMultiplicativeNoise = no
+		ZMultiplicativeNoise   = 3.0
+		ZMultiplicativeNoiseMinimum = 1.0
+		ZMultiplicativeNoiseMaximum = 5.0
+		ZMultiplicativeNoiseSTD = 1.5
+		ZAdditiveNoise         = 0.034279697	0.023540558	0.017502788	0.012909667	0.0102596795	0.008202694	0.006238196	0.0051441607	0.004206372	0.0031490203	0.0022881636	0.0018487393	0.0014542268	0.0010238248	0.0009558565	0.00084413623	0.00073969306	0.000679005	0.0005208208	0.00053389376	0.00044736522	0.00041250486	0.00036399259
+		ZComponentSecondary    = -Column 35
+		//ZComponentNoise      = 
+	EMSystem2 End
+
+	Sampler Begin
+
+
+		//Nuisance1 Begin
+		//	Type = tx_height
+		//	Initial = Column 8
+		//	PriorOffset = Yes
+		//	Min = 25.0
+		//	Max = 45.0
+		//	OffsetLower = 2.0
+		//	OffsetUpper = 2.0
+		//	STDValueChange = 0.3
+		//Nuisance1 End
+
+		SaveModels     = Yes
+
+		SaveMaps       = Yes
+		SaveMapsRate   = 1
+		SaveChains     = No
+		SaveChainsRate = 1
+
+		NChains         =  4
+		NSamples        =  700000
+		NBurnIn         =  350000
+		ThinRate        =  25
+		HighTemperature =  2.5
+
+
+		NLayersMin  =   1
+		NLayersMax  =  20
+
+		DepthMin        = 0.0
+		DepthMax        = 400
+		DepthScaling    = LINEAR
+		NDepthCells     = 200
+
+		ConductivityMin          = 0.002
+		ConductivityMax          = 5.0
+		ConductivityScaling      = LOG10
+		NConductivityCells       = 100
+	Sampler End
+
+	Input Begin
+		DataFile    = ../../data/Injune_Petrel_inversion_ready.dat
+		HeaderLines = 0
+		FirstRecord = 2
+		LastRecord  = Inf
+		Subsample   = 5
+
+		Columns Begin
+			SurveyNumber    = 0
+			DateNumber      = Column 2
+			FlightNumber    = Column 3
+			LineNumber      = Column 4
+			FidNumber       = Column 5
+			Easting         = Column 6
+			Northing        = Column 7
+			GroundElevation = Column 9
+
+			TX_Height       = Column 8
+			TX_Roll         = Column 11
+			TX_Pitch        = Column 12
+			TX_Yaw          = Column 13
+			TXRX_DX         = Column 14
+			TXRX_DY         = Column 15
+			TXRX_DZ         = Column 16
+			RX_Roll         = Column 11
+			RX_Pitch        = Column 12
+			RX_Yaw          = Column 13
+		Columns End
+	Input End
+
+	Output Begin
+		LogFile    = rjmcmc.log
+		DataFile   = rjmcmc.asc
+
+		Directory  = output\
+		MapsDirectory    = output\pmaps\
+	Output End
+
+Control End
