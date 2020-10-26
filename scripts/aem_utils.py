@@ -102,7 +102,8 @@ class AEM_inversion:
            var_dict[item] = var_dict[item][sort_mask]
         return var_dict
 
-    def grid_sections(self, variables, lines, xres, yres, resampling_method = 'cubic', return_interpolated = False, save_hdf5 = True, hdf5_dir = None):
+    def grid_sections(self, variables, lines, xres, yres, resampling_method = 'linear', return_interpolated = False,
+                      save_hdf5 = True, hdf5_dir = None):
         """A function for gridding AEM inversoin variables into sections.
            This method can handle both 1D and 2D variables
 

@@ -168,10 +168,6 @@ def interpolate_1d_vars(vars_1D, var_dict, resampling_method='linear'):
                           var_dict[var], var_dict['grid_distances'],
                           method=resampling_method)
 
-        # Reverse the grid if it is west to east
-
-        #if var_dict['reverse_line']:
-        #    varray = varray[::-1]
 
         yield varray
 
