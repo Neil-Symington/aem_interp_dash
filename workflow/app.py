@@ -17,7 +17,7 @@ warnings.filterwarnings('ignore')
 import plotly.express as px
 from jupyter_dash import JupyterDash
 import dash
-from dash.dependencies import Input, Output
+from dash.dependencies import Input, Output, State
 import dash_core_components as dcc
 import dash_html_components as html
 import dash_table
@@ -224,7 +224,7 @@ def interp2scatter(line, gridded_data, interpreted_points, easting_col = 'X',
 
     return  grid_dists, elevs, fids
 
-def dash_section(line, df_interp, colours, section_kwargs):
+def dash_section(line, df_interp, markers, vmin, vmax, cmap):
     # Create subplots
     fig = make_subplots(rows=2, cols = 1, shared_xaxes=True,
                         vertical_spacing=0.05,
@@ -249,22 +249,22 @@ def dash_section(line, df_interp, colours, section_kwargs):
     # Create the grid
     if section_kwargs['section_plot'] == "lci":
         fig.add_trace(go.Heatmap(z = np.log10(section_data[line]['conductivity']),
-                        zmin = np.log10(section_kwargs['vmin']),
-                        zmax = np.log10(section_kwargs['vmax']),
+                        zmin = np.log10(vmin),
+                        zmax = np.log10(vmax),
                         x = section_data[line]['grid_distances'],
                         y = section_data[line]['grid_elevations'],
-                        colorscale =section_kwargs['cmap'],
+                        colorscale =cmap,
                         #hoverlabel=dict(x="Distance along line", y="elevation (mAHD)"),
                         ),
                       row = 2, col = 1,
         )
     elif section_kwargs['section_plot'] == "rj-p50":
         fig.add_trace(go.Heatmap(z = np.log10(section_data[line]['conductivity_p50']),
-                        zmin = np.log10(section_kwargs['vmin']),
-                        zmax = np.log10(section_kwargs['vmax']),
+                        zmin = np.log10(vmin),
+                        zmax = np.log10(vmax),
                         x = section_data[line]['grid_distances'],
                         y = section_data[line]['grid_elevations'],
-                        colorscale =section_kwargs['cmap'],
+                        colorscale =cmap,
                         #hoverlabel=dict(x="Distance along line", y="elevtion (mAHD)"),
                         ),
                       row = 2, col = 1,
@@ -283,7 +283,6 @@ def dash_section(line, df_interp, colours, section_kwargs):
                         x = section_data[line]['grid_distances'],
                         y = section_data[line]['grid_elevations'],
                         colorscale ="YlGn"
-                        #hoverlabel=dict(x="Distance along line", y="elevation (mAHD)"),
                         ),
                       row = 2, col = 1,
         )
@@ -296,7 +295,6 @@ def dash_section(line, df_interp, colours, section_kwargs):
                         x = section_data[line]['grid_distances'],
                         y = section_data[line]['grid_elevations'],
                         colorscale ="greys",
-                        #hoverlabel=dict(x="Distance along line", y="elevation (mAHD)"),
                         ),
                       row = 2, col = 1,
         )
@@ -305,7 +303,7 @@ def dash_section(line, df_interp, colours, section_kwargs):
     fig.add_trace(go.Scatter(x = section_data[line]['grid_distances'],
                              y = section_data[line]['elevation'],
                              line=dict(color='black', width=3),
-                             showlegend = False, hoverinfo = None),
+                             showlegend = False, hoverinfo = 'skip'),
                   row = 2, col = 1,)
 
     # Now we add the rjmcmc sites to the section
@@ -317,9 +315,10 @@ def dash_section(line, df_interp, colours, section_kwargs):
     fig.add_trace(go.Scatter(x = df_rj_sites['distance_along_line'].values,
                     y = 20. +np.max(section_data[line]['elevation'])*np.ones(shape = len(df_rj_sites),
                                                                         dtype = np.float),
-                    mode = 'markers',
-                    hovertext = labels),
-                  row = 2, col = 1)
+                            mode = 'markers',
+                            hovertext = labels,
+                            showlegend = False),
+                row = 2, col = 1)
 
     if len(df_interp) > 1:
         if np.logical_or(section_kwargs['section_plot'] == "rj-p50",
@@ -346,8 +345,10 @@ def dash_section(line, df_interp, colours, section_kwargs):
                             y = interpz,
                             mode = 'markers',
                             hovertext = labels,
-                            marker = {"color": colours}),
-                          row = 2, col = 1
+                            marker = {"symbol": markers,
+                                      "color": 'black'},
+                                showlegend = False),
+                            row = 2, col = 1
                           )
 
     # Reverse y-axis
@@ -370,7 +371,7 @@ def dash_pmap_plot(point_index):
                     x = x, y = y,
                     zmin = 0,
                     zmax = np.max(pmap),
-                    aspect = 'auto',
+                    aspect = 5,
                     color_continuous_scale = 'plasma')
     #  PLot the median, and percentile plots
     fig.add_trace(go.Scatter(x = np.log10(D['cond_p10']),
@@ -378,31 +379,53 @@ def dash_pmap_plot(point_index):
                              mode = 'lines',
                              line = {"color": 'black',
                                      "width": 2.},
-                             name = "p10 conductivity"))
+                             name = "p10 conductivity",
+                             showlegend = False))
     fig.add_trace(go.Scatter(x = np.log10(D['cond_p90']),
                              y = D['depth_cells'],
                              mode = 'lines',
                              line = {"color": 'black',
                                      "width": 2.},
-                             name = "p90 conductivity"))
+                             name = "p90 conductivity",
+                             showlegend = False))
     fig.add_trace(go.Scatter(x = np.log10(D['cond_p50']),
                              y = D['depth_cells'],
                              mode = 'lines',
                              line = {"color": 'gray',
                                      "width": 2.,
                                      'dash': 'dash'},
-                             name = "p50 conductivity"))
+                             name = "p50 conductivity",
+                             showlegend = False))
+
+    ##TODO wrap this ugliness into a function
+    lci_expanded = np.zeros(shape=2 * len(D['lci_cond']) + 1,
+                            dtype=np.float)
+
+    lci_expanded[1:] = np.repeat(D['lci_cond'], 2)
+
+    depth_expanded = (np.max(D['lci_depth_top']) + 10) * np.ones(shape=len(lci_expanded),
+                                                                 dtype=np.float)
+
+    depth_expanded[:-1] = np.repeat(D['lci_depth_top'], 2)
+
+    fig.add_trace(go.Scatter(x=np.log10(lci_expanded),
+                             y= depth_expanded,
+                             mode='lines',
+                             line={"color": 'pink',
+                                   "width": 2.,
+                                   'dash': 'dash'},
+                             name="lci",
+                             showlegend=False))
+
 
     return fig
 
 
-def flightline_map(line):
+def flightline_map(line, vmin, vmax, layer):
 
     fig = go.Figure()
 
-    layer = 1 #TODO create event function
     cond_grid = np.log10(lci.layer_grids['Layer_{}'.format(layer)]['conductivity'])
-
 
     x1, x2, y1, y2 = lci.layer_grids['bounds']
     n_y_cells, n_x_cells = cond_grid.shape
@@ -410,13 +433,12 @@ def flightline_map(line):
     y = np.linspace(y2, y1, n_y_cells)
 
     fig.add_trace(go.Heatmap(z=cond_grid,
-                               zmin=-2,#np.log10(section_kwargs['vmin']),
-                               zmax=0,#np.log10(section_kwargs['vmax']),
+                               zmin=np.log10(vmin),
+                               zmax=np.log10(vmax),
                                x=x,
                                y=y,
-                               colorscale="jet",
-                               # hoverlabel=dict(x="Distance along line", y="elevation (mAHD)"),
-               ))
+                               colorscale="jet"
+                             ))
 
     for linestring, lineNo in zip(gdf_lines.geometry, gdf_lines.lineNumber):
 
@@ -434,12 +456,12 @@ def flightline_map(line):
                                          "width": 2.},
                                  name = str(lineNo)))
 
-    # TODO think of replacing this
     xmin, xmax = np.min(rj.data['easting'][:]) - 500., np.max(rj.data['easting'][:]) + 500.
     ymin, ymax = np.min(rj.data['northing'][:]) - 500., np.max(rj.data['northing'][:]) + 500.
 
     fig.update_layout(yaxis=dict(range=[ymin, ymax]),
                       xaxis=dict(range=[xmin, xmax]))
+    fig['data'][0]['showscale'] = False
     return fig
 
 
@@ -482,8 +504,19 @@ app.layout = html.Div([
             [
                 html.Div(html.Pre(id='click-data'),
                          className = "four columns"),
-                html.Div(className = "four columns"),
-                html.Div(html.Button('Update section', id='update', n_clicks=1),
+                html.Div(["Conductivity plotting minimum: ", dcc.Input(
+                                    id="vmin", type="number",
+                                    min=0.001, max=10, value = 0.01),
+                         "Conductivity plotting maximum: ", dcc.Input(
+                                    id="vmax", type="number",
+                                    min=0.001, max=10, value = 1.0),
+                         "AEM layer grid: ", dcc.Input(
+                                    id="layerGrid", type="number",
+                                    min=1, max=30, value = 1, step = 1)
+                    ],
+                    className = "four columns"),
+                html.Div([html.Button('Update section', id='update', n_clicks=1),
+                         html.Button('Export results', id='export', n_clicks=0)],
                          className= "four columns"),
              ], className = "row"),
     html.Div(
@@ -514,15 +547,17 @@ app.layout = html.Div([
                                                  'font-size': '12px'
                                              },
                                   style_table={
-                                              'maxHeight': '1000px',
+                                              'maxHeight': '400px',
                                               'overflowY': 'scroll',
                                               'maxWidth':  '1000px',
                                               'overflowX': 'scroll'})
                                         , className = "four columns"),
         html.Div(html.Div(id='poly_line_plot'), className = "four columns"),
-        html.Div(html.Div(id='pmap'), className = "four columns"),]
+        html.Div(html.Div(id='pmap'), className = "four columns"), ], className = 'row'
 
              ),
+    html.Div(id = 'output'),
+    html.Div(id='output_2')
 
 ])
 
@@ -538,12 +573,25 @@ def update_data_table(value, nclicks):
         return df_ss.to_dict('records'), [{"name": i, "id": i} for i in df_ss.columns]
 
 @app.callback(
+    Output('output_2', 'children'),
+    Input("export", 'n_clicks'))
+def update_data_table(nclicks):
+    if nclicks > 0:
+        surface.interpreted_points.reset_index().to_csv(interp_file)
+        return "Successfully exported to " + interp_file
+    else:
+        dash.exceptions.PreventUpdate()
+
+@app.callback(
     Output('section_plot', "figure"),
     [Input("line_dropdown", 'value'),
      Input("section_dropdown", 'value'),
      Input('interp_table', "derived_virtual_data"),
-     Input('interp_table', "derived_virtual_selected_rows")])
-def update_section(line, section_plot, rows, derived_virtual_selected_rows):
+     Input('interp_table', "derived_virtual_selected_rows"),
+     Input('vmin', 'value'),
+     Input('vmax', 'value')
+     ])
+def update_section(line, section_plot, rows, derived_virtual_selected_rows, vmin, vmax):
     # When the table is first rendered, `derived_virtual_data` and
     # `derived_virtual_selected_rows` will be `None`. This is due to an
     # idiosyncrasy in Dash (unsupplied properties are always None and Dash
@@ -558,20 +606,23 @@ def update_section(line, section_plot, rows, derived_virtual_selected_rows):
 
     dff = surface.interpreted_points if rows is None else pd.DataFrame(rows)
 
-    colours = ['pink' if i in derived_virtual_selected_rows else 'white'
+    markers = ['cross' if i in derived_virtual_selected_rows else 'circle'
               for i in range(len(dff))]
 
     section_kwargs['section_plot'] = section_plot
 
-    fig = dash_section(line, dff, colours, section_kwargs)
+    fig = dash_section(line, dff, markers, vmin, vmax, cmap = 'jet')
 
     return fig
 
 @app.callback(
     [Output('poly_line_plot', 'children')],
-    [Input("line_dropdown", 'value')])
-def update_polyline_plot(value):
-    fig = flightline_map(value)
+    [Input("line_dropdown", 'value'),
+     Input('vmin', 'value'),
+     Input('vmax', 'value'),
+     Input('layerGrid', 'value')])
+def update_polyline_plot(line, vmin, vmax, layer):
+    fig = flightline_map(line, vmin, vmax, layer)
     return [
         dcc.Graph(
             id='polylines',
@@ -643,5 +694,21 @@ def update_pmap_plot(clickData):
                         figure=fig
                         ),
                     ]
+
+
+@app.callback(Output('output', 'children'),
+              [Input('interp_table', 'data_previous')],
+              [State('interp_table', 'data')])
+def show_removed_rows(previous, current):
+    if previous is None:
+        dash.exceptions.PreventUpdate()
+    else:
+        fids = []
+        for row in previous:
+            if row not in current:
+                fids.append(row['fiducial'])
+                # Remove from dataframe
+        surface.interpreted_points = surface.interpreted_points[~surface.interpreted_points['fiducial'].isin(fids)]
+        return [f'Just removed fiducial : {fids}']
 
 app.run_server(debug = True)#mode='external', port=8060)
