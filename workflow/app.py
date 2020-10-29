@@ -48,7 +48,7 @@ infile = os.path.join(root, "grids\\Injune_layer_grids.p")
 lci.load_lci_layer_grids_from_pickle(infile)
 
 # Path to netcdf file
-infile = r"C:\Users\symin\OneDrive\Documents\GA\AEM\rjmcmc\Injune_petrel_rjmcmc_pmaps.nc"
+infile = r"C:\Users\symin\OneDrive\Documents\GA\AEM\rjmcmc\Injune_rjmcmc_pmaps.nc"
 
 
 # Create instance
@@ -72,7 +72,7 @@ xres, yres = 40., 5.
 
 # We will use the lines from the rj
 
-lines = [200101, 200401, 200501, 200801,
+lines = [200101, 200401, 200501, 200601, 200701, 200801,
          200901, 201001, 201101, 201201, 201301, 201401, 201501,
          201601, 201701, 201801, 201901, 202001, 202101, 202201,
          202301, 202401, 202501, 202601, 202701, 202801, 912011]
@@ -104,13 +104,6 @@ grid_vars = ['conductivity_p10', 'conductivity_p50', 'conductivity_p90', 'interf
 # Define the resolution of the sections
 xres, yres = 50., 2.
 
-# We will use the lines from the rj
-
-lines = [200101, 200401, 200501, 200801,
-         200901, 201001, 201101, 201201, 201301, 201401, 201501,
-         201601, 201701, 201801, 201901, 202001, 202101, 202201,
-         202301, 202401, 202501, 202601, 202701, 202801, 912011]
-
 # Define the output directory if saving the grids as hdf plots
 
 hdf5_dir = r"C:\Temp\SSC_hdf5_rj"
@@ -128,7 +121,7 @@ rj.load_sections_from_file(hdf5_dir, grid_vars, lines = lines)
 lci.create_flightline_polylines()
 
 gdf_lines = gpd.GeoDataFrame(data = {'lineNumber': lci.flight_lines.keys(),
-                                     'geometry': lci.flight_lines.values()},#[x.wkt for x in lci.flight_lines.values()]},
+                                     'geometry': lci.flight_lines.values()},
                              geometry= 'geometry',
                              crs = 'EPSG:28353')
 
@@ -164,7 +157,7 @@ headings = ["fiducial", "inversion_name",'X', 'Y', 'ELEVATION', "DEM", "DEPTH", 
 
 interp_file = r"C:\temp\top_Precipice_interpreted_points.csv"
 
-EP_surface = modelling_utils.modelled_boundary(name = 'Top=Precipice interface',
+EP_surface = modelling_utils.modelled_boundary(name = 'Top- Precipice interface',
                                                outfile_path = interp_file,
                                                interpreted_point_headings = headings)
 #MP_surface.interpreted_points = pd.read_csv(interp_file)
@@ -254,7 +247,7 @@ def dash_section(line, df_interp, markers, vmin, vmax, cmap):
                         x = section_data[line]['grid_distances'],
                         y = section_data[line]['grid_elevations'],
                         colorscale =cmap,
-                        #hoverlabel=dict(x="Distance along line", y="elevation (mAHD)"),
+                        hoverinfo=None,
                         ),
                       row = 2, col = 1,
         )
@@ -265,12 +258,35 @@ def dash_section(line, df_interp, markers, vmin, vmax, cmap):
                         x = section_data[line]['grid_distances'],
                         y = section_data[line]['grid_elevations'],
                         colorscale =cmap,
-                        #hoverlabel=dict(x="Distance along line", y="elevtion (mAHD)"),
+                        hoverinfo=None,
+                        ),
+                      row = 2, col = 1,
+        )
+    elif section_kwargs['section_plot'] == "rj-p10":
+        fig.add_trace(go.Heatmap(z = np.log10(section_data[line]['conductivity_p10']),
+                        zmin = np.log10(vmin),
+                        zmax = np.log10(vmax),
+                        x = section_data[line]['grid_distances'],
+                        y = section_data[line]['grid_elevations'],
+                        colorscale =cmap,
+                        hoverinfo=None,
+                        ),
+                      row = 2, col = 1,
+        )
+    elif section_kwargs['section_plot'] == "rj-p90":
+        fig.add_trace(go.Heatmap(z = np.log10(section_data[line]['conductivity_p90']),
+                        zmin = np.log10(vmin),
+                        zmax = np.log10(vmax),
+                        x = section_data[line]['grid_distances'],
+                        y = section_data[line]['grid_elevations'],
+                        colorscale =cmap,
+                        hoverinfo=None,
                         ),
                       row = 2, col = 1,
         )
 
     elif section_kwargs['section_plot'] == 'rj-conf':
+        ##TODO decide on different
 
         confidence = plots.percentiles2pnci(section_data[line]['conductivity_p10'],
                                             section_data[line]['conductivity_p90'],
@@ -291,7 +307,7 @@ def dash_section(line, df_interp, markers, vmin, vmax, cmap):
 
         fig.add_trace(go.Heatmap(z = section_data[line]['interface_depth_histogram']/rj.nsamples,
                         zmin = 0.01,
-                        zmax = 0.7,
+                        zmax = 0.99,
                         x = section_data[line]['grid_distances'],
                         y = section_data[line]['grid_elevations'],
                         colorscale ="greys",
@@ -420,7 +436,6 @@ def dash_pmap_plot(point_index):
 
     return fig
 
-
 def flightline_map(line, vmin, vmax, layer):
 
     fig = go.Figure()
@@ -465,7 +480,6 @@ def flightline_map(line, vmin, vmax, layer):
     return fig
 
 
-
 section_kwargs = {'colourbar_label': 'Conductivity (S/m)',
                   'vmin': 0.01,
                   'vmax': 1.,
@@ -486,8 +500,12 @@ app.layout = html.Div([
                                                      'value': 'lci'},
                                                     {'label': 'garjmcmctdem - p50',
                                                      'value': 'rj-p50'},
-                                                   {'label': 'garjmcmcm - certainty',
-                                                     'value': 'rj-conf'},
+                                                    {'label': 'garjmcmctdem - p10',
+                                                     'value': 'rj-p10'},
+                                                    {'label': 'garjmcmctdem - p90',
+                                                     'value': 'rj-p90'},
+                                                   #{'label': 'garjmcmcm - certainty',
+                                                   #  'value': 'rj-conf'},
                                                     {'label': 'garjmcmctdem - layer probability',
                                                      'value': 'rj-lpp'}],
                                             value="lci"),
@@ -504,19 +522,29 @@ app.layout = html.Div([
             [
                 html.Div(html.Pre(id='click-data'),
                          className = "four columns"),
-                html.Div(["Conductivity plotting minimum: ", dcc.Input(
+                html.Div([html.Div(["Conductivity plotting minimum: ", dcc.Input(
                                     id="vmin", type="number",
-                                    min=0.001, max=10, value = 0.01),
-                         "Conductivity plotting maximum: ", dcc.Input(
+                                    min=0.001, max=10, value = 0.01)],
+                         className = 'row'),
+                         html.Div(["Conductivity plotting maximum: ", dcc.Input(
                                     id="vmax", type="number",
-                                    min=0.001, max=10, value = 1.0),
-                         "AEM layer grid: ", dcc.Input(
+                                    min=0.001, max=10, value = 1.0)],
+                         className='row'),
+                         html.Div(["AEM layer grid: ", dcc.Input(
                                     id="layerGrid", type="number",
-                                    min=1, max=30, value = 1, step = 1)
+                                    min=1, max=30, value = 1, step = 1)],
+                         className='row'),
                     ],
                     className = "four columns"),
-                html.Div([html.Button('Update section', id='update', n_clicks=1),
-                         html.Button('Export results', id='export', n_clicks=0)],
+                html.Div([
+                        html.Div(html.Button('Update section', id='update', n_clicks=1),
+                                   className = 'row'),
+                         html.Div(html.Button('Export results', id='export', n_clicks=0),
+                                  className = 'row'),
+                         html.Div(dcc.Input(id='export-path', type='text', placeholder = 'Input valid output path'),
+                                 className= 'row'),
+                         html.Div(id='export_message', className= 'row')
+                          ],
                          className= "four columns"),
              ], className = "row"),
     html.Div(
@@ -551,13 +579,12 @@ app.layout = html.Div([
                                               'overflowY': 'scroll',
                                               'maxWidth':  '1000px',
                                               'overflowX': 'scroll'})
-                                        , className = "four columns"),
+                                        , className = "five columns"),
         html.Div(html.Div(id='poly_line_plot'), className = "four columns"),
-        html.Div(html.Div(id='pmap'), className = "four columns"), ], className = 'row'
+        html.Div(html.Div(id='pmap'), className = "three columns"), ], className = 'row'
 
              ),
-    html.Div(id = 'output'),
-    html.Div(id='output_2')
+    html.Div(id = 'output')
 
 ])
 
@@ -573,14 +600,17 @@ def update_data_table(value, nclicks):
         return df_ss.to_dict('records'), [{"name": i, "id": i} for i in df_ss.columns]
 
 @app.callback(
-    Output('output_2', 'children'),
-    Input("export", 'n_clicks'))
-def update_data_table(nclicks):
-    if nclicks > 0:
-        surface.interpreted_points.reset_index().to_csv(interp_file)
-        return "Successfully exported to " + interp_file
-    else:
-        dash.exceptions.PreventUpdate()
+    Output('export_message', 'children'),
+    Input("export", 'n_clicks'),
+    State('export-path', 'value'))
+def update_data_table(nclicks, value):
+
+    if np.logical_and(nclicks > 0, value is not None):
+        if os.path.exists(os.path.dirname(value)):
+            surface.interpreted_points.reset_index().to_csv(value)
+            return "Successfully exported to " + value
+        else:
+            return value + " is an invalid file path."
 
 @app.callback(
     Output('section_plot', "figure"),
@@ -695,7 +725,6 @@ def update_pmap_plot(clickData):
                         ),
                     ]
 
-
 @app.callback(Output('output', 'children'),
               [Input('interp_table', 'data_previous')],
               [State('interp_table', 'data')])
@@ -711,4 +740,4 @@ def show_removed_rows(previous, current):
         surface.interpreted_points = surface.interpreted_points[~surface.interpreted_points['fiducial'].isin(fids)]
         return [f'Just removed fiducial : {fids}']
 
-app.run_server(debug = True)#mode='external', port=8060)
+app.run_server(debug = True)
