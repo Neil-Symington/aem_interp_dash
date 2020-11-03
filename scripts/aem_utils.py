@@ -78,31 +78,6 @@ class AEM_inversion:
         else:
             self.data = None
 
-    def sort_variables(self, var_dict):
-        """Function for sorting a dictionary of variables by fiducial then easting.
-        Assumes 'easting' and fiducial are in dictionary
-
-        Parameters
-        ----------
-        var_dict : dicitonary
-           Dictionary of variables.
-
-        Returns
-        -------
-        dictionary
-           dictionary of sorted array
-
-        """
-        # First sort on fiducial
-        sort_mask = np.argsort(var_dict['fiducial'])
-        # Now sort from east to west if need be
-        if var_dict['easting'][sort_mask][0] > var_dict['easting'][sort_mask][-1]:
-           sort_mask = sort_mask[::-1]
-        # now apply the mask to every variable
-        for item in var_dict:
-           var_dict[item] = var_dict[item][sort_mask]
-        return var_dict
-
     def grid_sections(self, variables, lines, xres, yres, resampling_method = 'cubic',
                       return_interpolated = False, save_hdf5 = True, hdf5_dir = None):
         """A function for gridding AEM inversoin variables into sections.
@@ -172,7 +147,7 @@ class AEM_inversion:
 
 
             # Now we need to sort the cond_var_dict and run it east to west
-            cond_var_dict = self.sort_variables(cond_var_dict)
+            cond_var_dict = spatial_functions.sort_variables(cond_var_dict)
 
             # If there is no 'layer_top_depth' add it
             if np.logical_and('layer_top_depth' not in cond_var_dict,
@@ -451,8 +426,6 @@ class AEM_data:
         # Now repeat to size of gate dat array
         return np.repeat(arr[np.newaxis,:], aem_gate_data.shape[0], axis=0)
 
-
-
     def calculate_noise(self, data_variable, noise_variable = None, additive_noise_variable = None,
                         multiplicative_noise = 0.03, high_altitude_lines = None):
         """A function for calculating the noise for AEM data.
@@ -505,6 +478,104 @@ class AEM_data:
         noise =  np.sqrt(mulitplicative_noise_arr**2 + additive_noise_arr**2)
 
         setattr(self, noise_variable, noise)
+
+    def grid_variables(self, line_no, em_var_dict, gridding_params):
+
+        # Create an empty dictionary
+        interpolated = {}
+
+        # Create a sort mask in cases where the lines are not in order
+
+        # Define coordinates
+        em_var_dict['utm_coordinates'] = np.column_stack((em_var_dict['easting'],
+                                           em_var_dict['northing']))
+
+
+        # Add distance array to dictionary
+        em_var_dict['distances'] = spatial_functions.coords2distance(em_var_dict['utm_coordinates'])
+
+        vars_2d = [v for v in self.section_variables if em_var_dict[v].ndim == 2]
+        vars_1d = [v for v in self.section_variables if em_var_dict[v].ndim == 1]
+
+        # Calculate the grid distances
+        em_var_dict['grid_distances'] = np.arange(np.min(em_var_dict['distances']),
+                                                  np.max(em_var_dict['distances']),
+                                                  gridding_params['xres'])
+
+        # Generator for inteprolating 1D variables from the vars_1d list
+        interp1d = spatial_functions.interpolate_1d_vars(vars_1d, em_var_dict,
+                                                         gridding_params['resampling_method'])
+
+        for var in vars_1d:
+            # Generator yields the interpolated variable array
+            interpolated[var] = next(interp1d)
+
+        interpolated_utm = np.column_stack((interpolated['easting'],
+                                            interpolated['northing']))
+
+        interp2d = spatial_functions.interpolate_data(vars_2d, em_var_dict, interpolated_utm)
+
+        for var in vars_2d:
+            # Generator yields the interpolated variable array
+            interpolated[var] = next(interp2d)
+
+        return interpolated
+
+    def interpolate_variables(self, variables, lines, xres, resampling_method = 'linear',
+                             return_interpolated = False, save_hdf5 = True, hdf5_dir = None):
+        # Check some of the arguments to ensure they are lists
+
+        lines = check_list_arg(lines)
+        variables = check_list_arg(variables)
+
+        # Add key variables if they aren't in the list to grid
+        for item in ['easting', 'northing', 'elevation', 'fiducial']:
+           if np.logical_and(item not in variables, item in self.data.variables):
+               variables.append(item)
+
+        self.section_variables = variables
+
+        # First create generators for returning coordinates and variables for the lines
+
+        em_lines = get_lines(self.data,
+                              line_numbers=lines,
+                              variables=self.section_variables)
+
+        # Interpolated results will be added to a dictionary
+        interpolated = {}
+
+        # Create a gridding parameters dictionary
+
+        gridding_params = {'xres': xres, 'resampling_method': resampling_method}
+
+        # Iterate through the lines
+        for i in range(len(lines)):
+
+           # Extract the variables and coordinates for the line in question
+           line_no, em_var_dict = next(em_lines)
+
+           # Now we need to sort the cond_var_dict and run it east to west
+           em_var_dict = spatial_functions.sort_variables(em_var_dict)
+
+           interpolated[line_no] = self.grid_variables(line_no, em_var_dict, gridding_params)
+
+           # Save to hdf5 file if the keyword is passed
+           if save_hdf5:
+               fname = os.path.join(hdf5_dir, str(int(line_no)) + '.hdf5')
+               dict_to_hdf5(fname, interpolated[line_no])
+
+           # Many lines may fill up memory so if the dictionary is not being returned then
+           # we garbage collect
+           if not return_interpolated:
+               del interpolated[line_no]
+
+               # Collect the garbage
+               gc.collect()
+
+        if return_interpolated:
+            self.section_data = interpolated
+        else:
+            self.section_data = None
 
 
 # Class for extracting regular expressions from the stm files

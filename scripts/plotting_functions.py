@@ -359,7 +359,7 @@ def plot_grid(ax, gridded_variables, variable, panel_kwargs, x_ax_var='grid_dist
 
     return im
 
-def plot_single_line(ax, gridded_variables, variable, panel_kwargs,  x_ax_var='grid_distances'):
+def plot_single_line(ax, gridded_variables, variable, panel_kwargs = None,  x_ax_var='grid_distances'):
 
     """
 
@@ -372,6 +372,9 @@ def plot_single_line(ax, gridded_variables, variable, panel_kwargs,  x_ax_var='g
     # Define the array
 
     data = gridded_variables[variable]
+
+    if panel_kwargs is None:
+        panel_kwargs = {}
 
     if 'colour' in panel_kwargs.keys():
         colour = panel_kwargs['colour']
