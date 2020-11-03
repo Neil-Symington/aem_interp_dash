@@ -502,6 +502,8 @@ class AEM_data:
                                                   np.max(em_var_dict['distances']),
                                                   gridding_params['xres'])
 
+        interpolated['grid_distances'] = em_var_dict['grid_distances']
+
         # Generator for inteprolating 1D variables from the vars_1d list
         interp1d = spatial_functions.interpolate_1d_vars(vars_1d, em_var_dict,
                                                          gridding_params['resampling_method'])
