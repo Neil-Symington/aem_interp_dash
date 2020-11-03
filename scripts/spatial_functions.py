@@ -163,15 +163,9 @@ def interpolate_1d_vars(vars_1D, var_dict, resampling_method='linear'):
     # the 2D variable gridding and add it to the dictionary
 
     for var in vars_1D:
-
         varray = griddata(var_dict['distances'],
                           var_dict[var], var_dict['grid_distances'],
                           method=resampling_method)
-
-        # Reverse the grid if it is west to east
-
-        #if var_dict['reverse_line']:
-        #    varray = varray[::-1]
 
         yield varray
 
@@ -204,14 +198,13 @@ def interpolate_2d_vars(vars_2d, var_dict, xres, yres):
 
     # elevation limits
     vlimits = [np.min(elevations) - max_depth,
-               np.max(elevations) + 5]
+               np.max(elevations) + yres]
 
     # Get the horizontal limits
 
     distances = var_dict['distances']
 
     hlimits = [np.min(distances), np.max(distances)]
-
 
     # Get the x and y dimension coordinates
 
@@ -302,19 +295,59 @@ def interpolate_2d_vars(vars_2d, var_dict, xres, yres):
                 interpolated_var[i, j_ind] = new_var[i,j]
                 # Update the depth top
                 dtop += thick
-
-
-        # Reverse the grid if it is west to east
-
-        #if var_dict['reverse_line']:
-        #    interpolated_var = np.flipud(interpolated_var)
-
         # We also want to transpose the grid so the up elevations are up
 
         interpolated_var = interpolated_var.T
 
         # Yield the generator and the dictionary with added variables
         yield interpolated_var, var_dict
+
+def interpolate_data(data_variables, var_dict, interpolated_utm,
+                     resampling_method='linear'):
+    """
+    :param data_variables: variables from netCDF4 dataset to interpolate
+    :param var_dict: dictionary with the arrays for each variable
+    :param interpolated_utm: utm corrdinates onto which to interpolate the line data
+    :param resampling_method:
+    :return:
+    """
+
+    # Define coordinates
+    utm_coordinates = var_dict['utm_coordinates']
+
+    # Add distance array to dictionary
+    distances = coords2distance(utm_coordinates)
+
+    # Now we want to find the equivalent line distance of the data based on the
+    # gridded coordinates
+
+    interpolated_distances = griddata(utm_coordinates, distances, interpolated_utm,
+                                      method=resampling_method)
+
+    # Now extract the data variable, interpolate them and add them to the dictionary
+
+    for var in data_variables:
+
+        # Create an empty array for interpolation
+
+        arr = var_dict[var]
+        print(arr.shape)
+
+        interp_arr = np.zeros(shape=(np.shape(interpolated_distances)[0], np.shape(arr)[1]),
+                              dtype=var_dict[var].dtype)
+
+        # Interpolate each column separately
+
+        for j in range(interp_arr.shape[1]):
+
+            vals = np.log10(arr[:, j])
+
+            interp_arr[:, j] = 10**griddata(distances, vals, interpolated_distances,
+                                            method=resampling_method)
+
+        # Add to the dictionary
+
+        yield interp_arr
 
 def xy_2_var(grid_dict, xy, var):
     """
@@ -378,4 +411,29 @@ def interp2scatter(surface, line, gridded_data, easting_col = 'X',
     grid_dists = gridded_data[line]['grid_distances'][inds]
     elevs = surface.interpreted_points[mask][elevation_col].values
     fids = surface.interpreted_points[mask].index
-    return  grid_dists, elevs, fids
+    return grid_dists, elevs, fids
+
+def sort_variables(var_dict):
+    """Function for sorting a dictionary of variables by fiducial then easting.
+    Assumes 'easting' and fiducial are in dictionary
+
+    Parameters
+    ----------
+    var_dict : dicitonary
+       Dictionary of variables.
+
+    Returns
+    -------
+    dictionary
+       dictionary of sorted array
+
+    """
+    # First sort on fiducial
+    sort_mask = np.argsort(var_dict['fiducial'])
+    # Now sort from east to west if need be
+    if var_dict['easting'][sort_mask][0] > var_dict['easting'][sort_mask][-1]:
+       sort_mask = sort_mask[::-1]
+    # now apply the mask to every variable
+    for item in var_dict:
+       var_dict[item] = var_dict[item][sort_mask]
+    return var_dict
