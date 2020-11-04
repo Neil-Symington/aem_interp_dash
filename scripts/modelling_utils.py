@@ -114,7 +114,6 @@ class modelled_boundary:
 
         self.interpreted_points = df
 
-
     def create_interpolator(self, kernel = Matern(length_scale=5000, nu = 1.5), name = 'interpolator_1'):
         """Create an Gaussian interpolator for on the fly gridding.
 
@@ -269,6 +268,20 @@ class modelled_boundary:
         """A function for loading the extent geometry from a shapefile.
         """
         self.extent = gpd.read_file(infile)['geometry'].values[index]
+
+    def load_metadata_from_template(self, series):
+        """
+
+        Parameters
+        ----------
+        series: pandas data series
+
+        Returns
+        -------
+
+        """
+        for i, item in enumerate(series):
+            setattr(self, series.axes[0][i], item)
 
 
 def full_width_half_max(D, max_idx, fmax):

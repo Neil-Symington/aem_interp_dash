@@ -85,11 +85,6 @@ hdf5_dir = r"C:\temp\Injune_hdf5"
 if not os.path.exists(hdf5_dir):
     os.mkdir(hdf5_dir)
 
-# Gridding takes a few minutes so I pre-gridded them for you. The lci.grid_sections()
-# function below will do the gridding for you. Instead we will use the load_sectoin_from_file()
-# function, which loads hdf5 files produced using the grid_sections() function
-
-
 #lci.grid_sections(variables = grid_vars, lines = lines, xres = xres, yres = yres,
 #                  return_interpolated = True, save_hdf5 = True, hdf5_dir = hdf5_dir)
 
@@ -155,38 +150,32 @@ headings = ["fiducial", "inversion_name",'X', 'Y', 'ELEVATION', "DEM", "DEPTH", 
            "UndStrtCod", "WithinType", "WithinStrt", "WithinStNo", "WithinConf", "InterpRef",
             "Comment", "SURVEY_LINE", "Operator"]
 
-interp_file = r"C:\temp\top_Precipice_interpreted_points.csv"
+interp_dir = r"..\data"
 
-EP_surface = modelling_utils.modelled_boundary(name = 'Top- Precipice interface',
-                                               outfile_path = interp_file,
-                                               interpreted_point_headings = headings)
-#MP_surface.interpreted_points = pd.read_csv(interp_file)
-# Define your surface
-surface = EP_surface
+# Now we are going to create model surfaces
 
-# Assign attributes base on what you want to be
-# entered into the eggs database
-surface.Type = "INTRA_Paleozoic"
-surface.OvrStrtUnt = "Evergreen Formation"
-surface.OvrStrtCod = 6416
-surface.UndStrtUnt = "Precipice Sandstone"
-surface.UndStrtCod = 15540
-surface.Inversion_name = ""
-surface.BoundConf = "M"
-surface.BasisOfInt = "IAEM"
-surface.OvrConf = "M"
-surface.InterpRef = ""
-surface.Comment = ""
-surface.Operator = "John Fish"
-surface.WithinType = ""
-surface.WithinStrt = ""
-surface.WithinStNo = ""
-surface.WithinConf = ""
+infile = os.path.join(interp_dir, 'surfaceTemplate.csv')
+
+df_surf = pd.read_csv(infile)
+
+surfaces = {}
+surface_options = []
+
+for index, row in df_surf.iterrows():
+    surfaceName = row['SurfaceName']
+    interp_file_path = os.path.join(interp_dir, surfaceName + '_interp_file.csv')
+
+    surfaces[surfaceName] = modelling_utils.modelled_boundary(name = surfaceName,
+                                                              outfile_path = interp_file_path,
+                                                              interpreted_point_headings = headings)
+    surfaces[surfaceName].load_metadata_from_template(row)
+    surface_options.append({'label': surfaceName, 'value': surfaceName})
 
 line_options = []
 
 for l in lines:
      line_options.append({'label': str(l), 'value': l})
+
 
 def subset_df_by_line(df_, line, line_col = 'SURVEY_LINE'):
     mask = df_[line_col] == line
@@ -492,7 +481,13 @@ app.layout = html.Div([
     html.Div(
                 [
                     html.Div(html.H1("AEM interpretation dash board"),
-                             className= "four columns"),
+                             className= "three columns"),
+                    html.Div([html.H4("Select surface"),
+                             dcc.Dropdown(id = "surface_dropdown",
+                                            options=surface_options,
+                                            value=(surface_options[0]['label']))
+
+                             ],className = "three columns"),
                     html.Div([html.H4("Select section"),
                              dcc.Dropdown(id = "section_dropdown",
                                             options=[
@@ -510,12 +505,12 @@ app.layout = html.Div([
                                                      'value': 'rj-lpp'}],
                                             value="lci"),
 
-                             ],className = "four columns"),
+                             ],className = "three columns"),
                     html.Div([html.H4("Select line"),
                              dcc.Dropdown(id = "line_dropdown",
                                             options=line_options,
                                             value= int(line_options[0]['label'])),
-                             ],className = "four columns")
+                             ],className = "three columns")
                 ], className = 'row'
             ),
     html.Div(
@@ -555,31 +550,35 @@ app.layout = html.Div([
         )
     ),
     html.Div([html.Div(
-        dash_table.DataTable(id='interp_table',
-                                    css=[{'selector': '.row', 'rule': 'margin: 0'}],
-                                    fixed_columns={ 'headers': True},#, 'data': 1 },
-                                    sort_action="native",
-                                    sort_mode="multi",
-                                    row_selectable="multi",
-                                    row_deletable=True,
-                                    selected_columns=[],
-                                    selected_rows=[],
-                                    style_header={'backgroundColor': 'rgb(30, 30, 30)',
-                                               'height': '40px'},
-                                    style_cell={
-                                                 'backgroundColor': 'rgb(50, 50, 50)',
-                                                 'color': 'white',
-                                                 'minHeight': '50px',
-                                                 'minWidth': '0px', 'maxWidth': '800px',
-                                                 'whiteSpace': 'normal',
-                                                 'font-size': '12px'
-                                             },
-                                  style_table={
-                                              'maxHeight': '400px',
-                                              'overflowY': 'scroll',
-                                              'maxWidth':  '1000px',
-                                              'overflowX': 'scroll'})
-                                        , className = "five columns"),
+        html.Div([
+            dash_table.DataTable(id='metadata_table',
+                                 ),
+            dash_table.DataTable(id='interp_table',
+                                css=[{'selector': '.row', 'rule': 'margin: 0'}],
+                                fixed_columns={ 'headers': True},#, 'data': 1 },
+                                sort_action="native",
+                                sort_mode="multi",
+                                row_selectable="multi",
+                                row_deletable=True,
+                                selected_columns=[],
+                                selected_rows=[],
+                                style_header={'backgroundColor': 'rgb(30, 30, 30)',
+                                           'height': '40px'},
+                                style_cell={
+                                             'backgroundColor': 'rgb(50, 50, 50)',
+                                             'color': 'white',
+                                             'minHeight': '50px',
+                                             'minWidth': '0px', 'maxWidth': '800px',
+                                             'whiteSpace': 'normal',
+                                             'font-size': '12px'
+                                         },
+                              style_table={
+                                          'maxHeight': '400px',
+                                          'overflowY': 'scroll',
+                                          'maxWidth':  '1000px',
+                                          'overflowX': 'scroll'})],
+            className = 'row')
+        , className = "five columns"),
         html.Div(html.Div(id='poly_line_plot'), className = "four columns"),
         html.Div(html.Div(id='pmap'), className = "three columns"), ], className = 'row'
 
@@ -592,8 +591,10 @@ app.layout = html.Div([
     [Output('interp_table', 'data'),
     Output('interp_table', 'columns')],
     [Input("line_dropdown", 'value'),
-     Input("update", 'n_clicks')])
-def update_data_table(value, nclicks):
+     Input("update", 'n_clicks'),
+     Input("surface_dropdown", 'value')])
+def update_data_table(value, nclicks, surfaceName):
+    surface = surfaces[surfaceName]
     if nclicks >0:
         df_ss = subset_df_by_line(surface.interpreted_points,
                                   line = value)
@@ -601,13 +602,14 @@ def update_data_table(value, nclicks):
 
 @app.callback(
     Output('export_message', 'children'),
-    Input("export", 'n_clicks'),
+    [Input("export", 'n_clicks'),
+    Input("surface_dropdown", 'value')],
     State('export-path', 'value'))
-def update_data_table(nclicks, value):
-
+def update_data_table(nclicks, surfaceName, value):
+    surface = surfaces[surfaceName]
     if np.logical_and(nclicks > 0, value is not None):
         if os.path.exists(os.path.dirname(value)):
-            surface.interpreted_points.reset_index().to_csv(value)
+            surface.interpreted_points.reset_index(drop=True).to_csv(value)
             return "Successfully exported to " + value
         else:
             return value + " is an invalid file path."
@@ -616,12 +618,13 @@ def update_data_table(nclicks, value):
     Output('section_plot', "figure"),
     [Input("line_dropdown", 'value'),
      Input("section_dropdown", 'value'),
+     Input("surface_dropdown", 'value'),
      Input('interp_table', "derived_virtual_data"),
      Input('interp_table', "derived_virtual_selected_rows"),
      Input('vmin', 'value'),
      Input('vmax', 'value')
      ])
-def update_section(line, section_plot, rows, derived_virtual_selected_rows, vmin, vmax):
+def update_section(line, section_plot, surfaceName, rows, derived_virtual_selected_rows, vmin, vmax):
     # When the table is first rendered, `derived_virtual_data` and
     # `derived_virtual_selected_rows` will be `None`. This is due to an
     # idiosyncrasy in Dash (unsupplied properties are always None and Dash
@@ -631,6 +634,7 @@ def update_section(line, section_plot, rows, derived_virtual_selected_rows, vmin
     # Instead of setting `None` in here, you could also set
     # `derived_virtual_data=df.to_rows('dict')` when you initialize
     # the component.
+    surface = surfaces[surfaceName]
     if derived_virtual_selected_rows is None:
         derived_virtual_selected_rows = []
 
@@ -663,8 +667,10 @@ def update_polyline_plot(line, vmin, vmax, layer):
 @app.callback(
     Output('click-data', 'children'),
     [Input('section_plot', 'clickData'),
-     Input("line_dropdown", 'value')])
-def update_interp_table(clickData, line):
+     Input("line_dropdown", 'value'),
+     Input("surface_dropdown", 'value')])
+def update_interp_table(clickData, line, surfaceName):
+    surface = surfaces[surfaceName]
     if clickData is not None:
         if clickData['points'][0]['curveNumber'] == 1:
             eventxdata, eventydata = clickData['points'][0]['x'], clickData['points'][0]['y']
@@ -726,9 +732,11 @@ def update_pmap_plot(clickData):
                     ]
 
 @app.callback(Output('output', 'children'),
-              [Input('interp_table', 'data_previous')],
+              [Input("surface_dropdown", 'value'),
+               Input('interp_table', 'data_previous')],
               [State('interp_table', 'data')])
-def show_removed_rows(previous, current):
+def show_removed_rows(surfaceName, previous, current):
+    surface = surfaces[surfaceName]
     if previous is None:
         dash.exceptions.PreventUpdate()
     else:
