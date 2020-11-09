@@ -32,41 +32,84 @@ from sklearn.gaussian_process.kernels import Matern
 from shapely.geometry import Point, MultiPoint, Polygon
 import geopandas as gpd
 
-class modelled_boundary:
+class Statigraphic_Model:
     """
-    Class for handling interpreted stratigraphic boundaries
+    Class for handling a full stratigraphic model
     """
-    def __init__(self, name = None, outfile_path = None,
-                 interpreted_point_headings = None):
-        """Initialise instance of modelled boundary.
-
-        Parameters
-        ----------
-        name : type
-            Description of parameter `name`.
-        outfile_path: string
-            Path for output csv file
-
-        """
+    def __init__(self, name = None, outfile_path = None, interpreted_point_headings = None):
         if name is not None:
             self.name = name
         else:
-            self.name = "Unnamed_boundary"
+            self.name = "Unnamed_model"
         # Create points dataset
         if interpreted_point_headings is not None:
-            self.interpreted_points = pd.DataFrame(columns = interpreted_point_headings)
+            self.interpreted_points = pd.DataFrame(columns=interpreted_point_headings)
         else:
-            self.interpreted_points = pd.DataFrame(columns = ['fiducial', 'easting', 'northing',
-                                                              'layer_depth', 'layer_elevation',
-                                                              'standard_deviation']).set_index('fiducial')
+            self.interpreted_points = pd.DataFrame(columns=['fiducial', 'easting', 'northing',
+                                                            'layer_depth', 'layer_elevation',
+                                                            'standard_deviation']).set_index('fiducial')
         if outfile_path is not None:
             assert os.path.exists(os.path.dirname(outfile_path))
             assert outfile_path.split('.')[-1] == 'csv'
             self.outfile_path = outfile_path
         else:
             outdir = tempfile.gettempdir()
-            self.outfile_path = os.path.join(outdir,
-                                             self.name + "_interpreted_points.csv")
+            self.outfile_path = os.path.join(outdir, self.name + "_interpreted_points.csv")
+        # create attribute with surface names
+        self.surfaces = []
+    def initiatialise_surfaces_from_template(self, df_template):
+        """
+        A function for initialising models using a template csv file
+
+        Parameters
+        ----------
+        infile     dataframe
+        valid path to csv file with important model information
+
+        Returns
+        -------
+
+        """
+        # define mandatory columns
+        mandatory_columns =['SurfaceName','Type','BoundaryNm']
+
+        assert np.isin(mandatory_columns, df_template.columns).all()
+        assert len(df_template['SurfaceName'].unique()) == len(df_template)
+        ## raise an exception for asserts
+
+        # iterate through the rows and create instances of the model class
+        for index, row in df_template.iterrows():
+            self.initiatialise_surface(row)
+
+    def initiatialise_surface(self, series):
+        """
+        """
+        surfaceName = series['SurfaceName']
+        # initiate model using model boundary class
+        surface = model_boundary(name=surfaceName)
+        setattr(self, surfaceName, surface)
+        self.surfaces.append(surfaceName)
+        # iterate through axes in data series and set them as attributes
+        for col in series.axes[0]:
+            if not col == 'SurfaceName':
+                setattr(getattr(self, surfaceName), col, series[col])
+
+class model_boundary:
+    """
+    Class for handling interpreted stratigraphic boundaries
+    """
+    def __init__(self, name = None):
+        """Initialise instance of modelled boundary.
+
+        Parameters
+        --------
+
+        """
+        if name is not None:
+            self.name = name
+        else:
+            self.name = "Unnamed_boundary"
+
         # Create an instance variable of grid coordinates
         self.grid_coords = None
 
@@ -89,30 +132,6 @@ class modelled_boundary:
         points = [Point(pt) for pt in coords]
         mpt = MultiPoint(points)
         return mpt.convex_hull.buffer(convex_hull_buffer)
-
-    def save_points(self):
-        """
-        Function for saving the current interpreted points to
-        """
-        pd.DataFrame(interpretations, index = 'fiducial').transpose().to_csv(self.outfile_path)
-
-    def load_interpretation_points_from_file(self, infile_path):
-        """Function for loading previously saved interpretation points.
-
-        Parameters
-        ----------
-        infile_path : string
-            path to saved points.
-
-        Returns
-        -------
-        self, dataframe
-            dataframe with interpretations
-
-        """
-        df = pd.read_csv(infile_path).set_index('fiducial')
-
-        self.interpreted_points = df
 
     def create_interpolator(self, kernel = Matern(length_scale=5000, nu = 1.5), name = 'interpolator_1'):
         """Create an Gaussian interpolator for on the fly gridding.
@@ -268,20 +287,6 @@ class modelled_boundary:
         """A function for loading the extent geometry from a shapefile.
         """
         self.extent = gpd.read_file(infile)['geometry'].values[index]
-
-    def load_metadata_from_template(self, series):
-        """
-
-        Parameters
-        ----------
-        series: pandas data series
-
-        Returns
-        -------
-
-        """
-        for i, item in enumerate(series):
-            setattr(self, series.axes[0][i], item)
 
 
 def full_width_half_max(D, max_idx, fmax):

@@ -15,7 +15,6 @@ import pandas as pd
 warnings.filterwarnings('ignore')
 # Dash dependencies
 import plotly.express as px
-from jupyter_dash import JupyterDash
 import dash
 from dash.dependencies import Input, Output, State
 import dash_core_components as dcc
@@ -31,7 +30,7 @@ from plotly.subplots import make_subplots
 # https://github.com/GeoscienceAustralia/geophys_utils/tree/master/geophys_utils
 
 
-root = r"C:\Users\symin\OneDrive\Documents\GA\AEM\LCI"
+root = '/home/nsymington/Documents/GA/AEM/LCI'
 
 # Define path to the netcdf file
 infile = os.path.join(root, "Injune_lci_MGA55.nc")
@@ -42,22 +41,19 @@ lci = aem_utils.AEM_inversion(name = 'Laterally Contrained Inversion (LCI)',
                               netcdf_dataset = netCDF4.Dataset(infile))
 
 # Directory in which the grids are located
-infile = os.path.join(root, "grids\\Injune_layer_grids.p")
+infile = os.path.join(root, "grids/Injune_layer_grids.p")
 
 # Run function
 lci.load_lci_layer_grids_from_pickle(infile)
 
 # Path to netcdf file
-infile = r"C:\Users\symin\OneDrive\Documents\GA\AEM\rjmcmc\Injune_rjmcmc_pmaps.nc"
+infile = "/home/nsymington/Documents/GA/AEM/rjmcmc/Injune_rjmcmc_pmaps.nc"
 
 
 # Create instance
 rj = aem_utils.AEM_inversion(name = 'GARJMCMCTDEM',
                              inversion_type = 'stochastic',
                              netcdf_dataset = netCDF4.Dataset(infile))
-
-##TODO add nsamples as a scalar variable
-rj.nsamples = np.sum(rj.data['log10conductivity_histogram'][0], axis = 1)[0]
 
 
 # Now we have the lines we can grid the lci conductivity data onto vertical grids (known as sections)
@@ -79,7 +75,7 @@ lines = [200101, 200401, 200501, 200601, 200701, 200801,
 
 # Define the output directory if saving the grids as hdf plots
 
-hdf5_dir = r"C:\temp\Injune_hdf5"
+hdf5_dir =  "/home/nsymington/Documents/GA/AEM/tempfile/Injune_hdf5_lci"
 
 # if the directory doesn't exist, then create it
 if not os.path.exists(hdf5_dir):
@@ -101,7 +97,7 @@ xres, yres = 50., 2.
 
 # Define the output directory if saving the grids as hdf plots
 
-hdf5_dir = r"C:\Temp\SSC_hdf5_rj"
+hdf5_dir = "/home/nsymington/Documents/GA/AEM/tempfile/Injune_hdf5_rj"
 
 # if the directory doesn't exist, then create it
 if not os.path.exists(hdf5_dir):
@@ -143,32 +139,30 @@ for lin in lines:
 
 
 # Setup the model
-# Create an modelled boundary instance
 
 headings = ["fiducial", "inversion_name",'X', 'Y', 'ELEVATION', "DEM", "DEPTH", "UNCERTAINTY", "Type",
             "BoundaryNm", "BoundConf", "BasisOfInt", "OvrConf", "OvrStrtUnt", "OvrStrtCod", "UndStrtUnt",
            "UndStrtCod", "WithinType", "WithinStrt", "WithinStNo", "WithinConf", "InterpRef",
             "Comment", "SURVEY_LINE", "Operator"]
 
-interp_dir = r"..\data"
+interp_dir = "../data"
 
-# Now we are going to create model surfaces
+model = modelling_utils.Statigraphic_Model(name = "Injune",
+                                           outfile_path = os.path.join(interp_dir, 'Injune_interpreted.csv'),
+                                           interpreted_point_headings = headings)
+
+# Create the individual surfaces using a template
 
 infile = os.path.join(interp_dir, 'surfaceTemplate.csv')
 
-df_surf = pd.read_csv(infile)
+df_template = pd.read_csv(infile, keep_default_na=False)
 
-surfaces = {}
+model.initiatialise_surfaces_from_template(df_template)
+
+# Here we want to create surface and line options lists which we will need for our dropdown options
 surface_options = []
 
-for index, row in df_surf.iterrows():
-    surfaceName = row['SurfaceName']
-    interp_file_path = os.path.join(interp_dir, surfaceName + '_interp_file.csv')
-
-    surfaces[surfaceName] = modelling_utils.modelled_boundary(name = surfaceName,
-                                                              outfile_path = interp_file_path,
-                                                              interpreted_point_headings = headings)
-    surfaces[surfaceName].load_metadata_from_template(row)
+for surfaceName in model.surfaces:
     surface_options.append({'label': surfaceName, 'value': surfaceName})
 
 line_options = []
@@ -180,6 +174,14 @@ for l in lines:
 def subset_df_by_line(df_, line, line_col = 'SURVEY_LINE'):
     mask = df_[line_col] == line
     return df_[mask]
+
+def style_from_surface(surfaceNames, styleName):
+    style = []
+    for item in surfaceNames:
+        surface = getattr(model, item)
+        prop = getattr(surface, styleName)
+        style.append(prop)
+    return style
 
 # section functions
 def xy2fid(x,y, dataset):
@@ -202,11 +204,12 @@ def interp2scatter(line, gridded_data, interpreted_points, easting_col = 'X',
 
     grid_dists = gridded_data[line]['grid_distances'][inds]
     elevs = df_[elevation_col].values
-    fids = df_['fiducial'].values
 
-    return  grid_dists, elevs, fids
+    surfName = df_['BoundaryNm'].values
 
-def dash_section(line, df_interp, markers, vmin, vmax, cmap):
+    return  grid_dists, elevs, surfName
+
+def dash_section(line, df_interp, select_mask, vmin, vmax, cmap):
     # Create subplots
     fig = make_subplots(rows=2, cols = 1, shared_xaxes=True,
                         vertical_spacing=0.05,
@@ -273,9 +276,8 @@ def dash_section(line, df_interp, markers, vmin, vmax, cmap):
                         ),
                       row = 2, col = 1,
         )
-
     elif section_kwargs['section_plot'] == 'rj-conf':
-        ##TODO decide on different
+        ##TODO decide on different metric for confidence
 
         confidence = plots.percentiles2pnci(section_data[line]['conductivity_p10'],
                                             section_data[line]['conductivity_p90'],
@@ -291,10 +293,9 @@ def dash_section(line, df_interp, markers, vmin, vmax, cmap):
                         ),
                       row = 2, col = 1,
         )
-
     elif section_kwargs['section_plot'] == "rj-lpp":
 
-        fig.add_trace(go.Heatmap(z = section_data[line]['interface_depth_histogram']/rj.nsamples,
+        fig.add_trace(go.Heatmap(z = section_data[line]['interface_depth_histogram']/rj.data.nsamples,
                         zmin = 0.01,
                         zmax = 0.99,
                         x = section_data[line]['grid_distances'],
@@ -341,18 +342,30 @@ def dash_section(line, df_interp, markers, vmin, vmax, cmap):
             ticktext=ticktext,
             ))
 
-        interpx, interpz, fids = interp2scatter(line, section_data, df_interp)
+
+        interpx, interpz, surfNames = interp2scatter(line, section_data, df_interp)
 
         if len(interpx) > 0:
-            labels = ["fiducial = " + str(x) for x in fids]
+            labels = ["surface = " + str(x) for x in surfNames]
+
+            colours = style_from_surface(surfNames, "Colour")
+            markers = style_from_surface(surfNames, "Marker")
+            markerSize = style_from_surface(surfNames, "MarkerSize")
+
+            # To make selected points obvious
+            if len(select_mask) > 0:
+                for idx in select_mask:
+                    markerSize[idx] += 5.
 
             fig.add_trace(go.Scatter(x = interpx,
                             y = interpz,
                             mode = 'markers',
                             hovertext = labels,
                             marker = {"symbol": markers,
-                                      "color": 'black'},
-                                showlegend = False),
+                                      "color": colours,
+                                      "size": markerSize
+                                      },
+                            showlegend = True),
                             row = 2, col = 1
                           )
 
@@ -499,8 +512,6 @@ app.layout = html.Div([
                                                      'value': 'rj-p10'},
                                                     {'label': 'garjmcmctdem - p90',
                                                      'value': 'rj-p90'},
-                                                   #{'label': 'garjmcmcm - certainty',
-                                                   #  'value': 'rj-conf'},
                                                     {'label': 'garjmcmctdem - layer probability',
                                                      'value': 'rj-lpp'}],
                                             value="lci"),
@@ -516,7 +527,18 @@ app.layout = html.Div([
     html.Div(
             [
                 html.Div(html.Pre(id='click-data'),
-                         className = "four columns"),
+                         className = "three columns"),
+                html.Div(dash_table.DataTable(id='surface_table',
+                                                css=[{'selector': '.row', 'rule': 'margin: 0'}],
+                                              columns = [{"name": i, "id": i} for i in df_template.columns],
+                                              data=df_template.to_dict('records'),
+                                                editable=True,
+                                            fixed_columns={ 'headers': True},
+                                            sort_action="native",
+                                            sort_mode="multi",
+                                            row_selectable=False,
+                                            row_deletable=True),
+                         className = "three columns"),
                 html.Div([html.Div(["Conductivity plotting minimum: ", dcc.Input(
                                     id="vmin", type="number",
                                     min=0.001, max=10, value = 0.01)],
@@ -530,7 +552,7 @@ app.layout = html.Div([
                                     min=1, max=30, value = 1, step = 1)],
                          className='row'),
                     ],
-                    className = "four columns"),
+                    className = "three columns"),
                 html.Div([
                         html.Div(html.Button('Update section', id='update', n_clicks=1),
                                    className = 'row'),
@@ -540,7 +562,7 @@ app.layout = html.Div([
                                  className= 'row'),
                          html.Div(id='export_message', className= 'row')
                           ],
-                         className= "four columns"),
+                         className= "three columns"),
              ], className = "row"),
     html.Div(
         html.Div(
@@ -551,8 +573,6 @@ app.layout = html.Div([
     ),
     html.Div([html.Div(
         html.Div([
-            dash_table.DataTable(id='metadata_table',
-                                 ),
             dash_table.DataTable(id='interp_table',
                                 css=[{'selector': '.row', 'rule': 'margin: 0'}],
                                 fixed_columns={ 'headers': True},#, 'data': 1 },
@@ -575,7 +595,7 @@ app.layout = html.Div([
                               style_table={
                                           'maxHeight': '400px',
                                           'overflowY': 'scroll',
-                                          'maxWidth':  '1000px',
+                                          'maxWidth':  '500px',
                                           'overflowX': 'scroll'})],
             className = 'row')
         , className = "five columns"),
@@ -591,12 +611,10 @@ app.layout = html.Div([
     [Output('interp_table', 'data'),
     Output('interp_table', 'columns')],
     [Input("line_dropdown", 'value'),
-     Input("update", 'n_clicks'),
-     Input("surface_dropdown", 'value')])
-def update_data_table(value, nclicks, surfaceName):
-    surface = surfaces[surfaceName]
+     Input("update", 'n_clicks')])
+def update_data_table(value, nclicks):
     if nclicks >0:
-        df_ss = subset_df_by_line(surface.interpreted_points,
+        df_ss = subset_df_by_line(model.interpreted_points,
                                   line = value)
         return df_ss.to_dict('records'), [{"name": i, "id": i} for i in df_ss.columns]
 
@@ -605,11 +623,11 @@ def update_data_table(value, nclicks, surfaceName):
     [Input("export", 'n_clicks'),
     Input("surface_dropdown", 'value')],
     State('export-path', 'value'))
-def update_data_table(nclicks, surfaceName, value):
-    surface = surfaces[surfaceName]
+def export_data_table(nclicks, surfaceName, value):
+
     if np.logical_and(nclicks > 0, value is not None):
         if os.path.exists(os.path.dirname(value)):
-            surface.interpreted_points.reset_index(drop=True).to_csv(value)
+            model.interpreted_points.reset_index(drop=True).to_csv(value)
             return "Successfully exported to " + value
         else:
             return value + " is an invalid file path."
@@ -634,18 +652,18 @@ def update_section(line, section_plot, surfaceName, rows, derived_virtual_select
     # Instead of setting `None` in here, you could also set
     # `derived_virtual_data=df.to_rows('dict')` when you initialize
     # the component.
-    surface = surfaces[surfaceName]
+
     if derived_virtual_selected_rows is None:
         derived_virtual_selected_rows = []
 
-    dff = surface.interpreted_points if rows is None else pd.DataFrame(rows)
+    dff = model.interpreted_points if rows is None else pd.DataFrame(rows)
 
-    markers = ['cross' if i in derived_virtual_selected_rows else 'circle'
-              for i in range(len(dff))]
+    select_mask = np.where([True if i in derived_virtual_selected_rows else False
+              for i in range(len(dff))])[0]
 
     section_kwargs['section_plot'] = section_plot
 
-    fig = dash_section(line, dff, markers, vmin, vmax, cmap = 'jet')
+    fig = dash_section(line, dff, select_mask, vmin, vmax, cmap = 'jet')
 
     return fig
 
@@ -670,7 +688,7 @@ def update_polyline_plot(line, vmin, vmax, layer):
      Input("line_dropdown", 'value'),
      Input("surface_dropdown", 'value')])
 def update_interp_table(clickData, line, surfaceName):
-    surface = surfaces[surfaceName]
+    surface = getattr(model, surfaceName)
     if clickData is not None:
         if clickData['points'][0]['curveNumber'] == 1:
             eventxdata, eventydata = clickData['points'][0]['x'], clickData['points'][0]['y']
@@ -712,7 +730,7 @@ def update_interp_table(clickData, line, surfaceName):
                        }
             df = pd.DataFrame(interp, index = [0])
 
-            surface.interpreted_points = surface.interpreted_points.append(df)#, verify_integrity = True)
+            model.interpreted_points = model.interpreted_points.append(df)#, verify_integrity = True)
 
             return "Last interpretation was ", eventxdata, " along line and ", eventydata, " mAHD"
 
@@ -736,7 +754,6 @@ def update_pmap_plot(clickData):
                Input('interp_table', 'data_previous')],
               [State('interp_table', 'data')])
 def show_removed_rows(surfaceName, previous, current):
-    surface = surfaces[surfaceName]
     if previous is None:
         dash.exceptions.PreventUpdate()
     else:
@@ -745,7 +762,25 @@ def show_removed_rows(surfaceName, previous, current):
             if row not in current:
                 fids.append(row['fiducial'])
                 # Remove from dataframe
-        surface.interpreted_points = surface.interpreted_points[~surface.interpreted_points['fiducial'].isin(fids)]
+        model.interpreted_points = model.interpreted_points[~model.interpreted_points['fiducial'].isin(fids)]
         return [f'Just removed fiducial : {fids}']
+
+@app.callback(
+    Output('surface_table', 'data'),
+    [Input('surface_table', 'data_timestamp')],
+    [State('surface_table', 'data')])
+def update_model(timestamp, rows):
+    for row in rows:
+        surfaceName= row['SurfaceName']
+        idx = df_template[df_template['SurfaceName'] == surfaceName].index
+        df_row = pd.DataFrame(row, index = idx)
+        if not df_row.equals(df_template.iloc[idx]):
+            df_template.at[idx, :] = df_row
+            # update our model surface attributes
+            delattr(model, surfaceName)
+            model.initiatialise_surface(pd.Series(row))
+    print(model.BaseCenozoic.Colour)
+    return rows
+
 
 app.run_server(debug = True)
