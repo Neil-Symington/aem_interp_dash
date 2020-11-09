@@ -350,8 +350,7 @@ def dash_section(line, df_interp, select_mask, vmin, vmax, cmap):
 
             colours = style_from_surface(surfNames, "Colour")
             markers = style_from_surface(surfNames, "Marker")
-            markerSize = style_from_surface(surfNames, "MarkerSize")
-
+            markerSize = [np.float(x) for x in style_from_surface(surfNames, "MarkerSize")]
             # To make selected points obvious
             if len(select_mask) > 0:
                 for idx in select_mask:
@@ -554,8 +553,7 @@ app.layout = html.Div([
                     ],
                     className = "three columns"),
                 html.Div([
-                        html.Div(html.Button('Update section', id='update', n_clicks=1),
-                                   className = 'row'),
+
                          html.Div(html.Button('Export results', id='export', n_clicks=0),
                                   className = 'row'),
                          html.Div(dcc.Input(id='export-path', type='text', placeholder = 'Input valid output path'),
@@ -573,6 +571,7 @@ app.layout = html.Div([
     ),
     html.Div([html.Div(
         html.Div([
+            html.Button('Update section', id='update', n_clicks=1),
             dash_table.DataTable(id='interp_table',
                                 css=[{'selector': '.row', 'rule': 'margin: 0'}],
                                 fixed_columns={ 'headers': True},#, 'data': 1 },
@@ -596,7 +595,9 @@ app.layout = html.Div([
                                           'maxHeight': '400px',
                                           'overflowY': 'scroll',
                                           'maxWidth':  '500px',
-                                          'overflowX': 'scroll'})],
+                                          'overflowX': 'scroll'}),
+
+        ],
             className = 'row')
         , className = "five columns"),
         html.Div(html.Div(id='poly_line_plot'), className = "four columns"),
@@ -688,8 +689,14 @@ def update_polyline_plot(line, vmin, vmax, layer):
      Input("line_dropdown", 'value'),
      Input("surface_dropdown", 'value')])
 def update_interp_table(clickData, line, surfaceName):
-    surface = getattr(model, surfaceName)
-    if clickData is not None:
+    ctx = dash.callback_context
+    # Find which input triggered the callback
+    if ctx.triggered:
+        trig_id = ctx.triggered[0]['prop_id']
+    else:
+        trig_id = None
+    if trig_id == 'section_plot.clickData':
+        surface = getattr(model, surfaceName)
         if clickData['points'][0]['curveNumber'] == 1:
             eventxdata, eventydata = clickData['points'][0]['x'], clickData['points'][0]['y']
             min_idx = np.argmin(np.abs(lci.section_data[line]['grid_distances'] - eventxdata))
@@ -779,7 +786,6 @@ def update_model(timestamp, rows):
             # update our model surface attributes
             delattr(model, surfaceName)
             model.initiatialise_surface(pd.Series(row))
-    print(model.BaseCenozoic.Colour)
     return rows
 
 
