@@ -22,38 +22,41 @@ import dash_html_components as html
 import dash_table
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+import base64, io
 
 
-# The actual inversion data are stored on disk as netcdf files. NetCDF is an efficient format for storing
-# self-describing containerised data.
-# The implementation of netcdf for AEM line data was done by Alex Ip using his geophys_utils package.
-# https://github.com/GeoscienceAustralia/geophys_utils/tree/master/geophys_utils
+modelName = "Injune"
 
+root ="/home/nsymington/Documents/GA/dash_data"
+# path to determinist netcdf file
+det_nc_path = os.path.join(root, "Injune_lci_MGA55.nc")
+# path to dertiminist grid
+det_grid_path = os.path.join(root, "Injune_layer_grids.p")
 
-root = '/home/nsymington/Documents/GA/AEM/LCI'
+grid_lci = False #If the lci conductivity sections have not yet been gridded then make this flag true
+# path to rjmcmcmtdem pmap file
+rj_nc_path = os.path.join(root, "Injune_rjmcmc_pmaps.nc")
 
-# Define path to the netcdf file
-infile = os.path.join(root, "Injune_lci_MGA55.nc")
+grid_rj = False #If the rj conductivity sections have not yet been gridded then make this flag true
+
+project_crs = 'EPSG:28353'
+lines = [200101, 200401, 200501, 200601, 200701, 200801,
+         200901, 201001, 201101, 201201, 201301, 201401, 201501,
+         201601, 201701, 201801, 201901, 202001, 202101, 202201,
+         202301, 202401, 202501, 202601, 202701, 202801, 912011]
 
 # Create an instance
 lci = aem_utils.AEM_inversion(name = 'Laterally Contrained Inversion (LCI)',
                               inversion_type = 'deterministic',
-                              netcdf_dataset = netCDF4.Dataset(infile))
-
-# Directory in which the grids are located
-infile = os.path.join(root, "grids/Injune_layer_grids.p")
+                              netcdf_dataset = netCDF4.Dataset(det_nc_path))
 
 # Run function
-lci.load_lci_layer_grids_from_pickle(infile)
-
-# Path to netcdf file
-infile = "/home/nsymington/Documents/GA/AEM/rjmcmc/Injune_rjmcmc_pmaps.nc"
-
+lci.load_lci_layer_grids_from_pickle(det_grid_path)
 
 # Create instance
 rj = aem_utils.AEM_inversion(name = 'GARJMCMCTDEM',
                              inversion_type = 'stochastic',
-                             netcdf_dataset = netCDF4.Dataset(infile))
+                             netcdf_dataset = netCDF4.Dataset(rj_nc_path))
 
 
 # Now we have the lines we can grid the lci conductivity data onto vertical grids (known as sections)
@@ -68,23 +71,21 @@ xres, yres = 40., 5.
 
 # We will use the lines from the rj
 
-lines = [200101, 200401, 200501, 200601, 200701, 200801,
-         200901, 201001, 201101, 201201, 201301, 201401, 201501,
-         201601, 201701, 201801, 201901, 202001, 202101, 202201,
-         202301, 202401, 202501, 202601, 202701, 202801, 912011]
+
 
 # Define the output directory if saving the grids as hdf plots
 
-hdf5_dir =  "/home/nsymington/Documents/GA/AEM/tempfile/Injune_hdf5_lci"
+hdf5_dir = os.path.join(root, "hdf5_lci")
 
 # if the directory doesn't exist, then create it
 if not os.path.exists(hdf5_dir):
     os.mkdir(hdf5_dir)
 
-#lci.grid_sections(variables = grid_vars, lines = lines, xres = xres, yres = yres,
-#                  return_interpolated = True, save_hdf5 = True, hdf5_dir = hdf5_dir)
-
-lci.load_sections_from_file(hdf5_dir, grid_vars, lines = lines)
+if grid_lci:
+    lci.grid_sections(variables = grid_vars, lines = lines, xres = xres, yres = yres,
+                      return_interpolated = True, save_hdf5 = True, hdf5_dir = hdf5_dir)
+else:
+    lci.load_sections_from_file(hdf5_dir, grid_vars, lines = lines)
 
 # Grid the rj sections
 
@@ -97,16 +98,17 @@ xres, yres = 50., 2.
 
 # Define the output directory if saving the grids as hdf plots
 
-hdf5_dir = "/home/nsymington/Documents/GA/AEM/tempfile/Injune_hdf5_rj"
+hdf5_dir = os.path.join(root, "hdf5_rj")
 
 # if the directory doesn't exist, then create it
 if not os.path.exists(hdf5_dir):
     os.mkdir(hdf5_dir)
 
-#rj.grid_sections(variables = grid_vars, lines = lines, xres = xres, yres = yres,
-#                  return_interpolated = True, save_hdf5 = True, hdf5_dir = hdf5_dir)
-
-rj.load_sections_from_file(hdf5_dir, grid_vars, lines = lines)
+if grid_rj:
+    rj.grid_sections(variables = grid_vars, lines = lines, xres = xres, yres = yres,
+                     return_interpolated = True, save_hdf5 = True, hdf5_dir = hdf5_dir)
+else:
+    rj.load_sections_from_file(hdf5_dir, grid_vars, lines = lines)
 
 # Create polylines
 lci.create_flightline_polylines()
@@ -114,10 +116,11 @@ lci.create_flightline_polylines()
 gdf_lines = gpd.GeoDataFrame(data = {'lineNumber': lci.flight_lines.keys(),
                                      'geometry': lci.flight_lines.values()},
                              geometry= 'geometry',
-                             crs = 'EPSG:28353')
+                             crs = project_crs)
 
 gdf_lines = gdf_lines[np.isin(gdf_lines['lineNumber'], lines)]
 
+## TODO wrap this up in a function
 # Using this gridding we find the distance along the line for each site
 # Iterate through the lines
 rj.distance_along_line = {}
@@ -145,31 +148,31 @@ headings = ["fiducial", "inversion_name",'X', 'Y', 'ELEVATION', "DEM", "DEPTH", 
            "UndStrtCod", "WithinType", "WithinStrt", "WithinStNo", "WithinConf", "InterpRef",
             "Comment", "SURVEY_LINE", "Operator"]
 
-interp_dir = "../data"
 
-model = modelling_utils.Statigraphic_Model(name = "Injune",
-                                           outfile_path = os.path.join(interp_dir, 'Injune_interpreted.csv'),
-                                           interpreted_point_headings = headings)
+def initialise_strat_model(templateFile = "../data/blankSurfaceTemplate.csv",
+                           name = "Stratigraphic_model"):
+    model = modelling_utils.Statigraphic_Model(name = name, interpreted_point_headings = headings)
 
-# Create the individual surfaces using a template
+    model.template = pd.read_csv(templateFile, keep_default_na=False)
 
-infile = os.path.join(interp_dir, 'surfaceTemplate.csv')
+    model.initiatialise_surfaces_from_template(model.template)
 
-df_template = pd.read_csv(infile, keep_default_na=False)
+    # Here we want to create surface and line options lists which we will need for our dropdown options
+    surface_options = []
 
-model.initiatialise_surfaces_from_template(df_template)
+    for surfaceName in model.surfaces:
+        surface_options.append({'label': surfaceName, 'value': surfaceName})
 
-# Here we want to create surface and line options lists which we will need for our dropdown options
-surface_options = []
+    model.surface_options = surface_options
 
-for surfaceName in model.surfaces:
-    surface_options.append({'label': surfaceName, 'value': surfaceName})
+    line_options = []
 
-line_options = []
+    for l in lines:
+        line_options.append({'label': str(l), 'value': l})
 
-for l in lines:
-     line_options.append({'label': str(l), 'value': l})
+    model.line_options = line_options
 
+    return model
 
 def subset_df_by_line(df_, line, line_col = 'SURVEY_LINE'):
     mask = df_[line_col] == line
@@ -182,6 +185,17 @@ def style_from_surface(surfaceNames, styleName):
         prop = getattr(surface, styleName)
         style.append(prop)
     return style
+
+def parse_contents(contents, filename):
+    content_type, content_string = contents.split(',')
+    decoded = base64.b64decode(content_string)
+    if 'csv' in filename:
+        # Assume that the user uploaded a CSV file
+        return pd.read_csv(
+            io.StringIO(decoded.decode('utf-8')), keep_default_na=False)
+    elif 'xls' in filename:
+        # Assume that the user uploaded an excel file
+        return pd.read_excel(io.BytesIO(decoded))
 
 # section functions
 def xy2fid(x,y, dataset):
@@ -414,16 +428,7 @@ def dash_pmap_plot(point_index):
                              name = "p50 conductivity",
                              showlegend = False))
 
-    ##TODO wrap this ugliness into a function
-    lci_expanded = np.zeros(shape=2 * len(D['lci_cond']) + 1,
-                            dtype=np.float)
-
-    lci_expanded[1:] = np.repeat(D['lci_cond'], 2)
-
-    depth_expanded = (np.max(D['lci_depth_top']) + 10) * np.ones(shape=len(lci_expanded),
-                                                                 dtype=np.float)
-
-    depth_expanded[:-1] = np.repeat(D['lci_depth_top'], 2)
+    lci_expanded, depth_expanded = plots.profile2layer_plot(D['lci_cond'], D['lci_depth_top'])
 
     fig.add_trace(go.Scatter(x=np.log10(lci_expanded),
                              y= depth_expanded,
@@ -489,15 +494,36 @@ section_kwargs = {'colourbar_label': 'Conductivity (S/m)',
 stylesheet = "https://codepen.io/chriddyp/pen/bWLwgP.css"
 app = dash.Dash(__name__, external_stylesheets=[stylesheet])
 
+model = initialise_strat_model(name = modelName)
+
 app.layout = html.Div([
     html.Div(
                 [
                     html.Div(html.H1("AEM interpretation dash board"),
                              className= "three columns"),
                     html.Div([html.H4("Select surface"),
+                              dcc.Upload(
+                                        id='template-upload',
+                                        children=html.Div([
+                                            'Drag and Drop or ',
+                                            html.A('Select'),
+                                            ' a surface template file'
+                                        ]),
+                                        style={
+                                            'width': '100%',
+                                            'height': '60px',
+                                            'lineHeight': '60px',
+                                            'borderWidth': '1px',
+                                            'borderStyle': 'dashed',
+                                            'borderRadius': '5px',
+                                            'textAlign': 'center',
+                                            'margin': '10px'
+                                        },
+                                # Allow multiple files to be uploaded
+                                multiple=False),
                              dcc.Dropdown(id = "surface_dropdown",
-                                            options=surface_options,
-                                            value=(surface_options[0]['label']))
+                                            options=model.surface_options,
+                                            value=(model.surface_options[0]['label']))
 
                              ],className = "three columns"),
                     html.Div([html.H4("Select section"),
@@ -518,8 +544,8 @@ app.layout = html.Div([
                              ],className = "three columns"),
                     html.Div([html.H4("Select line"),
                              dcc.Dropdown(id = "line_dropdown",
-                                            options=line_options,
-                                            value= int(line_options[0]['label'])),
+                                            options=model.line_options,
+                                            value= int(model.line_options[0]['label'])),
                              ],className = "three columns")
                 ], className = 'row'
             ),
@@ -529,14 +555,20 @@ app.layout = html.Div([
                          className = "three columns"),
                 html.Div(dash_table.DataTable(id='surface_table',
                                                 css=[{'selector': '.row', 'rule': 'margin: 0'}],
-                                              columns = [{"name": i, "id": i} for i in df_template.columns],
-                                              data=df_template.to_dict('records'),
+                                              columns = [{"name": i, "id": i} for i in model.template.columns],
+                                              data=model.template.to_dict('records'),
                                                 editable=True,
                                             fixed_columns={ 'headers': True},
                                             sort_action="native",
                                             sort_mode="multi",
                                             row_selectable=False,
-                                            row_deletable=True),
+                                            row_deletable=False,
+                                              style_table={
+                                                  'maxHeight': '400px',
+                                                  'overflowY': 'scroll',
+                                                  'maxWidth': '500px',
+                                                  'overflowX': 'scroll'}
+                                              ),
                          className = "three columns"),
                 html.Div([html.Div(["Conductivity plotting minimum: ", dcc.Input(
                                     id="vmin", type="number",
@@ -619,6 +651,48 @@ def update_data_table(value, nclicks):
                                   line = value)
         return df_ss.to_dict('records'), [{"name": i, "id": i} for i in df_ss.columns]
 
+@app.callback([Output("surface_dropdown", 'value'),
+               Output("surface_dropdown", 'options')],
+              [Input('template-upload', 'contents')],
+              [State('template-upload', 'filename')])
+
+def update_output(contents, filename):
+    if contents is None:
+        return model.surfaces[0], model.surface_options
+    df = parse_contents(contents, filename)
+
+    valid = True#check_validity(df)
+    ##TODO write a file validity function
+
+    if valid:
+        # If interpreted points is empty
+        if len(model.interpreted_points) < 1:
+            ## TODO create function for this
+            for item in model.surfaces:
+                delattr(model, item)
+            model.surfaces = []
+            model.surface_options = []
+            model.template = None
+            for index, row in df.iterrows():
+                model.initiatialise_surface(pd.Series(row))
+            for surfaceName in model.surfaces:
+                model.surface_options.append({'label': surfaceName, 'value': surfaceName})
+        else:
+            for index, row in df.iterrows():
+                surfaceName = row['SurfaceName']
+                idx = model.template[model.template['SurfaceName'] == surfaceName].index
+                df_row = pd.DataFrame(row, index=idx)
+                if not df_row.equals(model.template.iloc[idx]):
+                    model.template.at[idx, :] = df_row
+                    # update our model surface attributes
+                    delattr(model, surfaceName)
+                    model.initiatialise_surface(pd.Series(row))
+        model.template = df.copy()
+
+        return model.template.values[0], model.surface_options
+    else:
+        raise Exception("Input file is not valid")
+
 @app.callback(
     Output('export_message', 'children'),
     [Input("export", 'n_clicks'),
@@ -696,8 +770,9 @@ def update_interp_table(clickData, line, surfaceName):
     else:
         trig_id = None
     if trig_id == 'section_plot.clickData':
-        surface = getattr(model, surfaceName)
+
         if clickData['points'][0]['curveNumber'] == 1:
+            surface = getattr(model, surfaceName)
             eventxdata, eventydata = clickData['points'][0]['x'], clickData['points'][0]['y']
             min_idx = np.argmin(np.abs(lci.section_data[line]['grid_distances'] - eventxdata))
 
@@ -774,18 +849,31 @@ def show_removed_rows(surfaceName, previous, current):
 
 @app.callback(
     Output('surface_table', 'data'),
-    [Input('surface_table', 'data_timestamp')],
+    [Input("surface_dropdown", 'value'),
+     Input('surface_table', 'data_timestamp')],
     [State('surface_table', 'data')])
-def update_model(timestamp, rows):
-    for row in rows:
-        surfaceName= row['SurfaceName']
-        idx = df_template[df_template['SurfaceName'] == surfaceName].index
-        df_row = pd.DataFrame(row, index = idx)
-        if not df_row.equals(df_template.iloc[idx]):
-            df_template.at[idx, :] = df_row
-            # update our model surface attributes
-            delattr(model, surfaceName)
-            model.initiatialise_surface(pd.Series(row))
+def update_model(surfaces, timestamp, rows):
+    ctx = dash.callback_context
+    # Find which input triggered the callback
+    if ctx.triggered:
+        trig_id = ctx.triggered[0]['prop_id']
+    else:
+        trig_id = None
+    # Check if all the surface are the same
+    df_rows = pd.DataFrame(rows)
+    # First case is where we have changed the surfaces entirely
+    if trig_id == "surface_dropdown.value":
+        rows = model.template.to_dict("records")
+    elif trig_id == "surface_table.data_timestamp":
+        for row in rows:
+            surfaceName= row['SurfaceName']
+            idx = model.template[model.template['SurfaceName'] == surfaceName].index
+            df_row = pd.DataFrame(row, index = idx)
+            if not df_row.equals(model.template.iloc[idx]):
+                model.template.at[idx, :] = df_row
+                # update our model surface attributes
+                delattr(model, surfaceName)
+                model.initiatialise_surface(pd.Series(row))
     return rows
 
 
