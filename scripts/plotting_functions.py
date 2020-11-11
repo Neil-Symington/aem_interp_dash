@@ -774,3 +774,16 @@ def layer_point_prob_plot(ax, section_data, line):
     ax.scatter(x,y, s = 1, c = c, cmap = 'gist_yarg')
     ax.plot(dist, elev, 'k')
     return ax
+
+def profile2layer_plot(conductivity_profile, depth_top):
+    cond_expanded = np.zeros(shape=2 * len(conductivity_profile) + 1,
+                            dtype=np.float)
+
+    cond_expanded[1:] = np.repeat(conductivity_profile, 2)
+
+    depth_expanded = (np.max(depth_top) + 10) * np.ones(shape=len(cond_expanded),
+                                                                 dtype=np.float)
+
+    depth_expanded[:-1] = np.repeat(depth_top, 2)
+
+    return cond_expanded, depth_expanded
