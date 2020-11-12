@@ -18,6 +18,7 @@
 from collections import Sequence
 import h5py
 import numpy as np
+import xarray as xr
 
 def check_list_arg(object):
     """Function for checking if
@@ -82,3 +83,23 @@ def extract_hdf5_data(file, grid_vars):
             datasets['grid_distances'] = item[()]
 
     return datasets
+
+def dict2xr(d):
+    # define coordinates
+
+    data_vars  = {}
+    coords = {}
+
+    for item in d:
+        if np.isin(item, ['grid_distances', 'grid_elevations']):
+            coords[item] = d[item]
+
+        elif len(d[item].shape) == 2:
+            data_vars[item] = (['grid_elevations', 'grid_distances' ], d[item])
+        elif len(d[item].shape) == 1:
+            data_vars[item] = (['grid_distances'], d[item])
+
+    ds = xr.Dataset(
+        data_vars,
+        coords=coords)
+    return ds

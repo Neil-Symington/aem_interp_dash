@@ -28,7 +28,7 @@ import h5py
 import numpy as np
 import spatial_functions
 from netcdf_utils import get_lines, testNetCDFDataset, get_lookup_mask
-from misc_utils import check_list_arg, dict_to_hdf5, extract_hdf5_data
+from misc_utils import check_list_arg, dict_to_hdf5, extract_hdf5_data, dict2xr
 import gc, glob, os
 from shapely.geometry import LineString
 
@@ -103,7 +103,7 @@ class AEM_inversion:
         return var_dict
 
     def grid_sections(self, variables, lines, xres, yres, resampling_method = 'linear', return_interpolated = False,
-                      save_hdf5 = True, hdf5_dir = None):
+                      save_to_disk = True, output_dir = None):
         """A function for gridding AEM inversoin variables into sections.
            This method can handle both 1D and 2D variables
 
@@ -124,9 +124,9 @@ class AEM_inversion:
         return_interpolated : boolean
             If True there will be a class variables for the gridded variables
              for each line
-        save_hdf5 : boolean
-            If True, we will save the gridded variables as a hdf5 file.
-        hdf5_dir : string
+        save_to_disk : boolean
+            If True, we will save the gridded variables as a pickle file.
+        output_dir : string
             Path to directory in which the hdf5 files are to be saved.
 
 
@@ -181,10 +181,14 @@ class AEM_inversion:
 
             interpolated[line_no] =  self.grid_variables(line_no, cond_var_dict,
                                                          gridding_params)
+
             # Save to hdf5 file if the keyword is passed
-            if save_hdf5:
-                fname = os.path.join(hdf5_dir, str(int(line_no)) + '.hdf5')
-                dict_to_hdf5(fname, interpolated[line_no])
+            if save_to_disk:
+                fname = os.path.join(output_dir, str(int(line_no)) + '.pkl')
+                file = open(fname, 'wb')
+                # dump information to the file
+                pickle.dump(interpolated[line_no], file)
+                #dict_to_hdf5(fname, interpolated[line_no])
 
             # Many lines may fill up memory so if the dictionary is not being returned then
             # we garbage collect
@@ -227,12 +231,6 @@ class AEM_inversion:
         utm_coordinates = np.column_stack((cond_var_dict['easting'],
                                           cond_var_dict['northing']))
 
-        # Add the flag to the dictionary
-        #if utm_coordinates[0, 0] > utm_coordinates[-1, 0]:
-        #    cond_var_dict['reverse_line'] = True
-        #else:
-        #    cond_var_dict['reverse_line'] = False
-
         # Add distance array to dictionary
         cond_var_dict['distances'] = spatial_functions.coords2distance(utm_coordinates)
 
@@ -247,10 +245,10 @@ class AEM_inversion:
         vars_2d = [v for v in self.section_variables if cond_var_dict[v].ndim == 2]
         vars_1d = [v for v in self.section_variables if cond_var_dict[v].ndim == 1]
 
-        # Generator for inteprolating 2D variables from the vars_2d list
+        # Generator for interpolating 2D variables from the vars_2d list
         interp2d = spatial_functions.interpolate_2d_vars(vars_2d, cond_var_dict,
-                                                        gridding_params['xres'],
-                                                        gridding_params['yres'])
+                                                         gridding_params['xres'],
+                                                         gridding_params['yres'])
         for var in vars_2d:
             # Generator yields the interpolated variable array
             interpolated[var], cond_var_dict = next(interp2d)
@@ -268,7 +266,11 @@ class AEM_inversion:
             # Generator yields the interpolated variable array
             interpolated[var] = next(interp1d)
 
-        return interpolated
+        # Create an xarray from the dictionary
+
+        xr = dict2xr(interpolated)
+
+        return xr
 
     def load_gridded_sections(self, f, gridded_vars):
         """Pull data from h5py object to a dictionary

@@ -134,9 +134,17 @@ for lin in lines:
     dists = spatial_functions.xy_2_var(lci.section_data[lin],
                                       line_coords,
                                       'grid_distances')
+    easting = spatial_functions.xy_2_var(lci.section_data[lin],
+                                      line_coords,
+                                      'easting')
+    northing = spatial_functions.xy_2_var(lci.section_data[lin],
+                                      line_coords,
+                                      'northing')
     # Add a dictionary with the point index distance along the line to our inversion instance
     rj.distance_along_line[lin] = pd.DataFrame(data = {"point_index": np.where(line_mask)[0],
                                                        "distance_along_line": dists,
+                                                       'easting': easting,
+                                                       'northing': northing,
                                                        'fiducial': rj.data['fiducial'][line_mask]}
                                                ).set_index('point_index')
 
