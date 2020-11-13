@@ -312,18 +312,18 @@ def interpolate_2d_vars(vars_2d, var_dict, xres, yres):
         # Yield the generator and the dictionary with added variables
         yield interpolated_var, var_dict
 
-def xy_2_var(grid_dict, xy, var):
+def xy_2_var(xarray, xy, var):
     """
     Function for finding a variable for gridded AEM sections
     given an input easting and northing
-    @ param: grid_dict :dictionary for gridded line data
+    @ param: xarray : for gridded line data
     @ param: xy: numpy array with easting and northing
     @ param: var: string with variable name
     returns
     float: distance along line
     """
-    utm_coords = np.column_stack((grid_dict['easting'],
-                                  grid_dict['northing']))
+    utm_coords = np.column_stack((xarray.easting.values,
+                                  xarray.northing.values))
 
     d, i = nearest_neighbours(xy, utm_coords, max_distance=100.)
 
@@ -331,7 +331,7 @@ def xy_2_var(grid_dict, xy, var):
         return None
 
     else:
-        return grid_dict[var][i]
+        return xarray[var][i]
 
 def return_valid_points(points, coords, extent):
     # Now get points that are within our survey area

@@ -19,6 +19,7 @@ from collections import Sequence
 import h5py
 import numpy as np
 import xarray as xr
+import pickle
 
 def check_list_arg(object):
     """Function for checking if
@@ -103,3 +104,14 @@ def dict2xr(d):
         data_vars,
         coords=coords)
     return ds
+
+def pickle2xarray(infile):
+
+    with open(infile, 'rb') as file:
+        xarr = pickle.load(file)
+    return xarr
+
+def xarray2pickle(xarr, outfile):
+    file = open(outfile, 'wb')
+    # dump information to the file
+    pickle.dump(xarr, file)

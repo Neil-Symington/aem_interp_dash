@@ -31,6 +31,7 @@ from netcdf_utils import get_lines, testNetCDFDataset, get_lookup_mask
 from misc_utils import check_list_arg, dict_to_hdf5, extract_hdf5_data, dict2xr
 import gc, glob, os
 from shapely.geometry import LineString
+import geopandas as gpd
 
 
 class AEM_inversion:
@@ -365,7 +366,7 @@ class AEM_inversion:
 
         self.section_data = interpolated
 
-    def create_flightline_polylines(self):
+    def create_flightline_polylines(self, crs):
         """
         Create polylines from the AEM flight lines
         Returns
@@ -376,7 +377,7 @@ class AEM_inversion:
         """
         assert np.logical_and("line" in self.data.variables,
                               "line_index" in self.data.variables)
-        self.flight_lines = {}
+        flight_lines = {}
 
         for i, line in enumerate(self.data['line'][:]):
             mask = np.where(self.data['line_index'][:] == i)
@@ -387,7 +388,11 @@ class AEM_inversion:
             northing = self.data['northing'][mask][sort_mask]
 
             # add the polyline to the attribute
-            self.flight_lines[line] = LineString(np.column_stack((easting, northing)))
+            flight_lines[line] = LineString(np.column_stack((easting, northing)))
+
+        self.flightlines = gpd.GeoDataFrame(data = {'lineNumber': flight_lines.keys(),
+                                             'geometry': flight_lines.values()},
+                                            geometry= 'geometry', crs = crs)
 
 class AEM_data:
     """

@@ -27,6 +27,7 @@ Utility functions for dealing with netcdf data
 import netCDF4
 import numpy as np
 import spatial_functions
+from misc_utils import pickle2xarray
 import pandas as pd
 
 def object2array(variable, dtype):
@@ -126,8 +127,6 @@ def extract_rj_sounding(rj, lci, point_index = 0):
     p50 = np.power(10,rj_dat['conductivity_p50'][point_index].data)
     p90 = np.power(10,rj_dat['conductivity_p90'][point_index].data)
 
-    lci_coords = np.column_stack
-
     distances, indices = spatial_functions.nearest_neighbours([easting, northing],
                                                               lci.coords,
                                                                max_distance = 100.)
@@ -151,7 +150,10 @@ def extract_rj_sounding(rj, lci, point_index = 0):
     fiducial = float(rj_dat['fiducial'][point_index])
     elevation = rj_dat['elevation'][point_index]
 
-    dist = spatial_functions.xy_2_var(lci.section_data[line],
+    # Need to create this for opening pickle files with xarrays
+    xarr = pickle2xarray(lci.section_path[line])
+
+    dist = spatial_functions.xy_2_var(xarr,
                                       np.array([[easting, northing]]),
                                       'grid_distances')
 
@@ -160,7 +162,7 @@ def extract_rj_sounding(rj, lci, point_index = 0):
            'nlayer_bins': laybins, 'nlayer_prob': lay_prob, 'nsamples': nsamples, 'ndata': rj_dat.dimensions['data'].size,
            "nchains": nchains, 'burnin': burnin, 'misfit': misfit, 'sample_no': sample_no, 'cond_cells': cond_cells, 'lci_cond': lci_cond,
            'lci_depth_top': lci_depth_top, 'lci_doi': lci_doi, 'line': line, 'northing': northing, 'easting': easting, 'fiducial':fiducial,
-           'elevation': elevation, 'lci_dist': dist, 'lci_line': lci.section_data[line]}
+           'elevation': elevation, 'lci_dist': dist, 'lci_line': xarr}
 
 def testNetCDFDataset(netCDF_dataset):
     """Test if datafile is netcdf.

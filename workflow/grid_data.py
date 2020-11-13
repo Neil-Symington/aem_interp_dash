@@ -4,27 +4,16 @@ import geopandas as gpd
 import netCDF4
 import sys, os
 import pickle
+
 import xarray as xr
 sys.path.append("../scripts")
-
+from misc_utils import xarray2pickle, pickle2xarray
 import spatial_functions
 import aem_utils
-import netcdf_utils
-import modelling_utils
-import plotting_functions as plots
 import warnings
-import pandas as pd
+
 warnings.filterwarnings('ignore')
-# Dash dependencies
-import plotly.express as px
-import dash
-from dash.dependencies import Input, Output, State
-import dash_core_components as dcc
-import dash_html_components as html
-import dash_table
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-import base64, io
+
 
 
 modelName = "Injune"
@@ -143,20 +132,17 @@ def scale_distance_along_line(xarr1, xarr2):
 
 
 for lin in lines:
-    print(lin)
+
     lci_infile = '/home/nsymington/Documents/GA/dash_data/section_data_lci/'+ str(lin) + '.pkl'
 
-    with open(lci_infile, 'rb') as file:
-        xarr1 = pickle.load(file)
+    xarr1 = pickle2xarray(lci_infile)
 
     rj_infile = '/home/nsymington/Documents/GA/dash_data/section_data_rj/' + str(lin) + '.pkl'
 
-    with open(rj_infile, 'rb') as file:
-        xarr2 = pickle.load(file)
+    xarr2 = pickle2xarray(rj_infile)
 
     xarr2['grid_distances'] = scale_distance_along_line(xarr1, xarr2)
     # Save xarray back to pickle file
 
-    file = open(rj_infile, 'wb')
-    # dump information to the file
-    pickle.dump(xarr2, file)
+    xarray2pickle(xarr2, rj_infile)
+
