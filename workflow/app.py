@@ -291,7 +291,11 @@ def dash_section(line, vmin, vmax, cmap):
                              showlegend=False),
                   row=2, col=1)
     # Reverse y-axis
-    fig.update_yaxes(autorange=True)
+    fig.update_yaxes(autorange=True, row = 1, col = 1, title_text = "data residual")
+    fig.update_yaxes(autorange=True, row=2, col=1, title_text="elevation (mAHD)")
+
+    #fig.update_layout(title=title)
+    fig.update_xaxes(title_text= "insert_correct " + " (m)", row=2, col=1)
 
     return fig
 
@@ -354,21 +358,21 @@ def dash_pmap_plot(point_index):
                              y = D['depth_cells'],
                              mode = 'lines',
                              line = {"color": 'black',
-                                     "width": 2.},
+                                     "width": 1.},
                              name = "p10 conductivity",
                              showlegend = False))
     fig.add_trace(go.Scatter(x = np.log10(D['cond_p90']),
                              y = D['depth_cells'],
                              mode = 'lines',
                              line = {"color": 'black',
-                                     "width": 2.},
+                                     "width": 1.},
                              name = "p90 conductivity",
                              showlegend = False))
     fig.add_trace(go.Scatter(x = np.log10(D['cond_p50']),
                              y = D['depth_cells'],
                              mode = 'lines',
                              line = {"color": 'gray',
-                                     "width": 2.,
+                                     "width": 1.,
                                      'dash': 'dash'},
                              name = "p50 conductivity",
                              showlegend = False))
@@ -379,12 +383,16 @@ def dash_pmap_plot(point_index):
                              y= depth_expanded,
                              mode='lines',
                              line={"color": 'pink',
-                                   "width": 2.,
+                                   "width": 1.,
                                    'dash': 'dash'},
                              name="lci",
                              showlegend=False))
 
-
+    fig.update_layout(
+        autosize=False,
+        height=600)
+    fig.update_layout(xaxis=dict(scaleanchor = 'y',
+                                 scaleratio = 100.))
     return fig
 
 def flightline_map(line, vmin, vmax, layer):
@@ -425,7 +433,9 @@ def flightline_map(line, vmin, vmax, layer):
     xmin, xmax = np.min(rj.data['easting'][:]) - 500., np.max(rj.data['easting'][:]) + 500.
     ymin, ymax = np.min(rj.data['northing'][:]) - 500., np.max(rj.data['northing'][:]) + 500.
 
-    fig.update_layout(yaxis=dict(range=[ymin, ymax]),
+    fig.update_layout(yaxis=dict(range=[ymin, ymax],
+                                 scaleanchor = 'x',
+                                 scaleratio = 1.),
                       xaxis=dict(range=[xmin, xmax]))
     fig['data'][0]['showscale'] = False
     return fig
@@ -571,16 +581,21 @@ app.layout = html.Div([
                               style_table={
                                           'maxHeight': '400px',
                                           'overflowY': 'scroll',
-                                          'maxWidth':  '600px',
+                                          'maxWidth':  '90%',
                                           'overflowX': 'scroll'}),
 
         ],
             className = 'row')
         , className = "six columns"),
-        html.Div(html.Div(id='poly_line_plot'), className = "three columns"),
-        html.Div(html.Div(id='pmap'), className = "three columns"), ], className = 'row'
-
-             ),
+        html.Div([
+            dcc.Tabs(id='tabs', value='Map plot', children=[
+                dcc.Tab(label='Map plot', value='map_plot'),
+                dcc.Tab(label='Pmap plot', value='pmap_plot'),
+            ]),
+            html.Div(id='tabs-content', style = {'height': '600px'})
+        ],
+            className = "six columns")],
+        className = 'row'),
     html.Div(id = 'output')
 
 ])
@@ -704,20 +719,33 @@ def update_section(line, section_plot, surfaceName, rows, derived_virtual_select
 
     return fig
 
-@app.callback(
-    [Output('poly_line_plot', 'children')],
-    [Input("line_dropdown", 'value'),
-     Input('vmin', 'value'),
-     Input('vmax', 'value'),
-     Input('layerGrid', 'value')])
-def update_polyline_plot(line, vmin, vmax, layer):
-    fig = flightline_map(line, vmin, vmax, layer)
-    return [
-        dcc.Graph(
-            id='polylines',
-            figure=fig
+@app.callback(Output('tabs-content', 'children'),
+              [Input('tabs', 'value'),
+               Input("line_dropdown", 'value'),
+               Input('vmin', 'value'),
+               Input('vmax', 'value'),
+               Input('layerGrid', 'value'),
+               Input('section_plot', 'clickData')])
+def update_tab(tab, line, vmin, vmax, layer, clickData):
+    if tab == 'map_plot':
+        fig = flightline_map(line, vmin, vmax, layer)
+        return html.Div([
+            dcc.Graph(
+                id='polylines',
+                figure=fig
             ),
-    ]
+        ])
+    elif tab == 'pmap_plot':
+        if clickData is not None:
+            if clickData['points'][0]['curveNumber'] == 3:
+                point_idx = clickData['points'][0]['pointIndex']
+                fig = dash_pmap_plot(point_idx)
+                return html.Div([
+                    dcc.Graph(
+                        id='pmap_plot',
+                        figure=fig
+                    ),
+                ])
 
 @app.callback(
     Output('click-data', 'children'),
@@ -780,20 +808,7 @@ def update_interp_table(clickData, line, surfaceName, section):
 
             return "Last interpretation was ", eventxdata, " along line and ", eventydata, " mAHD"
 
-@app.callback(
-    Output('pmap', 'children'),
-    Input('section_plot', 'clickData'))
-def update_pmap_plot(clickData):
-    if clickData is not None:
-        if clickData['points'][0]['curveNumber'] == 3:
-            point_idx = clickData['points'][0]['pointIndex']
-            fig = dash_pmap_plot(point_idx)
-            return [
-                    dcc.Graph(
-                        id='pmap_plot',
-                        figure=fig
-                        ),
-                    ]
+
 
 @app.callback(Output('output', 'children'),
               [Input("surface_dropdown", 'value'),
