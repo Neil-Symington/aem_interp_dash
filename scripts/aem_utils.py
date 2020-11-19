@@ -28,10 +28,11 @@ import h5py
 import numpy as np
 import spatial_functions
 from netcdf_utils import get_lines, testNetCDFDataset, get_lookup_mask
-from misc_utils import check_list_arg, dict_to_hdf5, extract_hdf5_data, dict2xr
+import misc_utils
 import gc, glob, os
 from shapely.geometry import LineString
 import geopandas as gpd
+import re
 
 
 class AEM_inversion:
@@ -78,31 +79,6 @@ class AEM_inversion:
         else:
             self.data = None
 
-    def sort_variables(self, var_dict):
-        """Function for sorting a dictionary of variables by fiducial then easting.
-        Assumes 'easting' and fiducial are in dictionary
-
-        Parameters
-        ----------
-        var_dict : dicitonary
-           Dictionary of variables.
-
-        Returns
-        -------
-        dictionary
-           dictionary of sorted array
-
-        """
-        # First sort on fiducial
-        sort_mask = np.argsort(var_dict['fiducial'])
-        # Now sort from east to west if need be
-        if var_dict['easting'][sort_mask][0] > var_dict['easting'][sort_mask][-1]:
-           sort_mask = sort_mask[::-1]
-        # now apply the mask to every variable
-        for item in var_dict:
-           var_dict[item] = var_dict[item][sort_mask]
-        return var_dict
-
     def grid_sections(self, variables, lines, xres, yres, resampling_method = 'linear', return_interpolated = False,
                       save_to_disk = True, output_dir = None):
         """A function for gridding AEM inversoin variables into sections.
@@ -139,8 +115,8 @@ class AEM_inversion:
         """
         # Check some of the arguments to ensure they are lists
 
-        lines = check_list_arg(lines)
-        variables = check_list_arg(variables)
+        lines = misc_utils.check_list_arg(lines)
+        variables = misc_utils.check_list_arg(variables)
 
 
         # Add key variables if they aren't in the list to grid
@@ -171,14 +147,13 @@ class AEM_inversion:
             line_no, cond_var_dict = next(cond_lines)
 
             # Now we need to sort the cond_var_dict and run it east to west
-            cond_var_dict = self.sort_variables(cond_var_dict)
+            cond_var_dict = spatial_functions.sort_variables(cond_var_dict)
 
             # If there is no 'layer_top_depth' add it
             if np.logical_and('layer_top_depth' not in cond_var_dict,
                               'layer_centre_depth' in cond_var_dict):
 
                 cond_var_dict['layer_top_depth'] = spatial_functions.layer_centre_to_top(cond_var_dict['layer_centre_depth'])
-                #del cond_var_dict['layer_centre_depth']
 
             interpolated[line_no] =  self.grid_variables(line_no, cond_var_dict,
                                                          gridding_params)
@@ -189,7 +164,6 @@ class AEM_inversion:
                 file = open(fname, 'wb')
                 # dump information to the file
                 pickle.dump(interpolated[line_no], file)
-                #dict_to_hdf5(fname, interpolated[line_no])
 
             # Many lines may fill up memory so if the dictionary is not being returned then
             # we garbage collect
@@ -235,7 +209,7 @@ class AEM_inversion:
         # Add distance array to dictionary
         cond_var_dict['distances'] = spatial_functions.coords2distance(utm_coordinates)
 
-        # Add number of epth cells to the array
+        # Add number of depth cells to the array
         if 'depth' in self.data.dimensions:
             cond_var_dict['ndepth_cells'] = self.data.dimensions['depth'].size
         else:
@@ -254,7 +228,6 @@ class AEM_inversion:
             # Generator yields the interpolated variable array
             interpolated[var], cond_var_dict = next(interp2d)
 
-
         # Add grid distances and elevations to the interpolated dictionary
         interpolated['grid_distances'] = cond_var_dict['grid_distances']
         interpolated['grid_elevations'] = cond_var_dict['grid_elevations']
@@ -269,48 +242,10 @@ class AEM_inversion:
 
         # Create an xarray from the dictionary
 
-        xr = dict2xr(interpolated)
+        xr = misc_utils.dict2xr(interpolated, dims=['grid_elevations','grid_distances'])
 
         return xr
 
-    def load_gridded_sections(self, f, gridded_vars):
-        """Pull data from h5py object to a dictionary
-
-        Parameters
-        ----------
-        f : object
-            A h5py open file
-        plot_vars : sequence
-            Sequence of variables to load
-
-        Returns
-        -------
-        dictionary
-            Gridded variables.
-        """
-        # Create empty dictionary
-        datasets = {}
-        # Iterate through h5py objects
-        for item in f.values():
-            if item.name[1:] in gridded_vars:
-                datasets[item.name[1:]] = item[()]
-            # We also need to know easting, northing, doi, elevations and grid elevations
-            if item.name[1:] == 'easting':
-                datasets['easting'] = item[()]
-            if item.name[1:] == 'northing':
-                datasets['northing'] = item[()]
-            if item.name[1:] == 'grid_elevations':
-                datasets['grid_elevations'] = item[()]
-            if item.name[1:] == 'depth_of_investigation':
-                datasets['depth_of_investigation'] = item[()]
-            if item.name[1:] == 'elevation':
-                datasets['elevation'] = item[()]
-            if item.name[1:] == 'grid_distances':
-                datasets['grid_distances'] = item[()]
-            if item.name[1:] == 'flm_layer_top_depth':
-                datasets['flm_layer_top_depth'] = item[()]
-
-        return datasets
     def load_lci_layer_grids_from_pickle(self, pickle_file):
         """This is a hack to remove the need for rasterio.
         We have preloaded the data into a pickle file
@@ -328,43 +263,6 @@ class AEM_inversion:
 
         layer_grids = pickle.load( open( pickle_file, "rb" ) )
         self.layer_grids = layer_grids
-
-
-    def load_sections_from_file(self, hdf5_dir, grid_vars, lines = []):
-        """Load pre-gridded AEM sections from file.
-
-        Parameters
-        ----------
-        hdf5_dir : string
-            Path to hdf5 files.
-
-        grid_vars : list
-            A list of variables to load from hdf5 files
-
-        Returns
-        -------
-        self, dictionary
-            Python dictionary with gridded line data
-
-        """
-        interpolated = {}
-        # iterate through the files
-        if lines == []:
-            for file in glob.glob(os.path.join(hdf5_dir, '*.hdf5')):
-                line = int(os.path.basename(file).split('.')[0])
-                lines.append(line)
-
-        for line in lines:
-
-            file = os.path.join(hdf5_dir, str(line) + '.hdf5')
-
-            f = h5py.File(file, 'r')
-
-            interpolated[line] = extract_hdf5_data(f, grid_vars)
-
-            f.close()
-
-        self.section_data = interpolated
 
     def create_flightline_polylines(self, crs):
         """
@@ -411,10 +309,10 @@ class AEM_data:
         -------
         type
             Description of returned object.
-
         """
         self.name = name
         self.system_name = system_name
+        self.section_variables = None
 
         # Check netcdf file
         if netcdf_dataset is not None:
@@ -437,18 +335,15 @@ class AEM_data:
 
     def calculate_additive_noise(self, aem_gate_data, high_altitude_mask):
         """Function for calculating the additive noise from high altitude lines.
-
         Parameters
         ----------
         aem_gate_data: array
             array with AEM gate data
         high_altitude_mask : boolean array
-
         Returns
         -------
         array
             Numpy array with an estimate of additive noise for each gate
-
         """
         # In case of negative
         high_alt_data = aem_gate_data[high_altitude_mask,:]
@@ -457,11 +352,9 @@ class AEM_data:
         # Now repeat to size of gate dat array
         return np.repeat(arr[np.newaxis,:], aem_gate_data.shape[0], axis=0)
 
-
-
-    def calculate_noise(self, data_variable, noise_variable = None, multiplicative_noise = 0.03, high_altitude_lines = None):
+    def calculate_noise(self, data_variable, noise_variable = None, additive_noise_variable = None,
+                        multiplicative_noise = 0.03, high_altitude_lines = None):
         """A function for calculating the noise for AEM data.
-
         Parameters
         ----------
         data_variable : string
@@ -476,15 +369,15 @@ class AEM_data:
         high_altitude_lines : array
             An array with  high altitude line numbers
             If none we will assume high altitude lines start with 913
-
         Returns
         -------
         self, array
             An array of EM noise estimates
-
         """
         if noise_variable is None:
-            noise_variable = data_variable + "_noise"
+            noise_variable = data_variable.replace('-', '_') + "_noise"
+        if additive_noise_variable is None:
+            additive_noise_variable = data_variable.replace('-', '_') + "_additive_noise"
         if high_altitude_lines is None:
             high_altitude_lines =  [x for x in self.data['line'][:] if x>913000]
         # Get a high alitute line mask
@@ -498,6 +391,9 @@ class AEM_data:
         # Calculate the additive noies
         additive_noise_arr = self.calculate_additive_noise(aem_gate_data, high_altitude_mask)
 
+        # Set the additive noise as an attribute
+        setattr(self, additive_noise_variable, (additive_noise_arr[0]))
+
         # Calculate multiplicative noise
         mulitplicative_noise_arr = multiplicative_noise * aem_gate_data
 
@@ -505,3 +401,205 @@ class AEM_data:
         noise =  np.sqrt(mulitplicative_noise_arr**2 + additive_noise_arr**2)
 
         setattr(self, noise_variable, noise)
+
+    def grid_variables(self, em_var_dict, gridding_params):
+
+        # Create an empty dictionary
+        interpolated = {}
+
+        # Create a sort mask in cases where the lines are not in order
+
+        # Define coordinates
+        em_var_dict['utm_coordinates'] = np.column_stack((em_var_dict['easting'],
+                                           em_var_dict['northing']))
+
+        # Add distance array to dictionary
+        em_var_dict['distances'] = spatial_functions.coords2distance(em_var_dict['utm_coordinates'])
+
+        vars_2d = [v for v in self.section_variables if em_var_dict[v].ndim == 2]
+        vars_1d = [v for v in self.section_variables if em_var_dict[v].ndim == 1]
+
+        # Calculate the grid distances
+        em_var_dict['grid_distances'] = np.arange(np.min(em_var_dict['distances']),
+                                                  np.max(em_var_dict['distances']),
+                                                  gridding_params['xres'])
+
+        interpolated['grid_distances'] = em_var_dict['grid_distances']
+
+        # Generator for inteprolating 1D variables from the vars_1d list
+        interp1d = spatial_functions.interpolate_1d_vars(vars_1d, em_var_dict,
+                                                         gridding_params['resampling_method'])
+
+        for var in vars_1d:
+            # Generator yields the interpolated variable array
+            interpolated[var] = next(interp1d)
+
+        interpolated_utm = np.column_stack((interpolated['easting'],
+                                            interpolated['northing']))
+
+        interp2d = spatial_functions.interpolate_data(vars_2d, em_var_dict, interpolated_utm)
+
+        for var in vars_2d:
+            # Generator yields the interpolated variable array
+            interpolated[var] = next(interp2d)
+
+        # Create an xarray from the dictionary
+
+        xr = misc_utils.dict2xr(interpolated, dims=['grid_distances'])
+
+        return xr
+
+
+    def interpolate_variables(self, variables, lines, xres, resampling_method = 'linear',
+                             return_interpolated = False, save_to_disk = True, output_dir = None):
+        # Check some of the arguments to ensure they are lists
+
+        lines = misc_utils.check_list_arg(lines)
+        variables = misc_utils.check_list_arg(variables)
+
+        # Add key variables if they aren't in the list to grid
+        for item in ['easting', 'northing', 'elevation', 'fiducial']:
+           if np.logical_and(item not in variables, item in self.data.variables):
+               variables.append(item)
+
+        self.section_variables = variables
+
+        # First create generators for returning coordinates and variables for the lines
+
+        em_lines = get_lines(self.data,
+                              line_numbers=lines,
+                              variables=self.section_variables)
+
+        # Interpolated results will be added to a dictionary
+        interpolated = {}
+
+        # Create a gridding parameters dictionary
+
+        gridding_params = {'xres': xres, 'resampling_method': resampling_method}
+
+        # Iterate through the lines
+        for i in range(len(lines)):
+
+            # Extract the variables and coordinates for the line in question
+            line_no, em_var_dict = next(em_lines)
+
+            # Now we need to sort the cond_var_dict and run it east to west
+            em_var_dict = spatial_functions.sort_variables(em_var_dict)
+
+            interpolated[line_no] = self.grid_variables(em_var_dict, gridding_params)
+
+            if save_to_disk:
+                fname = os.path.join(output_dir, str(int(line_no)) + '.pkl')
+                file = open(fname, 'wb')
+                # dump information to the file
+                pickle.dump(interpolated[line_no], file)
+
+            # Many lines may fill up memory so if the dictionary is not being returned then
+            # we garbage collect
+            if not return_interpolated:
+                del interpolated[line_no]
+
+                # Collect the garbage
+                gc.collect()
+
+        if return_interpolated:
+            self.section_data = interpolated
+        else:
+            self.section_data = None
+
+
+# Class for extracting regular expressions from the stm files
+class _RegExLib:
+    """Set up regular expressions"""
+    # use https://regexper.com to visualise these if required
+    _reg_begin = re.compile(r'(.*) Begin\n')
+    _reg_end = re.compile(r'(.*) End\n')
+    _reg_param = re.compile(r'(.*) = (.*)\n')
+
+    __slots__ = ['begin', 'end', 'param']
+
+    def __init__(self, line):
+        # check whether line has a positive match with all of the regular expressions
+        self.begin = self._reg_begin.match(line)
+        self.end = self._reg_end.match(line)
+        self.param = self._reg_param.match(line)
+
+
+
+# Define the blocks from the stm files
+
+blocks = {'Transmitter': ['NumberOfTurns', 'PeakCurrent', 'LoopArea',
+                          'BaseFrequency', 'WaveformDigitisingFrequency',
+                          'WaveFormCurrent'],
+          'Receiver': ['NumberOfWindows', 'WindowWeightingScheme',
+                       'WindowTimes', 'CutOffFrequency', 'Order'],
+
+          'ForwardModelling': ['ModellingLoopRadius', 'OutputType',
+                               'SaveDiagnosticFiles', 'XOutputScaling',
+                               'YOutputScaling', 'ZOutputScaling',
+                               'SecondaryFieldNormalisation',
+                               'FrequenciesPerDecade',
+                               'NumberOfAbsiccaInHankelTransformEvaluation']}
+
+class AEM_System:
+
+    def __init__(self, name, dual_moment=True):
+        """
+        :param name: string: system name
+        :param dual_moment: boolean, is the system fual moment (i.e. syktem
+        """
+
+        self.name = name
+
+        if dual_moment:
+            self.LM = {'Transmitter': {}, 'Receiver': {}, 'ForwardModelling': {}}
+            self.HM = {'Transmitter': {}, 'Receiver': {}, 'ForwardModelling': {}}
+
+    def parse_stm_file(self, infile, moment):
+
+        # Save the results into a dictionary
+
+        parameters = {}
+        # Extract file line by line
+        with open(infile, 'r') as f:
+            # Yield the lines from the file
+            line = next(f)
+            while line:
+                reg_match = _RegExLib(line)
+
+                if reg_match.begin:
+                    key = reg_match.begin.group(1).strip()
+
+                    if key == "WaveFormCurrent":
+                        a = misc_utils.block_to_array(f)
+                        parameters[key] = a
+
+                    if key == "WindowTimes":
+                        a = misc_utils.block_to_array(f)
+                        parameters[key] = a
+
+                if reg_match.param:
+                    key = reg_match.param.group(1).strip()
+                    val = reg_match.param.group(2).strip()
+
+                    if misc_utils.RepresentsInt(val):
+                        val = int(val)
+
+                    elif misc_utils.RepresentsFloat(val):
+                        val = float(val)
+
+                    elif key == "CutOffFrequency":
+
+                        val = np.array([int(x) for x in val.split()])
+
+                    if not key.startswith(r'//'):
+                        parameters[key] = val
+
+                line = next(f, None)
+
+        for item in blocks.keys():
+            for entry in blocks[item]:
+                if moment == "HM":
+                    self.HM[item][entry] = parameters[entry]
+                elif moment == "LM":
+                    self.LM[item][entry] = parameters[entry]

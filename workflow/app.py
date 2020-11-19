@@ -1,18 +1,21 @@
 # Import python modules
 import numpy as np
-import xarray as xr
+import yaml
 import netCDF4
 import sys, os
-sys.path.append("../scripts")
-
+#sys.path.append("../scripts")
+sys.path.append(r"C:\Users\symin\github\garjmcmctdem_utils\scripts")
+#import grid_data
 import spatial_functions
 import aem_utils
 import netcdf_utils
 import modelling_utils
 import plotting_functions as plots
-from misc_utils import pickle2xarray
+from misc_utils import pickle2xarray, xarray2pickle
 import warnings
 import pandas as pd
+import pickle
+import json
 warnings.filterwarnings('ignore')
 # Dash dependencies
 import plotly.express as px
@@ -27,73 +30,105 @@ import base64, io
 import gc
 
 
-modelName = "Injune"
+yaml_file = "interpretation_config.yaml"
+settings = yaml.safe_load(open(yaml_file))
 
-root ="/home/nsymington/Documents/GA/dash_data"
-# path to determinist netcdf file
-det_nc_path = os.path.join(root, "Injune_lci_MGA55.nc")
-# path to dertiminist grid
-det_grid_path = os.path.join(root, "Injune_layer_grids.p")
+interp_settings, model_settings, AEM_settings, det_inv_settings, stochastic_inv_settings, section_kwargs, crs = settings.values()
 
-grid_lci = False #If the lci conductivity sections have not yet been gridded then make this flag true
-# path to rjmcmcmtdem pmap file
-rj_nc_path = os.path.join(root, "Injune_rjmcmc_pmaps.nc")
+root = interp_settings['data_directory']
 
-grid_rj = False #If the rj conductivity sections have not yet been gridded then make this flag true
+lines = interp_settings['lines']
 
-project_crs = 'EPSG:28353'
-lines = [200101, 200401, 200501, 200701, 200801,
-         200901, 201001, 201101, 201201, 201301, 201401, 201501,
-         201601, 201701, 201801, 201901, 202001, 202101, 202201,
-         202301, 202401, 202501, 202601, 202701, 202801, 912011]
+# Prepare AEM data
 
-# Create an instance
-lci = aem_utils.AEM_inversion(name = 'Laterally Contrained Inversion (LCI)',
+em = aem_utils.AEM_data(name = AEM_settings['name'],
+                        system_name = AEM_settings['system_name'],
+                        netcdf_dataset = netCDF4.Dataset(os.path.join(root, AEM_settings['nc_path'])))
+
+if AEM_settings["grid_sections"]:
+    ## TODO add path checking function
+    outdir = os.path.join(root, AEM_settings['gridding_params']['section_dir'])
+    if not os.path.exists(outdir):
+        os.mkdir(outdir)
+    em.interpolate_variables(variables=AEM_settings['gridding_params']['grid_vars'], lines=lines,
+                             xres=AEM_settings['gridding_params']['xres'],
+                             return_interpolated=False, save_to_disk=True,
+                             output_dir = outdir)
+
+
+# Prepare deterministic inversion
+
+det = aem_utils.AEM_inversion(name = det_inv_settings['inversion_name'],
                               inversion_type = 'deterministic',
-                              netcdf_dataset = netCDF4.Dataset(det_nc_path))
+                              netcdf_dataset = netCDF4.Dataset(os.path.join(root, det_inv_settings['nc_path'])))
 
-# Run function
-lci.load_lci_layer_grids_from_pickle(det_grid_path)
+if det_inv_settings["grid_sections"]:
+    ## TODO add path checking function
+    outdir = os.path.join(root, det_inv_settings['gridding_params']['section_dir'])
+    if not os.path.exists(outdir):
+        os.mkdir(outdir)
+    det.grid_sections(variables = det_inv_settings['gridding_params']['grid_vars'], lines = lines,
+                      xres = det_inv_settings['gridding_params']['xres'],
+                      yres = det_inv_settings['gridding_params']['yres'],
+                      return_interpolated = False, save_to_disk = True,
+                      output_dir = outdir)
+else:
+    pass
 
-# Create instance
-rj = aem_utils.AEM_inversion(name = 'GARJMCMCTDEM',
-                             inversion_type = 'stochastic',
-                             netcdf_dataset = netCDF4.Dataset(rj_nc_path))
-# Keywords for AEM section plotting
-section_kwargs = {'section_plot': 'lci',
-                  'colourbar_label': 'Conductivity (S/m)',
-                  'vmin': 0.01,
-                  'vmax': 1.,
-                  'cmap': 'jet'}
+# loaad layer grids
+grid_file = os.path.join(root, det_inv_settings['layer_grid_path'])
+det.load_lci_layer_grids_from_pickle(grid_file)
 
 # Create polylines
-lci.create_flightline_polylines(crs = project_crs)
+det.create_flightline_polylines(crs = crs['projected'])
 
-gdf_lines = lci.flightlines[np.isin(lci.flightlines['lineNumber'], lines)]
+gdf_lines = det.flightlines[np.isin(det.flightlines['lineNumber'], lines)]
+
+# Prepare stochastic inversion
+
+rj = aem_utils.AEM_inversion(name = stochastic_inv_settings['inversion_name'],
+                              inversion_type = 'stochastic',
+                              netcdf_dataset = netCDF4.Dataset(os.path.join(root, stochastic_inv_settings['nc_path'])))
+
+if stochastic_inv_settings["grid_sections"]:
+    ## TODO add path checking function
+    outdir = os.path.join(root, stochastic_inv_settings['gridding_params']['section_dir'])
+    if not os.path.exists(outdir):
+        os.mkdir(outdir)
+    rj.grid_sections(variables = stochastic_inv_settings['gridding_params']['grid_vars'], lines = lines,
+                      xres = stochastic_inv_settings['gridding_params']['xres'],
+                      yres = stochastic_inv_settings['gridding_params']['yres'],
+                      return_interpolated = False, save_to_disk = True,
+                      output_dir = outdir)
+else:
+    pass
+
 
 # To reduce the amount of data that is stored in memory the section data are stored as xarrays in pickle files
 #  We will only bring them into memory as needed. Here we point the inversions to their pickle files
 
-lci.section_path = {}
+em.section_path = {}
+det.section_path = {}
 rj.section_path = {}
-
-for lin in lines:
-    lci.section_path[lin] = os.path.join(root, "section_data_lci", "{}.pkl".format(str(lin)))
-    rj.section_path[lin] = os.path.join(root, "section_data_rj", "{}.pkl".format(str(lin)))
-
-# Using this gridding we find the distance along the line for each garjmcmc site
-# Iterate through the lines
 rj.distance_along_line = {}
 
 for lin in lines:
+    # Add path as attribute
+    em.section_path[lin] = os.path.join(root, AEM_settings['gridding_params']['section_dir'],
+                                        "{}.pkl".format(str(lin)))
+    det.section_path[lin] = os.path.join(root, det_inv_settings['gridding_params']['section_dir'],
+                                         "{}.pkl".format(str(lin)))
+    rj.section_path[lin] = os.path.join(root, stochastic_inv_settings['gridding_params']['section_dir'],
+                                        "{}.pkl".format(str(lin)))
+    # Using this gridding we find the distance along the line for each garjmcmc site
     # Get a line mask
     line_mask = netcdf_utils.get_lookup_mask(lin, rj.data)
     # get the coordinates
     line_coords = rj.coords[line_mask]
 
-    section_data = pickle2xarray(lci.section_path[lin])
+    det_section_data = pickle2xarray(det.section_path[lin])
 
-    dists = spatial_functions.xy_2_var(section_data,
+    dists = spatial_functions.xy_2_var(det_section_data,
                                       line_coords,
                                       'grid_distances')
 
@@ -102,12 +137,22 @@ for lin in lines:
                                                        "distance_along_line": dists,
                                                        'fiducial': rj.data['fiducial'][line_mask]}
                                                ).set_index('point_index')
+    # If we are gridding the stochastic inversions, then we scale them to the deterministic inversions
+    if stochastic_inv_settings["grid_sections"]:
 
-    section_data = None
+        rj_section_data = pickle2xarray(rj.section_path[lin])
+
+        rj_section_data['grid_distances'] = spatial_functions.scale_distance_along_line(det_section_data, rj_section_data)
+        # Save xarray back to pickle file
+
+        xarray2pickle(rj_section_data, rj.section_path[lin])
+
+    # Remove from memory
+    rj_section_data = None
+    det_section_data = None
     gc.collect()
 
-# annoying
-
+## Annoying hack!!
 rj.n_histogram_samples = np.sum(rj.data['log10conductivity_histogram'][0,0,:])
 
 # Setup the model
@@ -118,14 +163,19 @@ headings = ["fiducial", "inversion_name",'X', 'Y', 'ELEVATION', "DEM", "DEPTH", 
            "UndStrtCod", "WithinType", "WithinStrt", "WithinStNo", "WithinConf", "InterpRef",
             "Comment", "SURVEY_LINE", "Operator"]
 
+modelName = "Injune"
 
-def initialise_strat_model(templateFile = "../data/blankSurfaceTemplate.csv",
-                           name = "Stratigraphic_model"):
+def initialise_strat_model(templateFile = "../data/surfaceTemplate.csv",
+                           name = "Stratigraphic_model",
+                           interp_file = None):
     model = modelling_utils.Statigraphic_Model(name = name, interpreted_point_headings = headings)
 
     model.template = pd.read_csv(templateFile, keep_default_na=False)
 
     model.initiatialise_surfaces_from_template(model.template)
+
+    if interp_file is not None:
+        model.interpreted_points = pd.read_csv(interp_file)
 
     # Here we want to create surface and line options lists which we will need for our dropdown options
     surface_options = []
@@ -201,7 +251,6 @@ def interp2scatter(line, xarr, interpreted_points, easting_col = 'X',
 
     return grid_dists, elevs, surfName
 
-
 def dash_section(line, vmin, vmax, cmap):
 
     # Create subplots
@@ -213,10 +262,9 @@ def dash_section(line, vmin, vmax, cmap):
     vmax = np.log10(vmax)
     logplot = True
 
-
     # Extract data based on the section plot keyword argument
     if section_kwargs['section_plot'] == 'lci':
-        xarr = pickle2xarray(lci.section_path[line])
+        xarr = pickle2xarray(det.section_path[line])
         misfit = xarr['data_residual'].values
         z = np.log10(xarr['conductivity'].values)
 
@@ -301,11 +349,14 @@ def dash_section(line, vmin, vmax, cmap):
 
 def plot_section_points(fig, line, section, df_interp, select_mask):
     if section == "lci":
-        xarr = pickle2xarray(lci.section_path[line])
+        xarr = pickle2xarray(det.section_path[line])
     else:
         xarr = pickle2xarray(rj.section_path[line])
 
     interpx, interpz, surfNames = interp2scatter(line, xarr, df_interp)
+    print(interpx)
+
+    ##TODO find out what is happening here
 
     if len(interpx) > 0:
         labels = ["surface = " + str(x) for x in surfNames]
@@ -333,12 +384,9 @@ def plot_section_points(fig, line, section, df_interp, select_mask):
         fig.update_layout()
     return fig
 
-
-
-
 def dash_pmap_plot(point_index):
     # Extract the data from the netcdf data
-    D = netcdf_utils.extract_rj_sounding(rj, lci,
+    D = netcdf_utils.extract_rj_sounding(rj, det,
                                          point_index)
     pmap = D['conductivity_pdf']
     x1,x2,y1,y2 = D['conductivity_extent']
@@ -377,15 +425,15 @@ def dash_pmap_plot(point_index):
                              name = "p50 conductivity",
                              showlegend = False))
 
-    lci_expanded, depth_expanded = plots.profile2layer_plot(D['lci_cond'], D['lci_depth_top'])
+    det_expanded, depth_expanded = plots.profile2layer_plot(D['det_cond'], D['det_depth_top'])
 
-    fig.add_trace(go.Scatter(x=np.log10(lci_expanded),
+    fig.add_trace(go.Scatter(x=np.log10(det_expanded),
                              y= depth_expanded,
                              mode='lines',
                              line={"color": 'pink',
                                    "width": 1.,
                                    'dash': 'dash'},
-                             name="lci",
+                             name=det.name,
                              showlegend=False))
 
     fig.update_layout(
@@ -399,9 +447,9 @@ def flightline_map(line, vmin, vmax, layer):
 
     fig = go.Figure()
 
-    cond_grid = np.log10(lci.layer_grids['Layer_{}'.format(layer)]['conductivity'])
+    cond_grid = np.log10(det.layer_grids['Layer_{}'.format(layer)]['conductivity'])
 
-    x1, x2, y1, y2 = lci.layer_grids['bounds']
+    x1, x2, y1, y2 = det.layer_grids['bounds']
     n_y_cells, n_x_cells = cond_grid.shape
     x = np.linspace(x1, x2, n_x_cells)
     y = np.linspace(y2, y1, n_y_cells)
@@ -444,7 +492,8 @@ def flightline_map(line, vmin, vmax, layer):
 stylesheet = "https://codepen.io/chriddyp/pen/bWLwgP.css"
 app = dash.Dash(__name__, external_stylesheets=[stylesheet])
 
-model = initialise_strat_model(name = modelName)
+model = initialise_strat_model(name = modelName, interp_file = model_settings['interpFile'],
+                               templateFile=model_settings['templateFile'])
 
 app.layout = html.Div([
     html.Div(
@@ -596,17 +645,33 @@ app.layout = html.Div([
         ],
             className = "six columns")],
         className = 'row'),
-    html.Div(id = 'output')
+    html.Div(id = 'output', style={'display': 'none'}),
+    dcc.Store(id='interp_memory', data = model.interpreted_points.to_dict('records'))
 
 ])
-
+'''
+@app.callback(
+    Output('df_parking', 'children'),
+    [Input("line_dropdown", 'value'),
+     Input("section_dropdown", 'value')])
+def serialise_linedata(line, section):
+    # get the pickle dir
+    if section == 'lci':
+        pickle_path = det.section_path[line]
+    else:
+        pickle_path = rj.section_path[line]
+    ds = pickle2xarray(pickle_path).to_dict()
+    # serialise to json object
+    return json.dumps(ds)
+'''
 @app.callback(
     [Output('interp_table', 'data'),
-    Output('interp_table', 'columns')],
+     Output('interp_table', 'columns')],
     [Input("line_dropdown", 'value'),
      Input("update", 'n_clicks')])
 def update_data_table(value, nclicks):
     if nclicks >0:
+        ## TODO move the interpreted points to a html div
         df_ss = subset_df_by_line(model.interpreted_points,
                                   line = value)
         return df_ss.to_dict('records'), [{"name": i, "id": i} for i in df_ss.columns]
@@ -614,9 +679,9 @@ def update_data_table(value, nclicks):
 @app.callback([Output("surface_dropdown", 'value'),
                Output("surface_dropdown", 'options')],
               [Input('template-upload', 'contents')],
-              [State('template-upload', 'filename')])
-
-def update_output(contents, filename):
+              [State('template-upload', 'filename'),
+               State("interp_memory", "data")])
+def update_output(contents, filename, interpreted_points):
     if contents is None:
         return model.surfaces[0], model.surface_options
     df = parse_contents(contents, filename)
@@ -626,7 +691,7 @@ def update_output(contents, filename):
 
     if valid:
         # If interpreted points is empty
-        if len(model.interpreted_points) < 1:
+        if len(pd.DataFrame(interpreted_points)) < 1:
             ## TODO create function for this
             for item in model.surfaces:
                 delattr(model, item)
@@ -648,6 +713,7 @@ def update_output(contents, filename):
                     delattr(model, surfaceName)
                     model.initiatialise_surface(pd.Series(row))
         model.template = df.copy()
+        ## TODO remove
 
         return model.template.values[0], model.surface_options
     else:
@@ -655,14 +721,14 @@ def update_output(contents, filename):
 
 @app.callback(
     Output('export_message', 'children'),
-    [Input("export", 'n_clicks'),
-    Input("surface_dropdown", 'value')],
-    State('export-path', 'value'))
-def export_data_table(nclicks, surfaceName, value):
+    [Input("export", 'n_clicks')],
+    [State('export-path', 'value'),
+    State('interp_memory', 'data')])
+def export_data_table(nclicks, value, interpreted_points):
 
     if np.logical_and(nclicks > 0, value is not None):
         if os.path.exists(os.path.dirname(value)):
-            model.interpreted_points.reset_index(drop=True).to_csv(value)
+            interpreted_points.reset_index(drop=True).to_csv(value)
             return "Successfully exported to " + value
         else:
             return value + " is an invalid file path."
@@ -671,14 +737,14 @@ def export_data_table(nclicks, surfaceName, value):
     Output('section_plot', "figure"),
     [Input("line_dropdown", 'value'),
      Input("section_dropdown", 'value'),
-     Input("surface_dropdown", 'value'),
+     Input("interp_memory", 'data'),
      Input('interp_table', "derived_virtual_data"),
      Input('interp_table', "derived_virtual_selected_rows"),
      Input('vmin', 'value'),
      Input('vmax', 'value')
      ],
     [State("section_plot", "figure")])
-def update_section(line, section_plot, surfaceName, rows, derived_virtual_selected_rows, vmin, vmax, section):
+def update_section(line, section_plot, interpreted_points, rows, derived_virtual_selected_rows, vmin, vmax, section):
     # When the table is first rendered, `derived_virtual_data` and
     # `derived_virtual_selected_rows` will be `None`. This is due to an
     # idiosyncrasy in Dash (unsupplied properties are always None and Dash
@@ -691,7 +757,7 @@ def update_section(line, section_plot, surfaceName, rows, derived_virtual_select
 
     trig_id = find_trigger()
 
-    print(trig_id)
+    df = pd.DataFrame(interpreted_points)
 
     if np.isin(trig_id, ['section_dropdown.value', 'vamx.value', 'vmin.value', 'line_dropdown.value']):
 
@@ -703,7 +769,7 @@ def update_section(line, section_plot, surfaceName, rows, derived_virtual_select
         if derived_virtual_selected_rows is None:
             derived_virtual_selected_rows = []
 
-        dff = model.interpreted_points if rows is None else pd.DataFrame(rows)
+        dff = df if rows is None else pd.DataFrame(rows)
 
         dict_of_fig = dict({"data": section['data'][0:4],
                             "layout": section['layout']})
@@ -713,7 +779,6 @@ def update_section(line, section_plot, surfaceName, rows, derived_virtual_select
         if len(dff) > 0:
             select_mask = np.where([True if i in derived_virtual_selected_rows else False
                                     for i in range(len(dff))])[0]
-
             fig = plot_section_points(fig, line, section, dff, select_mask)
 
 
@@ -746,22 +811,24 @@ def update_tab(tab, line, vmin, vmax, layer, clickData):
                         figure=fig
                     ),
                 ])
-
+import time
 @app.callback(
-    Output('click-data', 'children'),
+    Output("interp_memory", "data"),
     [Input('section_plot', 'clickData'),
      Input("line_dropdown", 'value'),
      Input("surface_dropdown", 'value'),
-     Input("section_dropdown", "value")])
-def update_interp_table(clickData, line, surfaceName, section):
+     Input("section_dropdown", "value")],
+     [State("interp_memory", "data")])
+def update_interp_table(clickData, line, surfaceName, section, interpreted_points):
     trig_id = find_trigger()
     if trig_id == 'section_plot.clickData':
+        df = pd.DataFrame(interpreted_points)
 
         if clickData['points'][0]['curveNumber'] == 1:
             surface = getattr(model, surfaceName)
-            ## Todo find a way of pass the section data from another call back function
+            ## Todo test speed of loading xarray from pickle object on nci
             if section == "lci":
-                xarr = pickle2xarray(lci.section_path[line])
+                xarr = pickle2xarray(det.section_path[line])
             else:
                 xarr = pickle2xarray(rj.section_path[line])
 
@@ -771,8 +838,8 @@ def update_interp_table(clickData, line, surfaceName, section):
             easting = xarr['easting'].values[min_idx]
             northing = xarr['northing'].values[min_idx]
             elevation = xarr['elevation'].values[min_idx]
-            depth =  elevation - eventydata
-            fid = xy2fid(easting,northing, lci)
+            depth = elevation - eventydata
+            fid = xy2fid(easting,northing, det)
 
             # append to the surface object interpreted points
             interp = {'fiducial': fid,
@@ -802,11 +869,12 @@ def update_interp_table(clickData, line, surfaceName, section):
                      'Operator': surface.Operator,
                       "point_index": min_idx
                        }
-            df = pd.DataFrame(interp, index = [0])
+            df_new = pd.DataFrame(interp, index = [0])
 
-            model.interpreted_points = model.interpreted_points.append(df)#, verify_integrity = True)
+            df = df.append(df_new)#, verify_integrity = True)
+            print(df)
 
-            return "Last interpretation was ", eventxdata, " along line and ", eventydata, " mAHD"
+            return df.to_dict('records')
 
 
 

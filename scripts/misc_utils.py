@@ -85,25 +85,33 @@ def extract_hdf5_data(file, grid_vars):
 
     return datasets
 
-def dict2xr(d):
+def dict2xr(d, dims=None):
     # define coordinates
-
-    data_vars  = {}
+    if dims is None:
+        dims = ['grid_elevations', 'grid_distances']
+    var_list = [e for e in d.keys() if e not in dims]
+    data_vars = {}
     coords = {}
 
-    for item in d:
-        if np.isin(item, ['grid_distances', 'grid_elevations']):
-            coords[item] = d[item]
+    # Now we find the dimensions
+    for item in dims:
+        coords[item] = d[item]
 
-        elif len(d[item].shape) == 2:
-            data_vars[item] = (['grid_elevations', 'grid_distances' ], d[item])
+    for item in var_list:
+        if len(d[item].shape) == 2:
+            if len(dims) == 2:
+                data_vars[item] = (dims, d[item])
+            elif len(dims) == 1:
+                new_dim = item + '_dim'
+                new_dims = dims + [new_dim]
+                data_vars[item] = (new_dims, d[item])
+                coords[new_dim] = np.arange(0,d[item].shape[1])
         elif len(d[item].shape) == 1:
-            data_vars[item] = (['grid_distances'], d[item])
+            data_vars[item] = (dims[-1], d[item])
 
-    ds = xr.Dataset(
-        data_vars,
-        coords=coords)
+    ds = xr.Dataset(data_vars, coords=coords)
     return ds
+
 
 def pickle2xarray(infile):
 

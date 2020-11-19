@@ -85,13 +85,13 @@ def get_lines(dataset, line_numbers, variables):
 
         yield line, line_dict
 
-def extract_rj_sounding(rj, lci, point_index = 0):
+def extract_rj_sounding(rj, det, point_index = 0):
     """
     TODO: clean up this function or consider removing!!!
     """
 
     rj_dat = rj.data
-    lci_dat = lci.data
+    det_dat = det.data
 
     freq = rj_dat['log10conductivity_histogram'][point_index].data.astype(np.float)
 
@@ -128,14 +128,14 @@ def extract_rj_sounding(rj, lci, point_index = 0):
     p90 = np.power(10,rj_dat['conductivity_p90'][point_index].data)
 
     distances, indices = spatial_functions.nearest_neighbours([easting, northing],
-                                                              lci.coords,
+                                                              det.coords,
                                                                max_distance = 100.)
-    point_ind_lci = indices[0]
+    point_ind_det = indices[0]
 
-    lci_cond = lci_dat['conductivity'][point_ind_lci].data
-    lci_depth_top = lci_dat['layer_top_depth'][point_ind_lci].data
+    det_cond = det_dat['conductivity'][point_ind_det].data
+    det_depth_top = det_dat['layer_top_depth'][point_ind_det].data
 
-    lci_doi = lci_dat['depth_of_investigation'][point_ind_lci].data
+    det_doi = det_dat['depth_of_investigation'][point_ind_det].data
 
     misfit = rj_dat['misfit'][point_index].data
 
@@ -151,7 +151,7 @@ def extract_rj_sounding(rj, lci, point_index = 0):
     elevation = rj_dat['elevation'][point_index]
 
     # Need to create this for opening pickle files with xarrays
-    xarr = pickle2xarray(lci.section_path[line])
+    xarr = pickle2xarray(det.section_path[line])
 
     dist = spatial_functions.xy_2_var(xarr,
                                       np.array([[easting, northing]]),
@@ -160,9 +160,9 @@ def extract_rj_sounding(rj, lci, point_index = 0):
     return {'conductivity_pdf': cond_pdf, "change_point_pdf": cp_pdf, "conductivity_extent": extent,
            'cond_p10': p10, 'cond_p50': p50, 'cond_p90': p90, 'cond_mean': mean, 'depth_cells': depth_cells,
            'nlayer_bins': laybins, 'nlayer_prob': lay_prob, 'nsamples': nsamples, 'ndata': rj_dat.dimensions['data'].size,
-           "nchains": nchains, 'burnin': burnin, 'misfit': misfit, 'sample_no': sample_no, 'cond_cells': cond_cells, 'lci_cond': lci_cond,
-           'lci_depth_top': lci_depth_top, 'lci_doi': lci_doi, 'line': line, 'northing': northing, 'easting': easting, 'fiducial':fiducial,
-           'elevation': elevation, 'lci_dist': dist, 'lci_line': xarr}
+           "nchains": nchains, 'burnin': burnin, 'misfit': misfit, 'sample_no': sample_no, 'cond_cells': cond_cells, 'det_cond': det_cond,
+           'det_depth_top': det_depth_top, 'det_doi': det_doi, 'line': line, 'northing': northing, 'easting': easting, 'fiducial':fiducial,
+           'elevation': elevation, 'det_dist': dist, 'det_line': xarr}
 
 def testNetCDFDataset(netCDF_dataset):
     """Test if datafile is netcdf.

@@ -1,0 +1,66 @@
+interpretation_settings:
+  # session settings
+  data_directory: "E:/dash_data" # directory with the AEM data
+  # The line numbers that we are interested in visualising
+  lines: [200101, 200401, 200501, 200801, 200901,
+          201001, 201101, 201201, 201301, 201401,
+          201501, 201601, 201701, 201801, 201901,
+          202001, 202101, 202201, 202301, 202401,
+          202501, 202601, 202701, 202801, 912011 ]
+
+model_settings:
+  name: "Injune hydrostratigraphy"
+  # True is the app is to be used for interpretation otherwise false
+  interpret_data: True
+  # Path to template csv file
+  templateFile: "../data/surfaceTemplate.csv"
+  # Path to existing interpretations
+  interpFile: "../data/interp_example.csv"
+
+AEM_settings:
+  name: "Injune_AEM-data"
+  # System name
+  system_name: "SkyTEM_312"
+  # Path to netcdf file for AEM data. If this is the file name without a path the app will search for it
+  # in the data directory
+  nc_path: "AUS_10024_InJune_EM_MGA55.nc"
+  # True if you want to grid the AEM data into vertical sections for visualisation false if already done.
+  grid_sections: False
+  # Parameters for gridding
+  gridding_params: {grid_vars: [ 'low_moment_Z-component_EM_data', 'high_moment_Z-component_EM_data', 'roll',
+                                 'pitch', 'tx_height_measured', 'powerline_noise', 'gps_height' ],
+                    xres: 20., section_dir: "section_data_EM"}
+
+deterministic_inversion_settings:
+  # deterministic inversion
+  inversion_name: "lci"
+  # Path to netcdf file for AEM deterministic inversion.
+  nc_path: "Injune_lci_MGA55.nc"
+  # True if you want to grid the AEM inversion data into vertical sections for visualisation false if already done.
+  grid_sections: False
+  # Parameters for gridding
+  gridding_params: {grid_vars: ['conductivity', 'data_residual', 'depth_of_investigation'], xres: 20., yres: 5.,
+                    section_dir: "section_data_lci"}
+  # path to pickle file with AEM conductivity layer grid information
+  layer_grid_path: "Injune_layer_grids.p"
+
+stochastic_inversion_settings:
+  # stochastic inversion
+  inversion_name: "garjmcmctdem"
+  # Path to netcdf file for AEM stochastic inversion.
+  nc_path: "Injune_rjmcmc_pmaps.nc"
+  grid_sections: False # True if you want to grid the AEM inversion data into vertical sections
+  gridding_params: {grid_vars: [ 'conductivity_p10', 'conductivity_p50', 'conductivity_p90', 'interface_depth_histogram',
+                                 'misfit_lowest', 'misfit_average' ], xres: 80., yres: 2.,
+                    section_dir: "section_data_rj"}
+
+conductivity_visualisation_settings:
+  'vmin': 0.01 # Starting minimum conductivity for colourstretch
+  'vmax': 1. # Starting maximum conductivity for colourstretch
+  'cmap': 'jet' # starting colourstretch
+  'section_plot': 'lci'
+  'colourbar_label': 'Conductivity (S/m)'
+
+crs:
+  projected: 'EPSG:28353'
+  geographic: 'EPSG:7844'
