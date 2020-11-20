@@ -6,6 +6,7 @@ import sys, os
 #sys.path.append("../scripts")
 sys.path.append(r"C:\Users\symin\github\garjmcmctdem_utils\scripts")
 #import grid_data
+from dash.exceptions import PreventUpdate
 import spatial_functions
 import aem_utils
 import netcdf_utils
@@ -155,27 +156,17 @@ for lin in lines:
 ## Annoying hack!!
 rj.n_histogram_samples = np.sum(rj.data['log10conductivity_histogram'][0,0,:])
 
-# Setup the model
-
-# TODO set the datatype for each column
-headings = ["fiducial", "inversion_name",'X', 'Y', 'ELEVATION', "DEM", "DEPTH", "UNCERTAINTY", "Type",
-            "BoundaryNm", "BoundConf", "BasisOfInt", "OvrConf", "OvrStrtUnt", "OvrStrtCod", "UndStrtUnt",
-           "UndStrtCod", "WithinType", "WithinStrt", "WithinStNo", "WithinConf", "InterpRef",
-            "Comment", "SURVEY_LINE", "Operator"]
 
 modelName = "Injune"
 
 def initialise_strat_model(templateFile = "../data/surfaceTemplate.csv",
                            name = "Stratigraphic_model",
                            interp_file = None):
-    model = modelling_utils.Statigraphic_Model(name = name, interpreted_point_headings = headings)
+    model = modelling_utils.Statigraphic_Model(name = name, existing_interpretation_file = interp_file)
 
     model.template = pd.read_csv(templateFile, keep_default_na=False)
 
     model.initiatialise_surfaces_from_template(model.template)
-
-    if interp_file is not None:
-        model.interpreted_points = pd.read_csv(interp_file)
 
     # Here we want to create surface and line options lists which we will need for our dropdown options
     surface_options = []
@@ -251,7 +242,7 @@ def interp2scatter(line, xarr, interpreted_points, easting_col = 'X',
 
     return grid_dists, elevs, surfName
 
-def dash_section(line, vmin, vmax, cmap):
+def dash_conductivity_section(line, vmin, vmax, cmap):
 
     # Create subplots
     fig = make_subplots(rows=2, cols = 1, shared_xaxes=True,
@@ -343,7 +334,70 @@ def dash_section(line, vmin, vmax, cmap):
     fig.update_yaxes(autorange=True, row=2, col=1, title_text="elevation (mAHD)")
 
     #fig.update_layout(title=title)
-    fig.update_xaxes(title_text= "insert_correct " + " (m)", row=2, col=1)
+    fig.update_xaxes(title_text= "distance along line " + " (m)", row=2, col=1)
+    fig['layout'].update({'height': 600})
+    return fig
+
+def dash_EM_section(line):
+
+    # Create subplots
+    fig = make_subplots(rows=4, cols = 1, shared_xaxes=True,
+                        vertical_spacing=0.01,
+                        row_heights=[0.1, 0.1, 0.4, 0.4])
+    # get data
+    xarr = pickle2xarray(em.section_path[line])
+    grid_distances = xarr['grid_distances'].values
+
+    fig.add_trace(go.Scatter(x=grid_distances,
+                             y=xarr['tx_height_measured'].values,
+                             line=dict(color='black', width=1),
+                             showlegend=False, hoverinfo='skip'),
+                  row=1, col=1, )
+    fig.add_trace(go.Scatter(x=grid_distances,
+                             y=xarr['powerline_noise'].values,
+                             line=dict(color='black', width=1),
+                             showlegend=False, hoverinfo='skip'),
+                  row=2, col=1, )
+    # Add low moment data
+    colours = ['green', 'aquamarine', 'darkslategrey', 'lightseagreen',
+       'darkgrey', 'brown', 'rosybrown', 'white', 'greenyellow', 'khaki',
+       'mediumturquoise', 'paleturquoise', 'bisque', 'saddlebrown',
+       'chocolate', 'orchid', 'seashell', 'blue', 'burlywood',
+       'deepskyblue', 'yellowgreen', 'lightgrey', 'turquoise']
+
+    lm_data = xarr['low_moment_Z-component_EM_data'].values
+
+    for j in range(lm_data.shape[1]):
+        label = "low-moment gate " + str(j+1)
+        fig.add_trace(go.Scatter(x=grid_distances,
+                                 y=lm_data[:,j],
+                                 mode = 'markers',
+                                 marker={
+                                         "color": colours[j],
+                                         "size": 1.5
+                                         },
+                                 showlegend=False, hoverinfo='text',
+                                 hovertext = label),
+                      row=3, col=1, )
+    hm_data = xarr['high_moment_Z-component_EM_data'].values
+    for j in range(hm_data.shape[1]):
+        label = "high-moment gate " + str(j + 1)
+        fig.add_trace(go.Scatter(x=grid_distances,
+                                 y=hm_data[:, j],
+                                 mode = 'markers',
+                                 marker={
+                                         "color": colours[j],
+                                         "size": 1.5
+                                         },
+                                 showlegend=False, hoverinfo='text',
+                                 hovertext = label),
+                      row=4, col=1, )
+    fig.update_yaxes(title_text="tx height (m)", row=1, col=1)
+    fig.update_yaxes(title_text="PLNI", type="log", row=2, col=1)
+    fig.update_yaxes(title_text="LMZ data (V/Am^4)", type="log", row=3, col=1)
+    fig.update_yaxes(title_text="HMZ data (V/Am^4)", type="log", row=4, col=1)
+    fig.update_xaxes(title_text="distance along line " + " (m)", row=4, col=1)
+    fig['layout'].update({'height': 600})
 
     return fig
 
@@ -354,7 +408,6 @@ def plot_section_points(fig, line, section, df_interp, select_mask):
         xarr = pickle2xarray(rj.section_path[line])
 
     interpx, interpz, surfNames = interp2scatter(line, xarr, df_interp)
-    print(interpx)
 
     ##TODO find out what is happening here
 
@@ -544,7 +597,7 @@ app.layout = html.Div([
                     html.Div([html.H4("Select line"),
                              dcc.Dropdown(id = "line_dropdown",
                                             options=model.line_options,
-                                            value= int(model.line_options[0]['label'])),
+                                            value= int(model.line_options[1]['label'])),
                              ],className = "three columns")
                 ], className = 'row'
             ),
@@ -593,18 +646,15 @@ app.layout = html.Div([
                           ],
                          className= "three columns"),
              ], className = "row"),
-    html.Div(
-        html.Div(
-            dcc.Graph(
-                id='section_plot',
-                figure = dash_section(int(model.line_options[0]['label']),
-                                       vmin = section_kwargs['vmin'],
-                                       vmax = section_kwargs['vmax'],
-                                       cmap = section_kwargs['cmap']),
-                ),
-        )
-    ),
-
+    html.Div([
+            dcc.Tabs(id='section_tabs', value='conductivity_section', children=[
+                    dcc.Tab(label='Conductivity section', value='conductivity_section'),
+                    dcc.Tab(label='AEM data section', value='data_section'),
+                 ]),
+            html.Div([dcc.Graph(
+                         id='section_plot')
+            ], style = {'height': '600px'}),
+        ]),
     html.Div([html.Div(
         html.Div([
             html.Button('Update section', id='update', n_clicks=1),
@@ -637,11 +687,11 @@ app.layout = html.Div([
             className = 'row')
         , className = "six columns"),
         html.Div([
-            dcc.Tabs(id='tabs', value='Map plot', children=[
+            dcc.Tabs(id='map_tabs', value='map_plot', children=[
                 dcc.Tab(label='Map plot', value='map_plot'),
                 dcc.Tab(label='Pmap plot', value='pmap_plot'),
             ]),
-            html.Div(id='tabs-content', style = {'height': '600px'})
+            html.Div(id='map-tabs-content', style = {'height': '600px'})
         ],
             className = "six columns")],
         className = 'row'),
@@ -649,21 +699,71 @@ app.layout = html.Div([
     dcc.Store(id='interp_memory', data = model.interpreted_points.to_dict('records'))
 
 ])
+# Render section
+@app.callback(Output('section_plot', 'figure'),
+              [Input('section_tabs', 'value')])
+def render_section_content(tab):
+    if tab == 'conductivity_section':
+        fig=dash_conductivity_section(int(model.line_options[1]['label']),
+                                        vmin=section_kwargs['vmin'],
+                                        vmax=section_kwargs['vmax'],
+                                        cmap=section_kwargs['cmap'])
+    elif tab == 'data_section':
+        fig =dash_EM_section(int(model.line_options[1]['label']))
+    return fig
+
+# Render plot
+@app.callback(Output('map-tabs-content', 'children'),
+              [Input('map_tabs', 'value'),
+               Input("line_dropdown", 'value'),
+               Input('vmin', 'value'),
+               Input('vmax', 'value'),
+               Input('layerGrid', 'value'),
+               Input('section_plot', 'clickData')])
+def update_tab(tab, line, vmin, vmax, layer, clickData):
+    if tab == 'map_plot':
+        fig = flightline_map(line, vmin, vmax, layer)
+        return html.Div([
+            dcc.Graph(
+                id='polylines',
+                figure=fig
+            ),
+        ])
+    elif tab == 'pmap_plot':
+        if clickData is not None:
+            if clickData['points'][0]['curveNumber'] == 3:
+                point_idx = clickData['points'][0]['pointIndex']
+                fig = dash_pmap_plot(point_idx)
+                return html.Div([
+                    dcc.Graph(
+                        id='pmap_plot',
+                        figure=fig
+                    ),
+                ])
+        else:
+            return html.Div(["Click on a purple point from the conductivity section to view the probability maps."])
+
+# output the stored clicks in the table cell.
+@app.callback(Output('output', 'children'),
+              # Since we use the data prop in an output,
+              # we cannot get the initial data on load with the data prop.
+              # To counter this, you can use the modified_timestamp
+              # as Input and the data as State.
+              # This limitation is due to the initial None callbacks
+              # https://github.com/plotly/dash-renderer/pull/81
+              [Input('interp_memory', 'modified_timestamp')],
+              [State('interp_memory', 'data')])
+def print_data(ts, data):
+    if ts is None:
+        raise PreventUpdate
+    return json.dumps(data)
+
+
+app.run_server(debug = True)
+
 '''
-@app.callback(
-    Output('df_parking', 'children'),
-    [Input("line_dropdown", 'value'),
-     Input("section_dropdown", 'value')])
-def serialise_linedata(line, section):
-    # get the pickle dir
-    if section == 'lci':
-        pickle_path = det.section_path[line]
-    else:
-        pickle_path = rj.section_path[line]
-    ds = pickle2xarray(pickle_path).to_dict()
-    # serialise to json object
-    return json.dumps(ds)
-'''
+
+
 @app.callback(
     [Output('interp_table', 'data'),
      Output('interp_table', 'columns')],
@@ -733,56 +833,7 @@ def export_data_table(nclicks, value, interpreted_points):
         else:
             return value + " is an invalid file path."
 
-@app.callback(
-    Output('section_plot', "figure"),
-    [Input("line_dropdown", 'value'),
-     Input("section_dropdown", 'value'),
-     Input("interp_memory", 'data'),
-     Input('interp_table', "derived_virtual_data"),
-     Input('interp_table', "derived_virtual_selected_rows"),
-     Input('vmin', 'value'),
-     Input('vmax', 'value')
-     ],
-    [State("section_plot", "figure")])
-def update_section(line, section_plot, interpreted_points, rows, derived_virtual_selected_rows, vmin, vmax, section):
-    # When the table is first rendered, `derived_virtual_data` and
-    # `derived_virtual_selected_rows` will be `None`. This is due to an
-    # idiosyncrasy in Dash (unsupplied properties are always None and Dash
-    # calls the dependent callbacks when the component is first rendered).
-    # So, if `rows` is `None`, then the component was just rendered
-    # and its value will be the same as the component's dataframe.
-    # Instead of setting `None` in here, you could also set
-    # `derived_virtual_data=df.to_rows('dict')` when you initialize
-    # the component.
 
-    trig_id = find_trigger()
-
-    df = pd.DataFrame(interpreted_points)
-
-    if np.isin(trig_id, ['section_dropdown.value', 'vamx.value', 'vmin.value', 'line_dropdown.value']):
-
-        section_kwargs['section_plot'] = section_plot
-
-        fig = dash_section(line, vmin, vmax, cmap = section_kwargs['cmap'])
-
-    else:
-        if derived_virtual_selected_rows is None:
-            derived_virtual_selected_rows = []
-
-        dff = df if rows is None else pd.DataFrame(rows)
-
-        dict_of_fig = dict({"data": section['data'][0:4],
-                            "layout": section['layout']})
-
-        fig = go.Figure(dict_of_fig)
-
-        if len(dff) > 0:
-            select_mask = np.where([True if i in derived_virtual_selected_rows else False
-                                    for i in range(len(dff))])[0]
-            fig = plot_section_points(fig, line, section, dff, select_mask)
-
-
-    return fig
 
 @app.callback(Output('tabs-content', 'children'),
               [Input('tabs', 'value'),
@@ -922,6 +973,5 @@ def update_model(surfaces, timestamp, rows):
                 delattr(model, surfaceName)
                 model.initiatialise_surface(pd.Series(row))
     return rows
+'''
 
-
-app.run_server(debug = True)

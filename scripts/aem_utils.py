@@ -411,7 +411,7 @@ class AEM_data:
 
         # Define coordinates
         em_var_dict['utm_coordinates'] = np.column_stack((em_var_dict['easting'],
-                                           em_var_dict['northing']))
+                                                          em_var_dict['northing']))
 
         # Add distance array to dictionary
         em_var_dict['distances'] = spatial_functions.coords2distance(em_var_dict['utm_coordinates'])

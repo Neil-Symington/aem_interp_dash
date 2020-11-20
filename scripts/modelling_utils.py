@@ -36,18 +36,15 @@ class Statigraphic_Model:
     """
     Class for handling a full stratigraphic model
     """
-    def __init__(self, name = None, outfile_path = None, interpreted_point_headings = None):
+    def __init__(self, name = None, outfile_path = None, existing_interpretation_file = None):
         if name is not None:
             self.name = name
         else:
             self.name = "Unnamed_model"
         # Create points dataset
-        if interpreted_point_headings is not None:
-            self.interpreted_points = pd.DataFrame(columns=interpreted_point_headings)
-        else:
-            self.interpreted_points = pd.DataFrame(columns=['fiducial', 'easting', 'northing',
-                                                            'layer_depth', 'layer_elevation',
-                                                            'standard_deviation']).set_index('fiducial')
+        if existing_interpretation_file is not None:
+            self.interpreted_points = pd.read_csv(existing_interpretation_file)
+
         if outfile_path is not None:
             assert os.path.exists(os.path.dirname(outfile_path))
             assert outfile_path.split('.')[-1] == 'csv'

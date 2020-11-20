@@ -339,7 +339,6 @@ def interpolate_data(data_variables, var_dict, interpolated_utm,
         # Create an empty array for interpolation
 
         arr = var_dict[var]
-        print(arr.shape)
 
         interp_arr = np.zeros(shape=(np.shape(interpolated_distances)[0], np.shape(arr)[1]),
                               dtype=var_dict[var].dtype)
