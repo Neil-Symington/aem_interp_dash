@@ -3,9 +3,7 @@ import numpy as np
 import yaml
 import netCDF4
 import sys, os
-#sys.path.append("../scripts")
-sys.path.append(r"C:\Users\symin\github\garjmcmctdem_utils\scripts")
-#import grid_data
+sys.path.append("../scripts")
 from dash.exceptions import PreventUpdate
 import spatial_functions
 import aem_utils
@@ -242,7 +240,7 @@ def interp2scatter(line, xarr, interpreted_points, easting_col = 'X',
 
     return grid_dists, elevs, surfName
 
-def dash_conductivity_section(line, vmin, vmax, cmap):
+def dash_conductivity_section(section, line, vmin, vmax, cmap, xarr):
 
     # Create subplots
     fig = make_subplots(rows=2, cols = 1, shared_xaxes=True,
@@ -254,24 +252,24 @@ def dash_conductivity_section(line, vmin, vmax, cmap):
     logplot = True
 
     # Extract data based on the section plot keyword argument
-    if section_kwargs['section_plot'] == 'lci':
-        xarr = pickle2xarray(det.section_path[line])
+    if section == 'lci':
+        #xarr = pickle2xarray(det.section_path[line])
         misfit = xarr['data_residual'].values
         z = np.log10(xarr['conductivity'].values)
 
 
 
-    elif section_kwargs['section_plot'].startswith('rj'):
-        xarr = pickle2xarray(rj.section_path[line])
+    elif section.startswith('rj'):
+        #xarr = pickle2xarray(rj.section_path[line])
         misfit = xarr['misfit_lowest'].values
 
-        if section_kwargs['section_plot'] == "rj-p50":
+        if section == "rj-p50":
             z = np.log10(xarr['conductivity_p50'])
-        elif section_kwargs['section_plot'] == "rj-p10":
+        elif section == "rj-p10":
             z = np.log10(xarr['conductivity_p10'])
-        elif section_kwargs['section_plot'] == "rj-p90":
+        elif section == "rj-p90":
             z = np.log10(xarr['conductivity_p90'])
-        elif section_kwargs['section_plot'] == "rj-lpp":
+        elif section == "rj-lpp":
             z = xarr['interface_depth_histogram'] / rj.n_histogram_samples
             vmin = 0.01
             vmax = 0.8
@@ -333,7 +331,6 @@ def dash_conductivity_section(line, vmin, vmax, cmap):
     fig.update_yaxes(autorange=True, row = 1, col = 1, title_text = "data residual")
     fig.update_yaxes(autorange=True, row=2, col=1, title_text="elevation (mAHD)")
 
-    #fig.update_layout(title=title)
     fig.update_xaxes(title_text= "distance along line " + " (m)", row=2, col=1)
     fig['layout'].update({'height': 600})
     return fig
@@ -406,10 +403,8 @@ def plot_section_points(fig, line, section, df_interp, select_mask):
         xarr = pickle2xarray(det.section_path[line])
     else:
         xarr = pickle2xarray(rj.section_path[line])
-
+    # Create a scatter plot on the section using projection
     interpx, interpz, surfNames = interp2scatter(line, xarr, df_interp)
-
-    ##TODO find out what is happening here
 
     if len(interpx) > 0:
         labels = ["surface = " + str(x) for x in surfNames]
@@ -526,7 +521,6 @@ def flightline_map(line, vmin, vmax, layer):
         fig.add_trace(go.Scatter(x = list(x),
                                  y = list(y),
                                  mode = 'lines',
-                                 #hovertext = ['Line number = ' + str(lineNo)],
                                  line = {"color": c,
                                          "width": 2.},
                                  name = str(lineNo)))
@@ -597,7 +591,7 @@ app.layout = html.Div([
                     html.Div([html.H4("Select line"),
                              dcc.Dropdown(id = "line_dropdown",
                                             options=model.line_options,
-                                            value= int(model.line_options[1]['label'])),
+                                            value= int(model.line_options[0]['label'])),
                              ],className = "three columns")
                 ], className = 'row'
             ),
@@ -651,15 +645,16 @@ app.layout = html.Div([
                     dcc.Tab(label='Conductivity section', value='conductivity_section'),
                     dcc.Tab(label='AEM data section', value='data_section'),
                  ]),
-            html.Div([dcc.Graph(
-                         id='section_plot')
-            ], style = {'height': '600px'}),
+        html.Div([dcc.Graph(
+            id='section_plot',
+        )], style={'height': '600px'}),
         ]),
     html.Div([html.Div(
         html.Div([
-            html.Button('Update section', id='update', n_clicks=1),
             dash_table.DataTable(id='interp_table',
                                 css=[{'selector': '.row', 'rule': 'margin: 0'}],
+                                columns = [{"name": i, "id": i} for i in model.interpreted_points[model.interpreted_points['SURVEY_LINE'] == int(model.line_options[1]['label'])]],
+                                data=model.interpreted_points[model.interpreted_points['SURVEY_LINE'] == int(model.line_options[0]['label'])].to_dict('records'),
                                 fixed_columns={ 'headers': True},
                                 sort_action="native",
                                 sort_mode="multi",
@@ -696,23 +691,117 @@ app.layout = html.Div([
             className = "six columns")],
         className = 'row'),
     html.Div(id = 'output', style={'display': 'none'}),
-    dcc.Store(id='interp_memory', data = model.interpreted_points.to_dict('records'))
+    dcc.Store(id='interp_memory')
 
 ])
-# Render section
-@app.callback(Output('section_plot', 'figure'),
-              [Input('section_tabs', 'value')])
-def render_section_content(tab):
-    if tab == 'conductivity_section':
-        fig=dash_conductivity_section(int(model.line_options[1]['label']),
-                                        vmin=section_kwargs['vmin'],
-                                        vmax=section_kwargs['vmax'],
-                                        cmap=section_kwargs['cmap'])
-    elif tab == 'data_section':
-        fig =dash_EM_section(int(model.line_options[1]['label']))
-    return fig
 
-# Render plot
+# megacallback function for updating the interpreted points. This is either done by clicking on the section or deleting
+# from the table
+@app.callback(
+    [Output('interp_memory', 'data'),
+     Output('section_plot', 'figure'),
+     Output('interp_table', 'data')],
+    [Input('section_plot', 'clickData'),
+     Input('interp_table', 'data_previous'),
+     Input('section_dropdown', 'value'),
+     Input('section_tabs', 'value'),
+     Input("line_dropdown", 'value'),
+     Input('vmin', 'value'),
+     Input('vmax', 'value')],
+     [State('interp_table', 'data'),
+      State("surface_dropdown", 'value'),
+      State("interp_memory", 'data')])
+def update_interp_table(clickData, previous_table, section, section_tab, line, vmin, vmax, current_table,
+                        surfaceName, interpreted_points):
+    trig_id = find_trigger()
+    # Access the data from the store. The or is in case of None callback at initialisation
+    interpreted_points = interpreted_points or model.interpreted_points.to_dict('records')
+    df = pd.DataFrame(interpreted_points)
+    if section == "lci":
+        xarr = pickle2xarray(det.section_path[line])
+    else:
+        xarr = pickle2xarray(rj.section_path[line])
+
+
+    if np.logical_and(trig_id == 'section_plot.clickData', section_tab == 'conductivity_section'):
+        if clickData['points'][0]['curveNumber'] == 1:
+            # Get the interpretation data from the click function
+            surface = getattr(model, surfaceName)
+
+
+            eventxdata, eventydata = clickData['points'][0]['x'], clickData['points'][0]['y']
+            min_idx = np.argmin(np.abs(xarr['grid_distances'].values - eventxdata))
+
+            easting = xarr['easting'].values[min_idx]
+            northing = xarr['northing'].values[min_idx]
+            elevation = xarr['elevation'].values[min_idx]
+            depth = elevation - eventydata
+            fid = xy2fid(easting, northing, det)
+
+            # append to the surface object interpreted points
+            interp = {'fiducial': fid,
+                      'inversion_name': section,
+                      'X': np.round(easting, 0),
+                      'Y': np.round(northing, 0),
+                      'DEPTH': np.round(depth, 0),
+                      'ELEVATION': np.round(eventydata,1),
+                      'DEM': np.round(elevation,1),
+                      'UNCERTAINTY': np.nan,  # TODO implement FULL WIDTH HALF MAXIMUM
+                      'Type': surface.Type,
+                      'BoundaryNm': surface.name,
+                      'BoundConf': surface.BoundConf,
+                      'BasisOfInt': surface.BasisOfInt,
+                      'OvrConf': surface.OvrConf,
+                      'OvrStrtUnt': surface.OvrStrtUnt,
+                      'OvrStrtCod': surface.OvrStrtCod,
+                      'UndStrtUnt': surface.UndStrtUnt,
+                      'UndStrtCod': surface.UndStrtCod,
+                      'WithinType': surface.WithinType,
+                      'WithinStrt': surface.WithinStrt,
+                      'WithinStNo': surface.WithinStNo,
+                      'WithinConf': surface.WithinConf,
+                      'InterpRef': surface.InterpRef,
+                      'Comment': surface.Comment,
+                      'SURVEY_LINE': line,
+                      'Operator': surface.Operator,
+                      "point_index": min_idx
+                      }
+            df_new = pd.DataFrame(interp, index=[0])
+            df = pd.DataFrame(interpreted_points).append(df_new)
+        else:
+            print('nil')
+            raise PreventUpdate
+            return
+
+    elif trig_id == 'interp_table.data_previous':
+        if previous_table is None:
+            raise PreventUpdate
+        else:
+            # Compare dataframes to find which rows have been removed
+            fids = []
+            for row in previous_table:
+                if row not in current_table:
+                    fids.append(row['fiducial'])
+                    # Remove from dataframe
+            df = df[~df['fiducial'].isin(fids)]
+    # Produce section plots
+    if section_tab == 'conductivity_section':
+        fig = dash_conductivity_section(section, line,
+                                        vmin=vmin,
+                                        vmax=vmax,
+                                        cmap=section_kwargs['cmap'],
+                                        xarr = xarr)
+    elif section_tab == 'data_section':
+        fig = dash_EM_section(line)
+    # Subset to the
+    df_ss = df[df['SURVEY_LINE'] == line]
+    if np.logical_and(len(df_ss) > 0, section_tab == 'conductivity_section'):
+        fig = plot_section_points(fig, line, section, df_ss, select_mask=[])
+
+    return df.to_dict('records'), fig, df_ss.to_dict('records')
+
+
+# Render map plot
 @app.callback(Output('map-tabs-content', 'children'),
               [Input('map_tabs', 'value'),
                Input("line_dropdown", 'value'),
@@ -743,38 +832,23 @@ def update_tab(tab, line, vmin, vmax, layer, clickData):
         else:
             return html.Div(["Click on a purple point from the conductivity section to view the probability maps."])
 
-# output the stored clicks in the table cell.
-@app.callback(Output('output', 'children'),
-              # Since we use the data prop in an output,
-              # we cannot get the initial data on load with the data prop.
-              # To counter this, you can use the modified_timestamp
-              # as Input and the data as State.
-              # This limitation is due to the initial None callbacks
-              # https://github.com/plotly/dash-renderer/pull/81
-              [Input('interp_memory', 'modified_timestamp')],
-              [State('interp_memory', 'data')])
-def print_data(ts, data):
-    if ts is None:
-        raise PreventUpdate
-    return json.dumps(data)
-
+@app.callback(
+    Output('export_message', 'children'),
+    [Input("export", 'n_clicks')],
+    [State('export-path', 'value'),
+    State('interp_memory', 'data')])
+def export_data_table(nclicks, value, interpreted_points):
+    interpreted_points = interpreted_points or model.interpreted_points
+    if np.logical_and(nclicks > 0, value is not None):
+        if os.path.exists(os.path.dirname(value)):
+            interpreted_points.reset_index(drop=True).to_csv(value)
+            return "Successfully exported to " + value
+        else:
+            return value + " is an invalid file path."
 
 app.run_server(debug = True)
 
 '''
-
-
-@app.callback(
-    [Output('interp_table', 'data'),
-     Output('interp_table', 'columns')],
-    [Input("line_dropdown", 'value'),
-     Input("update", 'n_clicks')])
-def update_data_table(value, nclicks):
-    if nclicks >0:
-        ## TODO move the interpreted points to a html div
-        df_ss = subset_df_by_line(model.interpreted_points,
-                                  line = value)
-        return df_ss.to_dict('records'), [{"name": i, "id": i} for i in df_ss.columns]
 
 @app.callback([Output("surface_dropdown", 'value'),
                Output("surface_dropdown", 'options')],
@@ -862,70 +936,6 @@ def update_tab(tab, line, vmin, vmax, layer, clickData):
                         figure=fig
                     ),
                 ])
-import time
-@app.callback(
-    Output("interp_memory", "data"),
-    [Input('section_plot', 'clickData'),
-     Input("line_dropdown", 'value'),
-     Input("surface_dropdown", 'value'),
-     Input("section_dropdown", "value")],
-     [State("interp_memory", "data")])
-def update_interp_table(clickData, line, surfaceName, section, interpreted_points):
-    trig_id = find_trigger()
-    if trig_id == 'section_plot.clickData':
-        df = pd.DataFrame(interpreted_points)
-
-        if clickData['points'][0]['curveNumber'] == 1:
-            surface = getattr(model, surfaceName)
-            ## Todo test speed of loading xarray from pickle object on nci
-            if section == "lci":
-                xarr = pickle2xarray(det.section_path[line])
-            else:
-                xarr = pickle2xarray(rj.section_path[line])
-
-            eventxdata, eventydata = clickData['points'][0]['x'], clickData['points'][0]['y']
-            min_idx = np.argmin(np.abs(xarr['grid_distances'].values - eventxdata))
-
-            easting = xarr['easting'].values[min_idx]
-            northing = xarr['northing'].values[min_idx]
-            elevation = xarr['elevation'].values[min_idx]
-            depth = elevation - eventydata
-            fid = xy2fid(easting,northing, det)
-
-            # append to the surface object interpreted points
-            interp = {'fiducial': fid,
-                      'inversion_name': section,
-                      'X': np.round(easting,0),
-                      'Y': np.round(northing,0),
-                      'DEPTH': np.round(depth,0),
-                      'ELEVATION': eventydata,
-                      'DEM': elevation,
-                      'UNCERTAINTY': np.nan, # TODO implement
-                      'Type': surface.Type,
-                     'BoundaryNm': surface.name,
-                     'BoundConf': surface.BoundConf,
-                     'BasisOfInt': surface.BasisOfInt,
-                     'OvrConf': surface.OvrConf,
-                     'OvrStrtUnt': surface.OvrStrtUnt,
-                     'OvrStrtCod': surface.OvrStrtCod,
-                     'UndStrtUnt': surface.UndStrtUnt,
-                     'UndStrtCod': surface.UndStrtCod,
-                     'WithinType': surface.WithinType,
-                     'WithinStrt': surface.WithinStrt,
-                     'WithinStNo': surface.WithinStNo,
-                     'WithinConf': surface.WithinConf,
-                     'InterpRef': surface.InterpRef,
-                     'Comment': surface.Comment,
-                     'SURVEY_LINE': line,
-                     'Operator': surface.Operator,
-                      "point_index": min_idx
-                       }
-            df_new = pd.DataFrame(interp, index = [0])
-
-            df = df.append(df_new)#, verify_integrity = True)
-            print(df)
-
-            return df.to_dict('records')
 
 
 
