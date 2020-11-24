@@ -1,6 +1,6 @@
 interpretation_settings:
   # session settings
-  data_directory: "E:/dash_data" # directory with the AEM data
+  data_directory: "/home/nsymington/Documents/GA/dash_data" # directory with the AEM data
   # The line numbers that we are interested in visualising
   lines: [200101, 200401, 200501, 200801, 200901,
           201001, 201101, 201201, 201301, 201401,
@@ -10,8 +10,7 @@ interpretation_settings:
 
 model_settings:
   name: "Injune hydrostratigraphy"
-  # True is the app is to be used for interpretation otherwise false
-  interpret_data: True
+
   # Path to template csv file
   templateFile: "../data/surfaceTemplate.csv"
   # Path to existing interpretations
@@ -29,7 +28,7 @@ AEM_settings:
   # Parameters for gridding
   gridding_params: {grid_vars: [ 'low_moment_Z-component_EM_data', 'high_moment_Z-component_EM_data', 'roll',
                                  'pitch', 'tx_height_measured', 'powerline_noise', 'gps_height' ],
-                    xres: 20., section_dir: "section_data_EM"}
+                    section_dir: "section_data_EM_grid"}
 
 deterministic_inversion_settings:
   # deterministic inversion

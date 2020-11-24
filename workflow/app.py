@@ -8,13 +8,10 @@ from dash.exceptions import PreventUpdate
 import spatial_functions
 import aem_utils
 import netcdf_utils
-import modelling_utils
 import plotting_functions as plots
 from misc_utils import pickle2xarray, xarray2pickle
 import warnings
 import pandas as pd
-import pickle
-import json
 warnings.filterwarnings('ignore')
 # Dash dependencies
 import plotly.express as px
@@ -28,7 +25,6 @@ from plotly.subplots import make_subplots
 import base64, io
 import gc
 
-
 yaml_file = "interpretation_config.yaml"
 settings = yaml.safe_load(open(yaml_file))
 
@@ -37,6 +33,7 @@ interp_settings, model_settings, AEM_settings, det_inv_settings, stochastic_inv_
 root = interp_settings['data_directory']
 
 lines = interp_settings['lines']
+
 
 # Prepare AEM data
 
@@ -49,9 +46,8 @@ if AEM_settings["grid_sections"]:
     outdir = os.path.join(root, AEM_settings['gridding_params']['section_dir'])
     if not os.path.exists(outdir):
         os.mkdir(outdir)
-    em.interpolate_variables(variables=AEM_settings['gridding_params']['grid_vars'], lines=lines,
-                             xres=AEM_settings['gridding_params']['xres'],
-                             return_interpolated=False, save_to_disk=True,
+    em.griddify_variables(variables=AEM_settings['gridding_params']['grid_vars'], lines=lines,
+                             save_to_disk=True,
                              output_dir = outdir)
 
 
@@ -154,44 +150,22 @@ for lin in lines:
 ## Annoying hack!!
 rj.n_histogram_samples = np.sum(rj.data['log10conductivity_histogram'][0,0,:])
 
-
-modelName = "Injune"
-
-def initialise_strat_model(templateFile = "../data/surfaceTemplate.csv",
-                           name = "Stratigraphic_model",
-                           interp_file = None):
-    model = modelling_utils.Statigraphic_Model(name = name, existing_interpretation_file = interp_file)
-
-    model.template = pd.read_csv(templateFile, keep_default_na=False)
-
-    model.initiatialise_surfaces_from_template(model.template)
-
-    # Here we want to create surface and line options lists which we will need for our dropdown options
-    surface_options = []
-
-    for surfaceName in model.surfaces:
-        surface_options.append({'label': surfaceName, 'value': surfaceName})
-
-    model.surface_options = surface_options
-
-    line_options = []
-
-    for l in lines:
-        line_options.append({'label': str(l), 'value': l})
-
-    model.line_options = line_options
-
-    return model
+def list2options(list):
+    options = []
+    for l in list:
+        options.append({'label': str(l), 'value': l})
+    return options
 
 def subset_df_by_line(df_, line, line_col = 'SURVEY_LINE'):
     mask = df_[line_col] == line
     return df_[mask]
 
-def style_from_surface(surfaceNames, styleName):
+def style_from_surface(surfaceNames, df_template,  styleName):
     style = []
+
+
     for item in surfaceNames:
-        surface = getattr(model, item)
-        prop = getattr(surface, styleName)
+        prop = df_template[df_template['SurfaceName'] == item][styleName]
         style.append(prop)
     return style
 
@@ -201,10 +175,10 @@ def parse_contents(contents, filename):
     if 'csv' in filename:
         # Assume that the user uploaded a CSV file
         return pd.read_csv(
-            io.StringIO(decoded.decode('utf-8')), keep_default_na=False)
+            io.StringIO(decoded.decode('utf-8')), keep_default_na=False, dtype = dtypes)
     elif 'xls' in filename:
         # Assume that the user uploaded an excel file
-        return pd.read_excel(io.BytesIO(decoded))
+        return pd.read_excel(io.BytesIO(decoded), dtype = dtypes)
 
 # section functions
 def xy2fid(x,y, dataset):
@@ -226,7 +200,7 @@ def interp2scatter(line, xarr, interpreted_points, easting_col = 'X',
                    northing_col = 'Y', elevation_col = 'ELEVATION',
                    line_col = 'SURVEY_LINE'):
 
-    utm_coords = np.column_stack((xarr['easting'].values,xarr['northing'].values))
+    utm_coords = np.column_stack((xarr['easting'].values, xarr['northing'].values))
 
     df_ = subset_df_by_line(interpreted_points, line, line_col = line_col)
 
@@ -236,11 +210,9 @@ def interp2scatter(line, xarr, interpreted_points, easting_col = 'X',
     grid_dists = xarr['grid_distances'].values[inds]
     elevs = df_[elevation_col].values
 
-    surfName = df_['BoundaryNm'].values
+    return grid_dists, elevs
 
-    return grid_dists, elevs, surfName
-
-def dash_conductivity_section(section, line, vmin, vmax, cmap, xarr):
+def dash_conductivity_section(section, line, vmin, vmax, cmap, xarr, pmap_kwargs):
 
     # Create subplots
     fig = make_subplots(rows=2, cols = 1, shared_xaxes=True,
@@ -318,12 +290,27 @@ def dash_conductivity_section(section, line, vmin, vmax, cmap, xarr):
 
     df_rj_sites = rj.distance_along_line[line]
 
-    labels = ["fiducial = " + str(x) for x in df_rj_sites['fiducial']]
+    labels = ["netcdf_point_index = " + str(x) for x in df_rj_sites.index]
+    colours = len(df_rj_sites) * ['purple']
+    symbols = len(df_rj_sites) * ['circle']
+    marker_size = len(df_rj_sites) * [5]
+    if len(pmap_kwargs) > 0:
+        pt_idx = pmap_kwargs['point_idx']
+        try:
+            idx = np.where(df_rj_sites.index == pt_idx)[0][0]
+            colours[idx] = 'red'
+            symbols[idx] = 'triangle-up'
+            marker_size[idx] = 10.
+        except IndexError:
+            pass
 
     fig.add_trace(go.Scatter(x=df_rj_sites['distance_along_line'].values,
                              y= 20. + np.max(xarr['elevation'].values) * np.ones(shape=len(df_rj_sites),
                                                                                        dtype=np.float),
                              mode='markers',
+                             marker_symbol = symbols,
+                             marker_color = colours,
+                             marker_size = marker_size,
                              hovertext=labels,
                              showlegend=False),
                   row=2, col=1)
@@ -404,14 +391,14 @@ def plot_section_points(fig, line, section, df_interp, select_mask):
     else:
         xarr = pickle2xarray(rj.section_path[line])
     # Create a scatter plot on the section using projection
-    interpx, interpz, surfNames = interp2scatter(line, xarr, df_interp)
+    interpx, interpz = interp2scatter(line, xarr, df_interp)
 
     if len(interpx) > 0:
-        labels = ["surface = " + str(x) for x in surfNames]
+        labels = ["surface = " + str(x) for x in df_interp['BoundaryNm'].values]
 
-        colours = style_from_surface(surfNames, "Colour")
-        markers = style_from_surface(surfNames, "Marker")
-        markerSize = [np.float(x) for x in style_from_surface(surfNames, "MarkerSize")]
+        colours = df_interp["Colour"].values
+        markers = df_interp["Marker"].values
+        markerSize = df_interp["MarkerSize"].values
         # To make selected points obvious
         if len(select_mask) > 0:
             for idx in select_mask:
@@ -536,11 +523,50 @@ def flightline_map(line, vmin, vmax, layer):
     return fig
 
 
+
 stylesheet = "https://codepen.io/chriddyp/pen/bWLwgP.css"
 app = dash.Dash(__name__, external_stylesheets=[stylesheet])
 
-model = initialise_strat_model(name = modelName, interp_file = model_settings['interpFile'],
-                               templateFile=model_settings['templateFile'])
+# To do add some check in here
+df_model_template = pd.read_csv(model_settings['templateFile'])
+
+# get the data types from the template file and add the interpretation specific datatypes
+dtypes = df_model_template.dtypes.to_dict()
+
+dtypes['OvrStrtCod'] = 'int32'
+dtypes['UndStrtCod'] = 'int32'
+dtypes["MarkerSize"] = 'int8'
+dtypes['point_index'] = 'int16'
+dtypes['fiducial'] = 'float64'
+dtypes['X'] = 'float64'
+dtypes['Y'] = 'float64'
+dtypes['ELEVATION'] = 'float32'
+dtypes['DEM'] = 'float32'
+dtypes['DEPTH'] = 'float32'
+dtypes['UNCERTAINTY'] = 'float32'
+dtypes['SURVEY_LINE'] = 'int32'
+
+df_interpreted_points = pd.read_csv(model_settings['interpFile'],
+                                    dtype = dtypes)
+
+# we are storing the preferred plotting properties for each point to reduce how often we need to do lookups of the template df
+colour, marker, marker_size = [], [], []
+
+for index, row in df_interpreted_points.iterrows():
+    surfName = row['BoundaryNm']
+    mask = df_model_template['SurfaceName'] == surfName
+    colour.append(df_model_template[mask]['Colour'].values[0])
+    marker.append(df_model_template[mask]['Marker'].values[0])
+    marker_size.append(df_model_template[mask]['MarkerSize'].values[0])
+
+df_interpreted_points['Colour'] = colour
+df_interpreted_points['Marker'] = marker
+df_interpreted_points['MarkerSize']  = marker_size
+
+# for use with the dropdown
+line_options = list2options(lines)
+
+surface_options = list2options(df_model_template['SurfaceName'].values)
 
 app.layout = html.Div([
     html.Div(
@@ -568,8 +594,8 @@ app.layout = html.Div([
                                 # Allow multiple files to be uploaded
                                 multiple=False),
                              dcc.Dropdown(id = "surface_dropdown",
-                                            options=model.surface_options,
-                                            value=(model.surface_options[0]['label']))
+                                            options=surface_options,
+                                            value=(surface_options[0]['label']))
 
                              ],className = "three columns"),
                     html.Div([html.H4("Select section"),
@@ -590,8 +616,8 @@ app.layout = html.Div([
                              ],className = "three columns"),
                     html.Div([html.H4("Select line"),
                              dcc.Dropdown(id = "line_dropdown",
-                                            options=model.line_options,
-                                            value= int(model.line_options[0]['label'])),
+                                            options=line_options,
+                                            value= line_options[0]['value']),
                              ],className = "three columns")
                 ], className = 'row'
             ),
@@ -601,8 +627,8 @@ app.layout = html.Div([
                          className = "three columns"),
                 html.Div(dash_table.DataTable(id='surface_table',
                                                 css=[{'selector': '.row', 'rule': 'margin: 0'}],
-                                              columns = [{"name": i, "id": i} for i in model.template.columns],
-                                              data=model.template.to_dict('records'),
+                                              columns = [{"name": i, "id": i} for i in df_model_template.columns],
+                                              data=df_model_template.to_dict('records'),
                                                 editable=True,
                                             fixed_columns={ 'headers': True},
                                             sort_action="native",
@@ -653,8 +679,8 @@ app.layout = html.Div([
         html.Div([
             dash_table.DataTable(id='interp_table',
                                 css=[{'selector': '.row', 'rule': 'margin: 0'}],
-                                columns = [{"name": i, "id": i} for i in model.interpreted_points[model.interpreted_points['SURVEY_LINE'] == int(model.line_options[1]['label'])]],
-                                data=model.interpreted_points[model.interpreted_points['SURVEY_LINE'] == int(model.line_options[0]['label'])].to_dict('records'),
+                                columns = [{"name": i, "id": i} for i in df_interpreted_points.columns],
+                                #data=model.interpreted_points[model.interpreted_points['SURVEY_LINE'] == int(model.line_options[0]['label'])].to_dict('records'),
                                 fixed_columns={ 'headers': True},
                                 sort_action="native",
                                 sort_mode="multi",
@@ -691,7 +717,9 @@ app.layout = html.Div([
             className = "six columns")],
         className = 'row'),
     html.Div(id = 'output', style={'display': 'none'}),
-    dcc.Store(id='interp_memory')
+    dcc.Store(id='interp_memory'),
+    dcc.Store(id = "model_memory"), # storage for model template file
+    dcc.Store(id = 'pmap_store')
 
 ])
 
@@ -700,7 +728,8 @@ app.layout = html.Div([
 @app.callback(
     [Output('interp_memory', 'data'),
      Output('section_plot', 'figure'),
-     Output('interp_table', 'data')],
+     Output('interp_table', 'data'),
+     Output('pmap_store', 'data')],
     [Input('section_plot', 'clickData'),
      Input('interp_table', 'data_previous'),
      Input('section_dropdown', 'value'),
@@ -710,13 +739,16 @@ app.layout = html.Div([
      Input('vmax', 'value')],
      [State('interp_table', 'data'),
       State("surface_dropdown", 'value'),
-      State("interp_memory", 'data')])
+      State("interp_memory", 'data'),
+      State("model_memory", "data"),
+      State('pmap_store', 'data')])
 def update_interp_table(clickData, previous_table, section, section_tab, line, vmin, vmax, current_table,
-                        surfaceName, interpreted_points):
+                        surfaceName, interpreted_points, model, pmap_store):
     trig_id = find_trigger()
     # Access the data from the store. The or is in case of None callback at initialisation
-    interpreted_points = interpreted_points or model.interpreted_points.to_dict('records')
-    df = pd.DataFrame(interpreted_points)
+    interpreted_points = interpreted_points or df_interpreted_points.to_dict('records')
+    pmap_store = pmap_store or {}
+    df = pd.DataFrame(interpreted_points).infer_objects()
     if section == "lci":
         xarr = pickle2xarray(det.section_path[line])
     else:
@@ -726,8 +758,9 @@ def update_interp_table(clickData, previous_table, section, section_tab, line, v
     if np.logical_and(trig_id == 'section_plot.clickData', section_tab == 'conductivity_section'):
         if clickData['points'][0]['curveNumber'] == 1:
             # Get the interpretation data from the click function
-            surface = getattr(model, surfaceName)
-
+            model = model or df_model_template.to_dict('records')
+            df_model = pd.DataFrame(model).infer_objects()
+            row = df_model[df_model['SurfaceName'] == surfaceName]
 
             eventxdata, eventydata = clickData['points'][0]['x'], clickData['points'][0]['y']
             min_idx = np.argmin(np.abs(xarr['grid_distances'].values - eventxdata))
@@ -747,31 +780,35 @@ def update_interp_table(clickData, previous_table, section, section_tab, line, v
                       'ELEVATION': np.round(eventydata,1),
                       'DEM': np.round(elevation,1),
                       'UNCERTAINTY': np.nan,  # TODO implement FULL WIDTH HALF MAXIMUM
-                      'Type': surface.Type,
-                      'BoundaryNm': surface.name,
-                      'BoundConf': surface.BoundConf,
-                      'BasisOfInt': surface.BasisOfInt,
-                      'OvrConf': surface.OvrConf,
-                      'OvrStrtUnt': surface.OvrStrtUnt,
-                      'OvrStrtCod': surface.OvrStrtCod,
-                      'UndStrtUnt': surface.UndStrtUnt,
-                      'UndStrtCod': surface.UndStrtCod,
-                      'WithinType': surface.WithinType,
-                      'WithinStrt': surface.WithinStrt,
-                      'WithinStNo': surface.WithinStNo,
-                      'WithinConf': surface.WithinConf,
-                      'InterpRef': surface.InterpRef,
-                      'Comment': surface.Comment,
+                      'Type': row.Type,
+                      'BoundaryNm': row.SurfaceName,
+                      'BoundConf': row.BoundConf,
+                      'BasisOfInt': row.BasisOfInt,
+                      'OvrConf': row.OvrConf,
+                      'OvrStrtUnt': row.OvrStrtUnt,
+                      'OvrStrtCod': row.OvrStrtCod,
+                      'UndStrtUnt': row.UndStrtUnt,
+                      'UndStrtCod': row.UndStrtCod,
+                      'WithinType': row.WithinType,
+                      'WithinStrt': row.WithinStrt,
+                      'WithinStNo': row.WithinStNo,
+                      'WithinConf': row.WithinConf,
+                      'InterpRef': row.InterpRef,
+                      'Comment': row.Comment,
                       'SURVEY_LINE': line,
-                      'Operator': surface.Operator,
-                      "point_index": min_idx
+                      'Operator': row.Operator,
+                      "point_index": min_idx,
+                      "Colour": row.Colour,
+                      "Marker": row.Marker,
+                      "MarkerSize": row.MarkerSize
                       }
             df_new = pd.DataFrame(interp, index=[0])
-            df = pd.DataFrame(interpreted_points).append(df_new)
+            df = pd.DataFrame(interpreted_points).append(df_new).infer_objects()
+        elif clickData['points'][0]['curveNumber'] == 3:
+            pmap_point_idx = int(clickData['points'][0]['hovertext'].split(" = ")[-1])
+            pmap_store = {"point_idx": pmap_point_idx}
         else:
-            print('nil')
             raise PreventUpdate
-            return
 
     elif trig_id == 'interp_table.data_previous':
         if previous_table is None:
@@ -790,15 +827,18 @@ def update_interp_table(clickData, previous_table, section, section_tab, line, v
                                         vmin=vmin,
                                         vmax=vmax,
                                         cmap=section_kwargs['cmap'],
-                                        xarr = xarr)
+                                        xarr = xarr,
+                                        pmap_kwargs = pmap_store)
     elif section_tab == 'data_section':
         fig = dash_EM_section(line)
     # Subset to the
     df_ss = df[df['SURVEY_LINE'] == line]
+
     if np.logical_and(len(df_ss) > 0, section_tab == 'conductivity_section'):
+
         fig = plot_section_points(fig, line, section, df_ss, select_mask=[])
 
-    return df.to_dict('records'), fig, df_ss.to_dict('records')
+    return df.to_dict('records'), fig, df_ss.to_dict('records'), pmap_store
 
 
 # Render map plot
@@ -821,7 +861,8 @@ def update_tab(tab, line, vmin, vmax, layer, clickData):
     elif tab == 'pmap_plot':
         if clickData is not None:
             if clickData['points'][0]['curveNumber'] == 3:
-                point_idx = clickData['points'][0]['pointIndex']
+                point_idx = int(clickData['points'][0]['hovertext'].split(" = ")[-1])
+
                 fig = dash_pmap_plot(point_idx)
                 return html.Div([
                     dcc.Graph(
@@ -829,6 +870,8 @@ def update_tab(tab, line, vmin, vmax, layer, clickData):
                         figure=fig
                     ),
                 ])
+            else:
+                raise PreventUpdate
         else:
             return html.Div(["Click on a purple point from the conductivity section to view the probability maps."])
 
@@ -838,150 +881,39 @@ def update_tab(tab, line, vmin, vmax, layer, clickData):
     [State('export-path', 'value'),
     State('interp_memory', 'data')])
 def export_data_table(nclicks, value, interpreted_points):
-    interpreted_points = interpreted_points or model.interpreted_points
+    interpreted_points = interpreted_points or df_interpreted_points.to_dict('records')
+    df_interp = pd.DataFrame(interpreted_points).infer_objects()
     if np.logical_and(nclicks > 0, value is not None):
         if os.path.exists(os.path.dirname(value)):
-            interpreted_points.reset_index(drop=True).to_csv(value)
+            df_interp.reset_index(drop=True).to_csv(value)
             return "Successfully exported to " + value
         else:
             return value + " is an invalid file path."
-
-app.run_server(debug = True)
-
-'''
 
 @app.callback([Output("surface_dropdown", 'value'),
-               Output("surface_dropdown", 'options')],
+               Output("surface_dropdown", 'options'),
+               Output("model_memory", "data"),
+               Output("surface_table", "columns"),
+               Output("surface_table", "data")],
               [Input('template-upload', 'contents')],
               [State('template-upload', 'filename'),
-               State("interp_memory", "data")])
-def update_output(contents, filename, interpreted_points):
+               State("interp_memory", 'data'),
+               State("model_memory", "data")])
+def update_output(contents, filename, interpreted_points, model_store):
+    model_store = model_store or df_model_template.to_dict("records")
     if contents is None:
-        return model.surfaces[0], model.surface_options
-    df = parse_contents(contents, filename)
+        df_model = pd.DataFrame(model_store).infer_objects()
+        return df_model['SurfaceName'][0], list2options(df_model['SurfaceName'].values), model_store, [{"name": i, "id": i} for i in df_model.columns], model_store
 
-    valid = True#check_validity(df)
-    ##TODO write a file validity function
-
-    if valid:
-        # If interpreted points is empty
-        if len(pd.DataFrame(interpreted_points)) < 1:
-            ## TODO create function for this
-            for item in model.surfaces:
-                delattr(model, item)
-            model.surfaces = []
-            model.surface_options = []
-            model.template = None
-            for index, row in df.iterrows():
-                model.initiatialise_surface(pd.Series(row))
-            for surfaceName in model.surfaces:
-                model.surface_options.append({'label': surfaceName, 'value': surfaceName})
-        else:
-            for index, row in df.iterrows():
-                surfaceName = row['SurfaceName']
-                idx = model.template[model.template['SurfaceName'] == surfaceName].index
-                df_row = pd.DataFrame(row, index=idx)
-                if not df_row.equals(model.template.iloc[idx]):
-                    model.template.at[idx, :] = df_row
-                    # update our model surface attributes
-                    delattr(model, surfaceName)
-                    model.initiatialise_surface(pd.Series(row))
-        model.template = df.copy()
-        ## TODO remove
-
-        return model.template.values[0], model.surface_options
     else:
-        raise Exception("Input file is not valid")
+        df_model = parse_contents(contents, filename)
+        model_store = df_model.to_dict('records')
 
-@app.callback(
-    Output('export_message', 'children'),
-    [Input("export", 'n_clicks')],
-    [State('export-path', 'value'),
-    State('interp_memory', 'data')])
-def export_data_table(nclicks, value, interpreted_points):
+        valid = True#check_validity(df_model)
+        ##TODO write a file validity function with a schema for eggs database
+        if not valid:
+            raise Exception("Input file is not valid")
 
-    if np.logical_and(nclicks > 0, value is not None):
-        if os.path.exists(os.path.dirname(value)):
-            interpreted_points.reset_index(drop=True).to_csv(value)
-            return "Successfully exported to " + value
-        else:
-            return value + " is an invalid file path."
+        return df_model['SurfaceName'][0], list2options(df_model['SurfaceName'].values), model_store, [{"name": i, "id": i} for i in df_model.columns], model_store
 
-
-
-@app.callback(Output('tabs-content', 'children'),
-              [Input('tabs', 'value'),
-               Input("line_dropdown", 'value'),
-               Input('vmin', 'value'),
-               Input('vmax', 'value'),
-               Input('layerGrid', 'value'),
-               Input('section_plot', 'clickData')])
-def update_tab(tab, line, vmin, vmax, layer, clickData):
-    if tab == 'map_plot':
-        fig = flightline_map(line, vmin, vmax, layer)
-        return html.Div([
-            dcc.Graph(
-                id='polylines',
-                figure=fig
-            ),
-        ])
-    elif tab == 'pmap_plot':
-        if clickData is not None:
-            if clickData['points'][0]['curveNumber'] == 3:
-                point_idx = clickData['points'][0]['pointIndex']
-                fig = dash_pmap_plot(point_idx)
-                return html.Div([
-                    dcc.Graph(
-                        id='pmap_plot',
-                        figure=fig
-                    ),
-                ])
-
-
-
-@app.callback(Output('output', 'children'),
-              [Input("surface_dropdown", 'value'),
-               Input('interp_table', 'data_previous')],
-              [State('interp_table', 'data')])
-def show_removed_rows(surfaceName, previous, current):
-    if previous is None:
-        dash.exceptions.PreventUpdate()
-    else:
-        fids = []
-        for row in previous:
-            if row not in current:
-                fids.append(row['fiducial'])
-                # Remove from dataframe
-        model.interpreted_points = model.interpreted_points[~model.interpreted_points['fiducial'].isin(fids)]
-        return [f'Just removed fiducial : {fids}']
-
-@app.callback(
-    Output('surface_table', 'data'),
-    [Input("surface_dropdown", 'value'),
-     Input('surface_table', 'data_timestamp')],
-    [State('surface_table', 'data')])
-def update_model(surfaces, timestamp, rows):
-    ctx = dash.callback_context
-    # Find which input triggered the callback
-    if ctx.triggered:
-        trig_id = ctx.triggered[0]['prop_id']
-    else:
-        trig_id = None
-    # Check if all the surface are the same
-    df_rows = pd.DataFrame(rows)
-    # First case is where we have changed the surfaces entirely
-    if trig_id == "surface_dropdown.value":
-        rows = model.template.to_dict("records")
-    elif trig_id == "surface_table.data_timestamp":
-        for row in rows:
-            surfaceName= row['SurfaceName']
-            idx = model.template[model.template['SurfaceName'] == surfaceName].index
-            df_row = pd.DataFrame(row, index = idx)
-            if not df_row.equals(model.template.iloc[idx]):
-                model.template.at[idx, :] = df_row
-                # update our model surface attributes
-                delattr(model, surfaceName)
-                model.initiatialise_surface(pd.Series(row))
-    return rows
-'''
-
+app.run_server(debug = True)

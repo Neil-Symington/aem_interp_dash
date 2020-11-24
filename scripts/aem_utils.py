@@ -402,56 +402,7 @@ class AEM_data:
 
         setattr(self, noise_variable, noise)
 
-    def grid_variables(self, em_var_dict, gridding_params):
-
-        # Create an empty dictionary
-        interpolated = {}
-
-        # Create a sort mask in cases where the lines are not in order
-
-        # Define coordinates
-        em_var_dict['utm_coordinates'] = np.column_stack((em_var_dict['easting'],
-                                                          em_var_dict['northing']))
-
-        # Add distance array to dictionary
-        em_var_dict['distances'] = spatial_functions.coords2distance(em_var_dict['utm_coordinates'])
-
-        vars_2d = [v for v in self.section_variables if em_var_dict[v].ndim == 2]
-        vars_1d = [v for v in self.section_variables if em_var_dict[v].ndim == 1]
-
-        # Calculate the grid distances
-        em_var_dict['grid_distances'] = np.arange(np.min(em_var_dict['distances']),
-                                                  np.max(em_var_dict['distances']),
-                                                  gridding_params['xres'])
-
-        interpolated['grid_distances'] = em_var_dict['grid_distances']
-
-        # Generator for inteprolating 1D variables from the vars_1d list
-        interp1d = spatial_functions.interpolate_1d_vars(vars_1d, em_var_dict,
-                                                         gridding_params['resampling_method'])
-
-        for var in vars_1d:
-            # Generator yields the interpolated variable array
-            interpolated[var] = next(interp1d)
-
-        interpolated_utm = np.column_stack((interpolated['easting'],
-                                            interpolated['northing']))
-
-        interp2d = spatial_functions.interpolate_data(vars_2d, em_var_dict, interpolated_utm)
-
-        for var in vars_2d:
-            # Generator yields the interpolated variable array
-            interpolated[var] = next(interp2d)
-
-        # Create an xarray from the dictionary
-
-        xr = misc_utils.dict2xr(interpolated, dims=['grid_distances'])
-
-        return xr
-
-
-    def interpolate_variables(self, variables, lines, xres, resampling_method = 'linear',
-                             return_interpolated = False, save_to_disk = True, output_dir = None):
+    def griddify_variables(self, variables, lines,  return_gridded = False, save_to_disk = True, output_dir = None):
         # Check some of the arguments to ensure they are lists
 
         lines = misc_utils.check_list_arg(lines)
@@ -462,7 +413,7 @@ class AEM_data:
            if np.logical_and(item not in variables, item in self.data.variables):
                variables.append(item)
 
-        self.section_variables = variables
+        self.section_variables = variables # consider removing
 
         # First create generators for returning coordinates and variables for the lines
 
@@ -471,11 +422,9 @@ class AEM_data:
                               variables=self.section_variables)
 
         # Interpolated results will be added to a dictionary
-        interpolated = {}
+        griddified = {}
 
-        # Create a gridding parameters dictionary
-
-        gridding_params = {'xres': xres, 'resampling_method': resampling_method}
+        # Create a gridding parameters dictionaryd}
 
         # Iterate through the lines
         for i in range(len(lines)):
@@ -486,24 +435,30 @@ class AEM_data:
             # Now we need to sort the cond_var_dict and run it east to west
             em_var_dict = spatial_functions.sort_variables(em_var_dict)
 
-            interpolated[line_no] = self.grid_variables(em_var_dict, gridding_params)
+            # add grid distances so we can plot it in a line
+
+            utm_coords = np.column_stack((em_var_dict['easting'], em_var_dict['northing']))
+
+            em_var_dict['grid_distances'] = spatial_functions.coords2distance(utm_coords)
+
+            griddified[line_no] = xr = misc_utils.dict2xr(em_var_dict, dims=['grid_distances'])
 
             if save_to_disk:
                 fname = os.path.join(output_dir, str(int(line_no)) + '.pkl')
                 file = open(fname, 'wb')
                 # dump information to the file
-                pickle.dump(interpolated[line_no], file)
+                pickle.dump(griddified[line_no], file)
 
             # Many lines may fill up memory so if the dictionary is not being returned then
             # we garbage collect
-            if not return_interpolated:
-                del interpolated[line_no]
+            if not return_gridded:
+                del griddified[line_no]
 
                 # Collect the garbage
                 gc.collect()
 
-        if return_interpolated:
-            self.section_data = interpolated
+        if return_gridded:
+            self.section_data = griddified
         else:
             self.section_data = None
 
