@@ -14,7 +14,7 @@ model_settings:
   # Path to template csv file
   templateFile: "../data/surfaceTemplate.csv"
   # Path to existing interpretations
-  interpFile: "../data/interp_example.csv"
+  interpFile: "../data/blank_interp_example.csv"
 
 AEM_settings:
   name: "Injune_AEM-data"
@@ -56,7 +56,7 @@ stochastic_inversion_settings:
 conductivity_visualisation_settings:
   'vmin': 0.01 # Starting minimum conductivity for colourstretch
   'vmax': 1. # Starting maximum conductivity for colourstretch
-  'cmap': 'jet' # starting colourstretch
+  'cmap': 'viridis' # starting colourstretch
   'section_plot': 'lci'
   'colourbar_label': 'Conductivity (S/m)'
 

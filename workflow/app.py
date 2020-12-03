@@ -234,9 +234,9 @@ def interp2scatter(line, xarr, interpreted_points, easting_col = 'X',
 def dash_conductivity_section(section, line, vmin, vmax, cmap, xarr, pmap_kwargs):
 
     # Create subplots
-    fig = make_subplots(rows=2, cols = 1, shared_xaxes=True,
+    fig = make_subplots(rows=3, cols = 1, shared_xaxes=True,
                         vertical_spacing=0.05,
-                        row_heights=[0.2, 0.8])
+                        row_heights=[0.2, 0.75, 0.05])
 
     vmin = np.log10(vmin)
     vmax = np.log10(vmax)
@@ -275,11 +275,17 @@ def dash_conductivity_section(section, line, vmin, vmax, cmap, xarr, pmap_kwargs
 
     dist_along_line = xarr['grid_distances'].values
     grid_elevations = xarr['grid_elevations'].values
+    elevation = xarr['elevation'].values
+    easting = xarr['easting'].values
+    northing = xarr['northing'].values
+
     # plot the data residual
     fig.add_trace(go.Scatter(x = dist_along_line,
                              y = misfit,
                              line=dict(color='black', width=3),
-                             showlegend = False, hoverinfo = None),
+                             showlegend = False, hoverinfo = None,
+                             name = "residual"),
+
                        )
 
 
@@ -294,18 +300,32 @@ def dash_conductivity_section(section, line, vmin, vmax, cmap, xarr, pmap_kwargs
                                  tickvals=tickvals,
                                  ticktext=ticktext
                              ),
-                            hoverinfo=None
+                            hoverinfo="none",
+                             name="section"
                             ),
                       row = 2, col = 1
         )
 
 
     # Add the elevation
-    fig.add_trace(go.Scatter(x = xarr['grid_distances'].values,
-                             y = xarr['elevation'].values,
+    fig.add_trace(go.Scatter(x = dist_along_line,
+                             y = elevation,
                              line=dict(color='black', width=3),
                              showlegend = False, hoverinfo = 'skip'),
                   row = 2, col = 1,)
+
+    # Create a list of easting and northing (strings) for label
+    labels = []
+    for i in range(len(easting)):
+        labels.append(' '.join(["x:", "{:.1f}".format(easting[i]), "y:", "{:.1f}".format(northing[i])]))
+    # Add the easting/ northing as a scatter plot
+    fig.add_trace(go.Scatter(x=dist_along_line,
+                             y=northing,
+                             line=dict(color='black', width=3),
+                             hovertext = labels,
+                             showlegend=False,
+                             name = "coordinates"),
+                  row=3, col=1, )
 
     df_rj_sites = rj.distance_along_line[line]
 
@@ -336,8 +356,9 @@ def dash_conductivity_section(section, line, vmin, vmax, cmap, xarr, pmap_kwargs
     # Reverse y-axis
     fig.update_yaxes(autorange=True, row = 1, col = 1, title_text = "data residual")
     fig.update_yaxes(autorange=True, row=2, col=1, title_text="elevation (mAHD)")
+    fig.update_yaxes(visible= False, showticklabels= False, row=3,col=1)
 
-    fig.update_xaxes(title_text= "distance along line " + " (m)", row=2, col=1)
+    fig.update_xaxes(title_text= "distance along line " + " (m)", row=3, col=1)
     fig['layout'].update({'height': 600})
     return fig
 
@@ -369,6 +390,8 @@ def dash_EM_section(line):
        'deepskyblue', 'yellowgreen', 'lightgrey', 'turquoise']
 
     lm_data = xarr['low_moment_Z-component_EM_data'].values
+    # Adaptive marker size
+    size = 1200./lm_data.shape[0]
 
     for j in range(lm_data.shape[1]):
         label = "low-moment gate " + str(j+1)
@@ -377,7 +400,7 @@ def dash_EM_section(line):
                                  mode = 'markers',
                                  marker={
                                          "color": colours[j],
-                                         "size": 1.5
+                                         "size": size
                                          },
                                  showlegend=False, hoverinfo='text',
                                  hovertext = label),
@@ -390,7 +413,7 @@ def dash_EM_section(line):
                                  mode = 'markers',
                                  marker={
                                          "color": colours[j],
-                                         "size": 1.5
+                                         "size": size
                                          },
                                  showlegend=False, hoverinfo='text',
                                  hovertext = label),
@@ -404,12 +427,8 @@ def dash_EM_section(line):
 
     return fig
 
-def plot_section_points(fig, line, section, df_interp, select_mask):
-    if section == "lci":
-        #TODO don't access the file system here
-        xarr = pickle2xarray(det.section_path[line])
-    else:
-        xarr = pickle2xarray(rj.section_path[line])
+def plot_section_points(fig, line, df_interp, xarr, select_mask):
+
     # Create a scatter plot on the section using projection
     interpx, interpz = interp2scatter(line, xarr, df_interp)
 
@@ -432,6 +451,7 @@ def plot_section_points(fig, line, section, df_interp, select_mask):
                                   "color": colours,
                                   "size": markerSize
                                   },
+                        name = 'interpretation',
                         showlegend = True,
                                  xaxis= 'x2',
                                  yaxis='y2')
@@ -541,8 +561,6 @@ def flightline_map(line, vmin, vmax, layer):
                       xaxis=dict(range=[xmin, xmax]))
     fig['data'][0]['showscale'] = False
     return fig
-
-
 
 stylesheet = "https://codepen.io/chriddyp/pen/bWLwgP.css"
 app = dash.Dash(__name__, external_stylesheets=[stylesheet])
@@ -774,12 +792,15 @@ def update_interp_table(clickData, previous_table, section, section_tab, line, v
 
     # Access the data from the store. The or is in case of None callback at initialisation
     interpreted_points = interpreted_points or df_interpreted_points.to_dict('records')
+    # Guard against empty lists
+    if len(interpreted_points) == 0:
+        df = df_interpreted_points.copy()
+    else:
+        df = pd.DataFrame(interpreted_points).infer_objects()
+
     pmap_store = pmap_store or {}
-    df = pd.DataFrame(interpreted_points).infer_objects()
+
     if section == "lci":
-        #file system access every time the user clicks a point is bound to be very slow
-        #TODO don't do this - not sure how to set global state for xarr 
-        #in dash but do that instead, only load the pickle when the section is changed
         xarr = pickle2xarray(det.section_path[line])
     else:
         xarr = pickle2xarray(rj.section_path[line])
@@ -790,7 +811,7 @@ def update_interp_table(clickData, previous_table, section, section_tab, line, v
             # Get the interpretation data from the click function
             model = model or df_model_template.to_dict('records')
             df_model = pd.DataFrame(model).infer_objects()
-            row = df_model[df_model['SurfaceName'] == surfaceName]
+            row = df_model[df_model['SurfaceName'] == surfaceName].squeeze()
 
             eventxdata, eventydata = clickData['points'][0]['x'], clickData['points'][0]['y']
             min_idx = np.argmin(np.abs(xarr['grid_distances'].values - eventxdata))
@@ -862,10 +883,12 @@ def update_interp_table(clickData, previous_table, section, section_tab, line, v
     elif section_tab == 'data_section':
         fig = dash_EM_section(line)
     # Subset to the
+
     df_ss = df[df['SURVEY_LINE'] == line]
 
     if len(df_ss) > 0 and section_tab == 'conductivity_section':
-        fig = plot_section_points(fig, line, section, df_ss, select_mask=[])
+        ## TODO add select mask
+        fig = plot_section_points(fig, line, df_ss, xarr, select_mask=[])
 
     return df.to_dict('records'), fig, df_ss.to_dict('records'), pmap_store
 
