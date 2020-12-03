@@ -25,6 +25,25 @@ from plotly.subplots import make_subplots
 import base64, io
 import gc
 
+
+#profiling
+import time
+from functools import wraps
+def profile(f):
+    @wraps(f)
+    def profiling_wrapper(*args, **kwargs):
+        tic = time.perf_counter()
+        try:
+            res = f(*args, **kwargs)
+            toc = time.perf_counter()
+            print("Call to", f.__name__, "took", toc - tic, "seconds")
+        except PreventUpdate:
+            toc = time.perf_counter()
+            print("Call to", f.__name__, "took", toc - tic, "seconds and did not update")
+            raise PreventUpdate
+        return res
+    return profiling_wrapper
+
 yaml_file = "interpretation_config.yaml"
 settings = yaml.safe_load(open(yaml_file))
 
@@ -275,9 +294,9 @@ def dash_conductivity_section(section, line, vmin, vmax, cmap, xarr, pmap_kwargs
                                  tickvals=tickvals,
                                  ticktext=ticktext
                              ),
-                            hoverinfo=None,
+                            hoverinfo=None
                             ),
-                      row = 2, col = 1,
+                      row = 2, col = 1
         )
 
 
@@ -387,6 +406,7 @@ def dash_EM_section(line):
 
 def plot_section_points(fig, line, section, df_interp, select_mask):
     if section == "lci":
+        #TODO don't access the file system here
         xarr = pickle2xarray(det.section_path[line])
     else:
         xarr = pickle2xarray(rj.section_path[line])
@@ -745,17 +765,27 @@ app.layout = html.Div([
 def update_interp_table(clickData, previous_table, section, section_tab, line, vmin, vmax, current_table,
                         surfaceName, interpreted_points, model, pmap_store):
     trig_id = find_trigger()
+
+    #a bunch of "do nothing" cases here - before doing any data transformations to save
+    #on useless computation
+    if trig_id == 'section_plot.clickData' and section_tab == 'data_section':
+        #clicked on the data section so nothing to do
+        raise PreventUpdate
+
     # Access the data from the store. The or is in case of None callback at initialisation
     interpreted_points = interpreted_points or df_interpreted_points.to_dict('records')
     pmap_store = pmap_store or {}
     df = pd.DataFrame(interpreted_points).infer_objects()
     if section == "lci":
+        #file system access every time the user clicks a point is bound to be very slow
+        #TODO don't do this - not sure how to set global state for xarr 
+        #in dash but do that instead, only load the pickle when the section is changed
         xarr = pickle2xarray(det.section_path[line])
     else:
         xarr = pickle2xarray(rj.section_path[line])
 
 
-    if np.logical_and(trig_id == 'section_plot.clickData', section_tab == 'conductivity_section'):
+    if trig_id == 'section_plot.clickData' and section_tab == 'conductivity_section':
         if clickData['points'][0]['curveNumber'] == 1:
             # Get the interpretation data from the click function
             model = model or df_model_template.to_dict('records')
@@ -809,7 +839,7 @@ def update_interp_table(clickData, previous_table, section, section_tab, line, v
             pmap_store = {"point_idx": pmap_point_idx}
         else:
             raise PreventUpdate
-
+    
     elif trig_id == 'interp_table.data_previous':
         if previous_table is None:
             raise PreventUpdate
@@ -834,8 +864,7 @@ def update_interp_table(clickData, previous_table, section, section_tab, line, v
     # Subset to the
     df_ss = df[df['SURVEY_LINE'] == line]
 
-    if np.logical_and(len(df_ss) > 0, section_tab == 'conductivity_section'):
-
+    if len(df_ss) > 0 and section_tab == 'conductivity_section':
         fig = plot_section_points(fig, line, section, df_ss, select_mask=[])
 
     return df.to_dict('records'), fig, df_ss.to_dict('records'), pmap_store
@@ -851,6 +880,11 @@ def update_interp_table(clickData, previous_table, section, section_tab, line, v
                Input('section_plot', 'clickData')])
 def update_tab(tab, line, vmin, vmax, layer, clickData):
     if tab == 'map_plot':
+        trig_id = find_trigger()
+        #do nothing if active tab is the map and we only
+        #clicked on the section
+        if trig_id == 'section_plot.clickData':
+            raise PreventUpdate
         fig = flightline_map(line, vmin, vmax, layer)
         return html.Div([
             dcc.Graph(
@@ -916,4 +950,4 @@ def update_output(contents, filename, interpreted_points, model_store):
 
         return df_model['SurfaceName'][0], list2options(df_model['SurfaceName'].values), model_store, [{"name": i, "id": i} for i in df_model.columns], model_store
 
-app.run_server(debug = True)
+app.run_server(debug = False)
