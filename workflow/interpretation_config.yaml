@@ -14,7 +14,7 @@ model_settings:
   # Path to template csv file
   templateFile: "../data/surfaceTemplate.csv"
   # Path to existing interpretations
-  interpFile: "../data/blank_interp_example.csv"
+  interpFile: "../data/Injune_interp.csv"
 
 AEM_settings:
   name: "Injune_AEM-data"

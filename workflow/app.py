@@ -104,6 +104,12 @@ rj = aem_utils.AEM_inversion(name = stochastic_inv_settings['inversion_name'],
                               inversion_type = 'stochastic',
                               netcdf_dataset = netCDF4.Dataset(os.path.join(root, stochastic_inv_settings['nc_path'])))
 
+## Estimate section size
+screen_pixel_width = 1920.  # complete estimate
+screen_pixel_height = 982.  # esimate
+section_width_fraction = 0.9
+section_width = screen_pixel_width * section_width_fraction
+
 if stochastic_inv_settings["grid_sections"]:
     ## TODO add path checking function
     outdir = os.path.join(root, stochastic_inv_settings['gridding_params']['section_dir'])
@@ -237,23 +243,17 @@ def dash_conductivity_section(section, line, vmin, vmax, cmap, xarr, pmap_kwargs
     fig = make_subplots(rows=3, cols = 1, shared_xaxes=True,
                         vertical_spacing=0.05,
                         row_heights=[0.2, 0.75, 0.05])
-
     vmin = np.log10(vmin)
     vmax = np.log10(vmax)
     logplot = True
 
     # Extract data based on the section plot keyword argument
     if section == 'lci':
-        #xarr = pickle2xarray(det.section_path[line])
         misfit = xarr['data_residual'].values
         z = np.log10(xarr['conductivity'].values)
 
-
-
     elif section.startswith('rj'):
-        #xarr = pickle2xarray(rj.section_path[line])
         misfit = xarr['misfit_lowest'].values
-
         if section == "rj-p50":
             z = np.log10(xarr['conductivity_p50'])
         elif section == "rj-p10":
@@ -342,15 +342,15 @@ def dash_conductivity_section(section, line, vmin, vmax, cmap, xarr, pmap_kwargs
             marker_size[idx] = 10.
         except IndexError:
             pass
-
-    fig.add_trace(go.Scatter(x=df_rj_sites['distance_along_line'].values,
-                             y= 20. + np.max(xarr['elevation'].values) * np.ones(shape=len(df_rj_sites),
-                                                                                       dtype=np.float),
+    site_distances = df_rj_sites['distance_along_line'].values
+    site_plot_elevation = 20. + np.max(xarr['elevation'].values) * np.ones(shape=len(df_rj_sites), dtype=np.float)
+    fig.add_trace(go.Scatter(x=site_distances,
+                             y=site_plot_elevation,
                              mode='markers',
                              marker_symbol = symbols,
                              marker_color = colours,
-                             marker_size = marker_size,
                              hovertext=labels,
+                             marker_size = marker_size,
                              showlegend=False),
                   row=2, col=1)
     # Reverse y-axis
@@ -433,7 +433,7 @@ def plot_section_points(fig, line, df_interp, xarr, select_mask):
     interpx, interpz = interp2scatter(line, xarr, df_interp)
 
     if len(interpx) > 0:
-        labels = ["surface = " + str(x) for x in df_interp['BoundaryNm'].values]
+        #labels = ["surface = " + str(x) for x in df_interp['BoundaryNm'].values]
 
         colours = df_interp["Colour"].values
         markers = df_interp["Marker"].values
@@ -446,7 +446,7 @@ def plot_section_points(fig, line, df_interp, xarr, select_mask):
         fig.add_trace(go.Scatter(x = interpx,
                         y = interpz,
                         mode = 'markers',
-                        hovertext = labels,
+                        hovertext = 'skip',#labels,
                         marker = {"symbol": markers,
                                   "color": colours,
                                   "size": markerSize
@@ -562,6 +562,22 @@ def flightline_map(line, vmin, vmax, layer):
     fig['data'][0]['showscale'] = False
     return fig
 
+def maintainExtent(fig, relayOut):
+    # Function for assigning the figures extent to the previous extent
+    # https://community.plotly.com/t/how-to-save-current-zoom-and-position-after-filtering/5310/2
+
+    for figkey in ["xaxis", "xaxis2", "xaxis3", "yaxis2"]:
+        ro_key = ".".join([figkey, "range[{}]"])
+        try:
+            fig['layout'][figkey]['range'] = [relayOut[ro_key.format(0)],
+                                              relayOut[ro_key.format(1)]]
+        except KeyError:
+            pass
+    fig['layout']['yaxis2']['autorange']=False
+    return fig
+
+
+
 stylesheet = "https://codepen.io/chriddyp/pen/bWLwgP.css"
 app = dash.Dash(__name__, external_stylesheets=[stylesheet])
 
@@ -661,7 +677,7 @@ app.layout = html.Div([
             ),
     html.Div(
             [
-                html.Div(html.Pre(id='click-data'),
+                html.Div(html.Div(id='message'),
                          className = "three columns"),
                 html.Div(dash_table.DataTable(id='surface_table',
                                                 css=[{'selector': '.row', 'rule': 'margin: 0'}],
@@ -711,7 +727,7 @@ app.layout = html.Div([
                  ]),
         html.Div([dcc.Graph(
             id='section_plot',
-        )], style={'height': '600px'}),
+        )], style={'height': '600'}),
         ]),
     html.Div([html.Div(
         html.Div([
@@ -777,11 +793,12 @@ app.layout = html.Div([
      Input('vmax', 'value')],
      [State('interp_table', 'data'),
       State("surface_dropdown", 'value'),
+      State("section_plot", 'relayoutData'),
       State("interp_memory", 'data'),
       State("model_memory", "data"),
       State('pmap_store', 'data')])
-def update_interp_table(clickData, previous_table, section, section_tab, line, vmin, vmax, current_table,
-                        surfaceName, interpreted_points, model, pmap_store):
+def update(clickData, previous_table, section, section_tab, line, vmin, vmax, current_table,
+                        surfaceName, relayOut,interpreted_points, model, pmap_store):
     trig_id = find_trigger()
 
     #a bunch of "do nothing" cases here - before doing any data transformations to save
@@ -804,7 +821,6 @@ def update_interp_table(clickData, previous_table, section, section_tab, line, v
         xarr = pickle2xarray(det.section_path[line])
     else:
         xarr = pickle2xarray(rj.section_path[line])
-
 
     if trig_id == 'section_plot.clickData' and section_tab == 'conductivity_section':
         if clickData['points'][0]['curveNumber'] == 1:
@@ -855,9 +871,10 @@ def update_interp_table(clickData, previous_table, section, section_tab, line, v
                       }
             df_new = pd.DataFrame(interp, index=[0])
             df = pd.DataFrame(interpreted_points).append(df_new).infer_objects()
-        elif clickData['points'][0]['curveNumber'] == 3:
+        elif clickData['points'][0]['curveNumber'] == 4:
             pmap_point_idx = int(clickData['points'][0]['hovertext'].split(" = ")[-1])
             pmap_store = {"point_idx": pmap_point_idx}
+
         else:
             raise PreventUpdate
     
@@ -882,13 +899,16 @@ def update_interp_table(clickData, previous_table, section, section_tab, line, v
                                         pmap_kwargs = pmap_store)
     elif section_tab == 'data_section':
         fig = dash_EM_section(line)
-    # Subset to the
-
+    # Subset
     df_ss = df[df['SURVEY_LINE'] == line]
 
     if len(df_ss) > 0 and section_tab == 'conductivity_section':
         ## TODO add select mask
         fig = plot_section_points(fig, line, df_ss, xarr, select_mask=[])
+    # This prevents the section refreshing to its original view
+    relayOut = relayOut or {}
+    if trig_id != "line_dropdown.value" and len(relayOut) > 1:
+        fig = maintainExtent(fig, relayOut)
 
     return df.to_dict('records'), fig, df_ss.to_dict('records'), pmap_store
 
@@ -917,7 +937,7 @@ def update_tab(tab, line, vmin, vmax, layer, clickData):
         ])
     elif tab == 'pmap_plot':
         if clickData is not None:
-            if clickData['points'][0]['curveNumber'] == 3:
+            if clickData['points'][0]['curveNumber'] == 4:
                 point_idx = int(clickData['points'][0]['hovertext'].split(" = ")[-1])
 
                 fig = dash_pmap_plot(point_idx)
@@ -973,4 +993,21 @@ def update_output(contents, filename, interpreted_points, model_store):
 
         return df_model['SurfaceName'][0], list2options(df_model['SurfaceName'].values), model_store, [{"name": i, "id": i} for i in df_model.columns], model_store
 
-app.run_server(debug = False)
+
+@app.callback(Output("message", "children"),
+              [Input("section_plot", 'figure'),
+               Input("section_plot", 'relayoutData'),
+               Input('section_tabs', 'value')])
+def output_messages(fig, relayOut, section_tab):
+    if section_tab == 'data_section':
+        return ""
+    else:
+        xdist = fig['layout']['xaxis2']['range'][1] - fig['layout']['xaxis2']['range'][0]
+        ydist = fig['layout']['yaxis2']['range'][1] - fig['layout']['yaxis2']['range'][0]
+        # Below is an estimate based on typical browser size
+
+        section_height = 400. * (fig['layout']['yaxis2']['domain'][1] - fig['layout']['yaxis2']['domain'][0])
+        vex = np.round((xdist/ydist) * (section_height/section_width),1)
+        return "Section vertical exageration is approximately {}".format(vex)
+
+app.run_server(debug = True)
