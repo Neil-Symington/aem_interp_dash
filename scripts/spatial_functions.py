@@ -356,7 +356,7 @@ def interpolate_data(data_variables, var_dict, interpolated_utm,
 
         yield interp_arr
 
-def xy_2_var(xarray, xy, var):
+def xy_2_var(xarray, xy, var, max_distance = 100.):
     """
     Function for finding a variable for gridded AEM sections
     given an input easting and northing
@@ -369,7 +369,7 @@ def xy_2_var(xarray, xy, var):
     utm_coords = np.column_stack((xarray.easting.values,
                                   xarray.northing.values))
 
-    d, i = nearest_neighbours(xy, utm_coords, max_distance=100.)
+    d, i = nearest_neighbours(xy, utm_coords, max_distance=max_distance)
 
     if np.isnan(d).all():
         return None

@@ -25,7 +25,6 @@ For example if the user changed the number of layers, samples etc
 
 """
 
-
 import netCDF4
 import os
 import numpy as np
@@ -33,16 +32,35 @@ import glob
 import yaml
 import datetime
 from pyproj import CRS,Transformer
+import gc
 
 # Find the file paths from the pmap directory
-indir = r"C:\Users\PCUser\Desktop\AEM\rjmcmc\nc_subset"
-yml_file = r"C:\Users\PCUser\OneDrive\GitHub\garjmcmctdem_utils\scripts\conversion\active\netcdf_settings.yml"
-nc_outfile = r"C:\temp\test.nc"
+indir = "/media/nsymington/My Passport/GA/AEM/Galilee/combined/pmaps"
+yml_file = "netcdf_settings.yml"
+nc_outfile = "Galilee_rjmcmc_pmaps.nc"
 
-fnames  = []
+# We are going to discard non-convergent models by first checking the misfits in the netcdf files
 
-for file in glob.glob(os.path.join(indir,"*.nc")):
-    fnames.append(file)
+fnames = []
+min_misfit = []
+ave_misfit = []
+
+for i, file in enumerate(glob.glob(os.path.join(indir,"*.nc"))):
+
+    dataset = netCDF4.Dataset(file)
+    # get our ensemble residual
+    misfit = dataset['misfit'][:].data
+    if not np.all(np.isnan(misfit)):
+        rms = np.sqrt(misfit / 41)
+        ave_misfit.append(np.nanmean(rms))
+        min_misfit.append(np.nanmin(rms))
+        fnames.append(file)
+        if i%100 == 0:
+            print(i)
+            print(np.nanmin(rms))
+    dataset = None
+    misfit = None
+    gc.collect()
 
 n_files = len(fnames)
 
@@ -51,7 +69,7 @@ n_files = len(fnames)
 settings = yaml.safe_load(open(yml_file))
 
 # We will use the first dataset as a template to get key information about
-# dimeension and variable sizes and shapes
+# dimension and variable sizes and shapes
 dataset = netCDF4.Dataset(fnames[0])
 
 # Create a dictionary for all variabes
@@ -95,14 +113,13 @@ for key in settings["field_definitions"].keys():
         except AttributeError:
             print(key, " is neither a scalar or variable. Check settings file")
 
-
 # Now we populate the arrays
 dataset = None
 for i, file in enumerate(fnames):
+
     dataset = netCDF4.Dataset(file)
 
     for key in var_dict:
-        print(key)
         # We will deal with these later
         if key == 'lat' or key == 'lon' or key == 'line':
             pass
@@ -118,18 +135,20 @@ for i, file in enumerate(fnames):
             # Get the variable
             arr = dataset.variables[key][:]
             var_dict[key]['values'][i] = arr
+    dataset = None
+    gc.collect()
 # Now we are able to create the line variable as we know which lines we are
 # had data for
+
+assert len(np.unique(var_dict['fiducial']['values'])) == len(var_dict['fiducial']['values'])
 
 lines = np.unique(var_dict['line_index']['values'])
 var_dict['line']['values'] = lines
 # Now we want to change the line index values to index lines
 
-
 for i, line in enumerate(lines):
     inds = np.where(var_dict['line_index']['values']== line)
     var_dict['line_index']['values'][inds] = i
-
 
 # Now we get our longitudes and latitudes using the crs defined in the settings file
 crs_projected = CRS.from_epsg(settings['crs']['projected']['epsg'])
@@ -144,6 +163,8 @@ var_dict['lat']['values'] = lat
 
 # Now we want to create a dimensions dictionary with field names and sizes
 
+dataset = netCDF4.Dataset(fnames[0])
+
 dim_dict = {}
 
 for key in settings['dimension_fields'].keys():
@@ -152,7 +173,7 @@ for key in settings['dimension_fields'].keys():
         dim_dict[key]['size'] = len(var_dict['line']['values'])
     else:
         dim_dict[key]['size'] = dataset.dimensions[key].size
-dim_dict
+
 # Refine the dimension definition
 
 for key in var_dict.keys():
@@ -175,7 +196,6 @@ for key in var_dict.keys():
         var_dict[key]['dimensions'].insert(0, 'point')
 
 var_dict['line']['dimensions'] = 'line'
-
 
 # Now we create a new netcdf file
 
@@ -212,6 +232,7 @@ for key in var_dict.keys():
     if 'units' in var_dict[key].keys():
         nc_vars[key].units = var_dict[key]['units']
 
+
 ## Add some key metadata information
 
 rootgrp.setncattr("value_parameterization",dataset.value_parameterization)
@@ -239,3 +260,27 @@ rootgrp.setncattr('geospatial_lon_max', np.max(var_dict['lat']['values']))
 rootgrp.setncattr('geospatial_lont_units', 'degrees North')
 
 rootgrp.close()
+
+d = netCDF4.Dataset(nc_outfile, "a")
+
+min_misfit_var = d.createVariable("misfit_lowest","f8",('point'))
+min_misfit_var[:] = min_misfit
+min_misfit_var.aseg_gdf_format = 'E10.6'
+min_misfit_var.long_name = 'Lowest misfit on any chain'
+
+
+ave_misfit_var = d.createVariable("misfit_average","f8",('point'))
+ave_misfit_var[:] = ave_misfit
+ave_misfit_var.aseg_gdf_format = 'E10.6'
+ave_misfit_var.long_name = 'Median misfit over all chains'
+
+# add number of rj samples as a scalar variable
+short_name = 'histogram_samples'
+n_hist_samples = np.sum(d['log10conductivity_histogram'][0], axis = 1)[0]
+rj_nsamples = d.createVariable(short_name,np.int)
+rj_nsamples[:] = n_hist_samples
+# Also make a attribute for ease of use
+d.setncattr(short_name, n_hist_samples)
+d.close()
+
+

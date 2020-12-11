@@ -136,12 +136,19 @@ def extract_rj_sounding(rj, det, point_index = 0):
     det_depth_top = det_dat['layer_top_depth'][point_ind_det].data
 
     det_doi = det_dat['depth_of_investigation'][point_ind_det].data
+    try:
+        misfit = rj_dat['misfit'][point_index].data
+    except IndexError:
+        misfit = None
+    try:
+        sample_no = np.arange(1, rj_dat.dimensions['convergence_sample'].size + 1)
+    except KeyError:
+        sample_no = None
 
-    misfit = rj_dat['misfit'][point_index].data
 
     burnin = rj_dat.nburnin
     nsamples = rj_dat.nsamples
-    sample_no = np.arange(1,rj_dat.dimensions['convergence_sample'].size + 1)
+
     nchains = rj_dat.nchains
     elevation = rj_dat['elevation'][point_index]
     # get line under new schema

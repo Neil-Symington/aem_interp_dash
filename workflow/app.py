@@ -4,6 +4,7 @@ import yaml
 import netCDF4
 import sys, os
 sys.path.append("../scripts")
+sys.path.append("/home/nsymington/PycharmProjects/garjmcmctdem_utils/scripts")
 from dash.exceptions import PreventUpdate
 import spatial_functions
 import aem_utils
@@ -22,6 +23,8 @@ import dash_html_components as html
 import dash_table
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+from matplotlib import cm
+import matplotlib
 import base64, io
 import gc
 
@@ -44,6 +47,7 @@ def profile(f):
         return res
     return profiling_wrapper
 
+#yaml_file = "workflow/interpretation_config.yaml"
 yaml_file = "interpretation_config.yaml"
 settings = yaml.safe_load(open(yaml_file))
 
@@ -53,9 +57,7 @@ root = interp_settings['data_directory']
 
 lines = interp_settings['lines']
 
-
 # Prepare AEM data
-
 em = aem_utils.AEM_data(name = AEM_settings['name'],
                         system_name = AEM_settings['system_name'],
                         netcdf_dataset = netCDF4.Dataset(os.path.join(root, AEM_settings['nc_path'])))
@@ -91,7 +93,8 @@ else:
 
 # loaad layer grids
 grid_file = os.path.join(root, det_inv_settings['layer_grid_path'])
-det.load_lci_layer_grids_from_pickle(grid_file)
+# Not enough density to plot grid
+#det.load_lci_layer_grids_from_pickle(grid_file)
 
 # Create polylines
 det.create_flightline_polylines(crs = crs['projected'])
@@ -104,11 +107,6 @@ rj = aem_utils.AEM_inversion(name = stochastic_inv_settings['inversion_name'],
                               inversion_type = 'stochastic',
                               netcdf_dataset = netCDF4.Dataset(os.path.join(root, stochastic_inv_settings['nc_path'])))
 
-## Estimate section size
-screen_pixel_width = 1920.  # complete estimate
-screen_pixel_height = 982.  # esimate
-section_width_fraction = 0.9
-section_width = screen_pixel_width * section_width_fraction
 
 if stochastic_inv_settings["grid_sections"]:
     ## TODO add path checking function
@@ -132,6 +130,15 @@ det.section_path = {}
 rj.section_path = {}
 rj.distance_along_line = {}
 
+# Define colour stretch for em data
+
+viridis = cm.get_cmap('viridis')
+lm_colours = [matplotlib.colors.rgb2hex(x) for x in viridis(np.linspace(0, 1, 18))]
+
+plasma = cm.get_cmap('plasma')
+hm_colours = [matplotlib.colors.rgb2hex(x) for x in plasma(np.linspace(0, 1, 23))]
+
+# Iterate through the lines
 for lin in lines:
     # Add path as attribute
     em.section_path[lin] = os.path.join(root, AEM_settings['gridding_params']['section_dir'],
@@ -146,9 +153,9 @@ for lin in lines:
     # get the coordinates
     line_coords = rj.coords[line_mask]
 
-    det_section_data = pickle2xarray(det.section_path[lin])
+    em_section_data = pickle2xarray(em.section_path[lin])
 
-    dists = spatial_functions.xy_2_var(det_section_data,
+    dists = spatial_functions.xy_2_var(em_section_data,
                                       line_coords,
                                       'grid_distances')
 
@@ -162,7 +169,7 @@ for lin in lines:
 
         rj_section_data = pickle2xarray(rj.section_path[lin])
 
-        rj_section_data['grid_distances'] = spatial_functions.scale_distance_along_line(det_section_data, rj_section_data)
+        rj_section_data['grid_distances'] = spatial_functions.scale_distance_along_line(em_section_data, rj_section_data)
         # Save xarray back to pickle file
 
         xarray2pickle(rj_section_data, rj.section_path[lin])
@@ -172,8 +179,6 @@ for lin in lines:
     det_section_data = None
     gc.collect()
 
-## Annoying hack!!
-rj.n_histogram_samples = np.sum(rj.data['log10conductivity_histogram'][0,0,:])
 
 def list2options(list):
     options = []
@@ -261,7 +266,7 @@ def dash_conductivity_section(section, line, vmin, vmax, cmap, xarr, pmap_kwargs
         elif section == "rj-p90":
             z = np.log10(xarr['conductivity_p90'])
         elif section == "rj-lpp":
-            z = xarr['interface_depth_histogram'] / rj.n_histogram_samples
+            z = xarr['interface_depth_histogram'] / rj.data.histogram_samples
             vmin = 0.01
             vmax = 0.8
             cmap = 'greys'
@@ -382,42 +387,40 @@ def dash_EM_section(line):
                              line=dict(color='black', width=1),
                              showlegend=False, hoverinfo='skip'),
                   row=2, col=1, )
-    # Add low moment data
-    colours = ['green', 'aquamarine', 'darkslategrey', 'lightseagreen',
-       'darkgrey', 'brown', 'rosybrown', 'white', 'greenyellow', 'khaki',
-       'mediumturquoise', 'paleturquoise', 'bisque', 'saddlebrown',
-       'chocolate', 'orchid', 'seashell', 'blue', 'burlywood',
-       'deepskyblue', 'yellowgreen', 'lightgrey', 'turquoise']
 
     lm_data = xarr['low_moment_Z-component_EM_data'].values
+    hm_data = xarr['high_moment_Z-component_EM_data'].values
     # Adaptive marker size
     size = 1200./lm_data.shape[0]
 
-    for j in range(lm_data.shape[1]):
-        label = "low-moment gate " + str(j+1)
-        fig.add_trace(go.Scatter(x=grid_distances,
-                                 y=lm_data[:,j],
-                                 mode = 'markers',
-                                 marker={
-                                         "color": colours[j],
-                                         "size": size
-                                         },
-                                 showlegend=False, hoverinfo='text',
-                                 hovertext = label),
-                      row=3, col=1, )
-    hm_data = xarr['high_moment_Z-component_EM_data'].values
-    for j in range(hm_data.shape[1]):
-        label = "high-moment gate " + str(j + 1)
-        fig.add_trace(go.Scatter(x=grid_distances,
-                                 y=hm_data[:, j],
-                                 mode = 'markers',
-                                 marker={
-                                         "color": colours[j],
-                                         "size": size
-                                         },
-                                 showlegend=False, hoverinfo='text',
-                                 hovertext = label),
-                      row=4, col=1, )
+    labels = np.tile(["low moment gate " + str(x) for x in range(1,19)], lm_data.shape[0])
+
+    fig.add_trace(go.Scatter(x=np.repeat(grid_distances, lm_data.shape[1]),
+                             y=lm_data.flatten(),
+                             mode='markers',
+                             marker={
+                                 "color": np.tile(lm_colours, lm_data.shape[0]),
+                                 "size": size
+                             },
+                             hoverinfo='text',
+                             hovertext=labels,
+                             showlegend=False),
+                  row=3, col=1, )
+
+    labels = np.tile(["high moment gate " + str(x) for x in range(1, 19)], lm_data.shape[1])
+
+    fig.add_trace(go.Scatter(x=np.repeat(grid_distances, hm_data.shape[1]),
+                             y=hm_data.flatten(),
+                             mode='markers',
+                             marker={
+                                 "color": np.tile(hm_colours, hm_data.shape[0]),
+                                 "size": size
+                             },
+                             hoverinfo='text',
+                             hovertext=labels,
+                             showlegend=False),
+                  row=4, col=1, )
+
     fig.update_yaxes(title_text="tx height (m)", row=1, col=1)
     fig.update_yaxes(title_text="PLNI", type="log", row=2, col=1)
     fig.update_yaxes(title_text="LMZ data (V/Am^4)", type="log", row=3, col=1)
@@ -446,7 +449,7 @@ def plot_section_points(fig, line, df_interp, xarr, select_mask):
         fig.add_trace(go.Scatter(x = interpx,
                         y = interpz,
                         mode = 'markers',
-                        hovertext = 'skip',#labels,
+                        hoverinfo = 'skip',#labels,
                         marker = {"symbol": markers,
                                   "color": colours,
                                   "size": markerSize
@@ -522,20 +525,20 @@ def flightline_map(line, vmin, vmax, layer):
 
     fig = go.Figure()
 
-    cond_grid = np.log10(det.layer_grids['Layer_{}'.format(layer)]['conductivity'])
+    #cond_grid = np.log10(det.layer_grids['Layer_{}'.format(layer)]['conductivity'])
 
-    x1, x2, y1, y2 = det.layer_grids['bounds']
-    n_y_cells, n_x_cells = cond_grid.shape
-    x = np.linspace(x1, x2, n_x_cells)
-    y = np.linspace(y2, y1, n_y_cells)
+    #x1, x2, y1, y2 = det.layer_grids['bounds']
+    #n_y_cells, n_x_cells = cond_grid.shape
+    #x = np.linspace(x1, x2, n_x_cells)
+    #y = np.linspace(y2, y1, n_y_cells)
 
-    fig.add_trace(go.Heatmap(z=cond_grid,
-                               zmin=np.log10(vmin),
-                               zmax=np.log10(vmax),
-                               x=x,
-                               y=y,
-                               colorscale="jet"
-                             ))
+    #fig.add_trace(go.Heatmap(z=cond_grid,
+    #                           zmin=np.log10(vmin),
+    #                           zmax=np.log10(vmax),
+    #                           x=x,
+    #                           y=y,
+    #                           colorscale="jet"
+    #                         ))
 
     for linestring, lineNo in zip(gdf_lines.geometry, gdf_lines.lineNumber):
 
@@ -559,7 +562,7 @@ def flightline_map(line, vmin, vmax, layer):
                                  scaleanchor = 'x',
                                  scaleratio = 1.),
                       xaxis=dict(range=[xmin, xmax]))
-    fig['data'][0]['showscale'] = False
+    #fig['data'][0]['showscale'] = False
     return fig
 
 def maintainExtent(fig, relayOut):
@@ -727,8 +730,8 @@ app.layout = html.Div([
                  ]),
         html.Div([dcc.Graph(
             id='section_plot',
-        )], style={'height': '600'}),
-        ]),
+        )], style={'height': '600',}),
+        ],style = {'marginTop': 20}),
     html.Div([html.Div(
         html.Div([
             dash_table.DataTable(id='interp_table',
@@ -790,14 +793,15 @@ app.layout = html.Div([
      Input('section_tabs', 'value'),
      Input("line_dropdown", 'value'),
      Input('vmin', 'value'),
-     Input('vmax', 'value')],
+     Input('vmax', 'value'),
+     Input('interp_table', "derived_virtual_selected_rows"),],
      [State('interp_table', 'data'),
       State("surface_dropdown", 'value'),
       State("section_plot", 'relayoutData'),
       State("interp_memory", 'data'),
       State("model_memory", "data"),
       State('pmap_store', 'data')])
-def update(clickData, previous_table, section, section_tab, line, vmin, vmax, current_table,
+def update(clickData, previous_table, section, section_tab, line, vmin, vmax, selected_rows, current_table,
                         surfaceName, relayOut,interpreted_points, model, pmap_store):
     trig_id = find_trigger()
 
@@ -809,6 +813,10 @@ def update(clickData, previous_table, section, section_tab, line, vmin, vmax, cu
 
     # Access the data from the store. The or is in case of None callback at initialisation
     interpreted_points = interpreted_points or df_interpreted_points.to_dict('records')
+
+    if selected_rows is None:
+        selected_rows = []
+
     # Guard against empty lists
     if len(interpreted_points) == 0:
         df = df_interpreted_points.copy()
@@ -879,17 +887,25 @@ def update(clickData, previous_table, section, section_tab, line, vmin, vmax, cu
             raise PreventUpdate
     
     elif trig_id == 'interp_table.data_previous':
+
         if previous_table is None:
             raise PreventUpdate
+        elif len(selected_rows) > 0:
+            raise PreventUpdate
+
         else:
             # Compare dataframes to find which rows have been removed
             fids = []
+
             for row in previous_table:
                 if row not in current_table:
                     fids.append(row['fiducial'])
                     # Remove from dataframe
             df = df[~df['fiducial'].isin(fids)]
+
     # Produce section plots
+    df_ss = df[df['SURVEY_LINE'] == line]
+
     if section_tab == 'conductivity_section':
         fig = dash_conductivity_section(section, line,
                                         vmin=vmin,
@@ -897,14 +913,21 @@ def update(clickData, previous_table, section, section_tab, line, vmin, vmax, cu
                                         cmap=section_kwargs['cmap'],
                                         xarr = xarr,
                                         pmap_kwargs = pmap_store)
+
+
+        # Check for selected rows which will be plotted differently
+        if len(selected_rows) > 0:
+            select_mask = np.where(np.isin(np.arange(0, len(df_ss)), selected_rows))[0]
+
+        else:
+            select_mask = []
+        # PLot section
+        if len(df_ss) > 0:
+            fig = plot_section_points(fig, line, df_ss, xarr, select_mask=select_mask)
+
     elif section_tab == 'data_section':
         fig = dash_EM_section(line)
-    # Subset
-    df_ss = df[df['SURVEY_LINE'] == line]
 
-    if len(df_ss) > 0 and section_tab == 'conductivity_section':
-        ## TODO add select mask
-        fig = plot_section_points(fig, line, df_ss, xarr, select_mask=[])
     # This prevents the section refreshing to its original view
     relayOut = relayOut or {}
     if trig_id != "line_dropdown.value" and len(relayOut) > 1:
@@ -962,7 +985,7 @@ def export_data_table(nclicks, value, interpreted_points):
     df_interp = pd.DataFrame(interpreted_points).infer_objects()
     if np.logical_and(nclicks > 0, value is not None):
         if os.path.exists(os.path.dirname(value)):
-            df_interp.reset_index(drop=True).to_csv(value)
+            df_interp.reset_index(drop=True).to_csv(value, index=False)
             return "Successfully exported to " + value
         else:
             return value + " is an invalid file path."
@@ -972,42 +995,30 @@ def export_data_table(nclicks, value, interpreted_points):
                Output("model_memory", "data"),
                Output("surface_table", "columns"),
                Output("surface_table", "data")],
-              [Input('template-upload', 'contents')],
+              [Input('surface_table', 'data_timestamp'),
+               Input('template-upload', 'contents')],
               [State('template-upload', 'filename'),
                State("interp_memory", 'data'),
-               State("model_memory", "data")])
-def update_output(contents, filename, interpreted_points, model_store):
+               State("model_memory", "data"),
+               State('surface_table', 'data')])
+def update_surface(timestamp, contents, filename, interpreted_points, model_store, model_table):
+    trig_id = find_trigger()
+
     model_store = model_store or df_model_template.to_dict("records")
-    if contents is None:
-        df_model = pd.DataFrame(model_store).infer_objects()
-        return df_model['SurfaceName'][0], list2options(df_model['SurfaceName'].values), model_store, [{"name": i, "id": i} for i in df_model.columns], model_store
-
+    # Update the model store
+    if trig_id == "surface_table.data_timestamp":
+        df_model = pd.DataFrame(model_table).infer_objects()
     else:
-        df_model = parse_contents(contents, filename)
-        model_store = df_model.to_dict('records')
+        if contents is None:
+            df_model = pd.DataFrame(model_store).infer_objects()
+        else:
+            df_model = parse_contents(contents, filename)
+            valid = True#check_validity(df_model)
+            ##TODO write a file validity function with a schema for eggs database
+            if not valid:
+                raise Exception("Input file is not valid")
 
-        valid = True#check_validity(df_model)
-        ##TODO write a file validity function with a schema for eggs database
-        if not valid:
-            raise Exception("Input file is not valid")
+    model_store = df_model.to_dict('records')
+    return df_model['SurfaceName'][0], list2options(df_model['SurfaceName'].values), model_store, [{"name": i, "id": i} for i in df_model.columns], model_store
 
-        return df_model['SurfaceName'][0], list2options(df_model['SurfaceName'].values), model_store, [{"name": i, "id": i} for i in df_model.columns], model_store
-
-
-@app.callback(Output("message", "children"),
-              [Input("section_plot", 'figure'),
-               Input("section_plot", 'relayoutData'),
-               Input('section_tabs', 'value')])
-def output_messages(fig, relayOut, section_tab):
-    if section_tab == 'data_section':
-        return ""
-    else:
-        xdist = fig['layout']['xaxis2']['range'][1] - fig['layout']['xaxis2']['range'][0]
-        ydist = fig['layout']['yaxis2']['range'][1] - fig['layout']['yaxis2']['range'][0]
-        # Below is an estimate based on typical browser size
-
-        section_height = 400. * (fig['layout']['yaxis2']['domain'][1] - fig['layout']['yaxis2']['domain'][0])
-        vex = np.round((xdist/ydist) * (section_height/section_width),1)
-        return "Section vertical exageration is approximately {}".format(vex)
-
-app.run_server(debug = True)
+app.run_server(debug = False)

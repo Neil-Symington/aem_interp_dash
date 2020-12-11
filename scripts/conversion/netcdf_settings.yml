@@ -48,8 +48,10 @@ field_definitions:
     dimensions: depth}
   nlayers_histogram: {long_name: Histogram of number of layers for rj-MCMC model ensemble,
     short_name: nlayers_histogram, units: counts, dimensions: layer}
-  misfit: {long_name: Unnormalised chi-squared misfit, short_name: misfit,
-    dimensions: [chain, convergence_sample]}
+  #ensemble_residuals: { long_name: Data residual for our model ensemble,
+  #                      short_name: ensemble_residuals, dimensions: ensemble_sample }
+  #misfit: {long_name: Unnormalised chi-squared misfit, short_name: misfit,
+  #  dimensions: [chain, convergence_sample]}
   mean_model: {long_name: Conductivity of mean model, short_name: conductivity_mean,
     units: 'log10 S/m', dimensions: depth}
   mode_model: {long_name: Conductivity of mode model, short_name: conductivity_mode,
@@ -71,10 +73,12 @@ dimension_fields:
   depth: {dimension_name: 'depth'}
   value: {dimension_name: 'conductivity_cells'}
   layer: {dimension_name: 'layer'}
-  chain: {dimension_name: 'chain'}
-  convergence_sample: {dimension_name: convergence_sample}
+  #ensemble_sample: {dimension_name: 'ensemble_sample'}
+  #chain: {dimension_name: chain}
+
+  #convergence_sample: {dimension_name: convergence_sample}
   line: {dimension_name: 'line'}
 
 crs:
-  projected: {epsg: 28353}
+  projected: {epsg: 28355}
   geographic: {epsg: 7844}
