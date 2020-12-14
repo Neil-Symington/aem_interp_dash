@@ -370,7 +370,6 @@ def xy_2_var(xarray, xy, var, max_distance = 100.):
                                   xarray.northing.values))
 
     d, i = nearest_neighbours(xy, utm_coords, max_distance=max_distance)
-
     if np.isnan(d).all():
         return None
 

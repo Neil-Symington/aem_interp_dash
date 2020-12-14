@@ -30,6 +30,8 @@ AEM_settings:
                                  'pitch', 'tx_height_measured', 'powerline_noise', 'gps_height' ],
                     section_dir: "section_data_EM_grid"}
 
+
+
 deterministic_inversion_settings:
   # deterministic inversion
   inversion_name: "lci"
@@ -52,13 +54,21 @@ stochastic_inversion_settings:
   gridding_params: {grid_vars: [ 'conductivity_p10', 'conductivity_p50', 'conductivity_p90', 'interface_depth_histogram',
                                  'misfit_lowest', 'misfit_average' ], xres: 200., yres: 2.,
                     section_dir: "section_data_rj"}
+  uncertainty: {estimate: True, # Will estimate depth uncertainty using full width half maximum method if true
+                snap_interpretation: True, # will snap the interpretation to the most likely depth within this window if True
+                snap_window: 20., # The size of the search window for uncertainty interpretation
+                maximum_distance: 200.} # Maximum horizontal distance between pmap and interpretation for uncertainty estimation
 
 conductivity_visualisation_settings:
-  'vmin': 0.01 # Starting minimum conductivity for colourstretch
-  'vmax': 1. # Starting maximum conductivity for colourstretch
-  'cmap': 'jet' # starting colourstretch
-  'section_plot': 'lci'
-  'colourbar_label': 'Conductivity (S/m)'
+  vmin: 0.01 # Starting minimum conductivity for colourstretch
+  vmax: 1. # Starting maximum conductivity for colourstretch
+  cmap: 'jet' # starting colourstretch
+  section_plot: 'lci'
+  colourbar_label: 'Conductivity (S/m)'
+
+borehole_settings:
+  include: True
+  borehole_file: "Galilee_strat_proximal_to_AEM.csv"
 
 crs:
   projected: 'EPSG:28355'

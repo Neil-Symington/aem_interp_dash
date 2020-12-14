@@ -1,0 +1,2 @@
+SurfaceName,Type,BoundaryNm,BoundConf,BasisOfInt,OvrConf,OvrStrtUnt,OvrStrtCod,UndStrtUnt,UndStrtCod,WithinType,WithinStrt,WithinStNo,WithinConf,InterpRef,Comment,Operator,Colour,Marker,MarkerSize
+BaseCenozoic,BASE_Cenozoic_TOP_Mesozoic,Top- Clematis interface,M,IAEM,M,Cenozoic Regolith,76541,Clematis Group,4137, , , , , , ,KP Tan,black,circle,8

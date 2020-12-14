@@ -13,6 +13,8 @@ import plotting_functions as plots
 from misc_utils import pickle2xarray, xarray2pickle
 import warnings
 import pandas as pd
+import geopandas as gpd
+from shapely import wkt
 warnings.filterwarnings('ignore')
 # Dash dependencies
 import plotly.express as px
@@ -27,7 +29,7 @@ from matplotlib import cm
 import matplotlib
 import base64, io
 import gc
-
+import math
 
 #profiling
 import time
@@ -51,7 +53,10 @@ def profile(f):
 yaml_file = "interpretation_config.yaml"
 settings = yaml.safe_load(open(yaml_file))
 
-interp_settings, model_settings, AEM_settings, det_inv_settings, stochastic_inv_settings, section_kwargs, crs = settings.values()
+interp_settings, model_settings, AEM_settings, det_inv_settings, stochastic_inv_settings, section_kwargs,\
+borehole_settings, crs = settings.values()
+
+uncertainty_settings = stochastic_inv_settings['uncertainty']
 
 root = interp_settings['data_directory']
 
@@ -121,6 +126,15 @@ if stochastic_inv_settings["grid_sections"]:
 else:
     pass
 
+# Prepare borehole data
+if borehole_settings['include']:
+    infile = os.path.join(root, borehole_settings['borehole_file'])
+    ## TODO add a chacking function
+    cols = ['ENO', 'WELL', 'TOP_AHD_M', 'BASE_AHD_M', 'GA_UNIT', 'TOP_MD_M', 'BASE_MD_M', 'fiducial', 'line', 'geometry']
+    df_bh = pd.read_csv(infile)[cols]
+    geom = [wkt.loads(s) for s in df_bh['geometry']]
+    df_bh['easting'] = [coord.x for coord in geom]
+    df_bh['northing'] = [coord.y for coord in geom]
 
 # To reduce the amount of data that is stored in memory the section data are stored as xarrays in pickle files
 #  We will only bring them into memory as needed. Here we point the inversions to their pickle files
@@ -129,14 +143,9 @@ em.section_path = {}
 det.section_path = {}
 rj.section_path = {}
 rj.distance_along_line = {}
+df_bh['distance_along_line'] = np.nan
+df_bh['dummy'] = None #Dummy column for plotting
 
-# Define colour stretch for em data
-
-viridis = cm.get_cmap('viridis')
-lm_colours = [matplotlib.colors.rgb2hex(x) for x in viridis(np.linspace(0, 1, 18))]
-
-plasma = cm.get_cmap('plasma')
-hm_colours = [matplotlib.colors.rgb2hex(x) for x in plasma(np.linspace(0, 1, 23))]
 
 # Iterate through the lines
 for lin in lines:
@@ -174,11 +183,28 @@ for lin in lines:
 
         xarray2pickle(rj_section_data, rj.section_path[lin])
 
+    #Calculate distance along the line for the boreholes
+    line_mask = df_bh['line'] == lin
+    df_bh_ss = df_bh[line_mask]
+    if len(df_bh_ss) > 0:
+        bh_coords = df_bh_ss[['easting', 'northing']].values
+        dists_ = spatial_functions.xy_2_var(em_section_data,
+                                           bh_coords,
+                                           'grid_distances',
+                                            max_distance = 500.)
+        df_bh.at[df_bh_ss.index, 'distance_along_line'] = dists_
     # Remove from memory
     rj_section_data = None
     det_section_data = None
     gc.collect()
 
+# Define colour stretch for em data
+
+viridis = cm.get_cmap('viridis')
+lm_colours = [matplotlib.colors.rgb2hex(x) for x in viridis(np.linspace(0, 1, 18))]
+
+plasma = cm.get_cmap('plasma')
+hm_colours = [matplotlib.colors.rgb2hex(x) for x in plasma(np.linspace(0, 1, 23))]
 
 def list2options(list):
     options = []
@@ -245,9 +271,9 @@ def interp2scatter(line, xarr, interpreted_points, easting_col = 'X',
 def dash_conductivity_section(section, line, vmin, vmax, cmap, xarr, pmap_kwargs):
 
     # Create subplots
-    fig = make_subplots(rows=3, cols = 1, shared_xaxes=True,
-                        vertical_spacing=0.05,
-                        row_heights=[0.2, 0.75, 0.05])
+    fig = make_subplots(rows=4, cols = 1, shared_xaxes=True,
+                        vertical_spacing=0.01,
+                        row_heights=[0.2, 0.05, 0.70, 0.05])
     vmin = np.log10(vmin)
     vmax = np.log10(vmax)
     logplot = True
@@ -308,7 +334,7 @@ def dash_conductivity_section(section, line, vmin, vmax, cmap, xarr, pmap_kwargs
                             hoverinfo="none",
                              name="section"
                             ),
-                      row = 2, col = 1
+                      row = 3, col = 1
         )
 
 
@@ -317,7 +343,7 @@ def dash_conductivity_section(section, line, vmin, vmax, cmap, xarr, pmap_kwargs
                              y = elevation,
                              line=dict(color='black', width=3),
                              showlegend = False, hoverinfo = 'skip'),
-                  row = 2, col = 1,)
+                  row = 3, col = 1,)
 
     # Create a list of easting and northing (strings) for label
     labels = []
@@ -330,7 +356,7 @@ def dash_conductivity_section(section, line, vmin, vmax, cmap, xarr, pmap_kwargs
                              hovertext = labels,
                              showlegend=False,
                              name = "coordinates"),
-                  row=3, col=1, )
+                  row=4, col=1, )
 
     df_rj_sites = rj.distance_along_line[line]
 
@@ -348,9 +374,9 @@ def dash_conductivity_section(section, line, vmin, vmax, cmap, xarr, pmap_kwargs
         except IndexError:
             pass
     site_distances = df_rj_sites['distance_along_line'].values
-    site_plot_elevation = 20. + np.max(xarr['elevation'].values) * np.ones(shape=len(df_rj_sites), dtype=np.float)
+    #site_plot_elevation = 20. + np.max(xarr['elevation'].values) * np.ones(shape=len(df_rj_sites), dtype=np.float)
     fig.add_trace(go.Scatter(x=site_distances,
-                             y=site_plot_elevation,
+                             y=np.zeros(shape = site_distances.shape),
                              mode='markers',
                              marker_symbol = symbols,
                              marker_color = colours,
@@ -360,8 +386,9 @@ def dash_conductivity_section(section, line, vmin, vmax, cmap, xarr, pmap_kwargs
                   row=2, col=1)
     # Reverse y-axis
     fig.update_yaxes(autorange=True, row = 1, col = 1, title_text = "data residual")
-    fig.update_yaxes(autorange=True, row=2, col=1, title_text="elevation (mAHD)")
-    fig.update_yaxes(visible= False, showticklabels= False, row=3,col=1)
+    fig.update_yaxes(autorange=True, row=3, col=1, title_text="elevation (mAHD)")
+    fig.update_yaxes(visible= False, showticklabels= False, row=2,col=1)
+    fig.update_yaxes(visible=False, showticklabels=False, row=4, col=1)
 
     fig.update_xaxes(title_text= "distance along line " + " (m)", row=3, col=1)
     fig['layout'].update({'height': 600})
@@ -376,50 +403,55 @@ def dash_EM_section(line):
     # get data
     xarr = pickle2xarray(em.section_path[line])
     grid_distances = xarr['grid_distances'].values
+    # Subset based on line length to avoid long rendering for plots
+    ss = np.int(math.ceil(np.max(grid_distances)/10000.))
+    grid_distances = grid_distances[::ss]
+    plni = xarr['powerline_noise'].values[::ss]
+    tx_height = xarr['tx_height_measured'].values[::ss]
+    lm_data = xarr['low_moment_Z-component_EM_data'].values[::ss]
+    hm_data = xarr['high_moment_Z-component_EM_data'].values[::ss]
 
     fig.add_trace(go.Scatter(x=grid_distances,
-                             y=xarr['tx_height_measured'].values,
+                             y=tx_height,
                              line=dict(color='black', width=1),
                              showlegend=False, hoverinfo='skip'),
                   row=1, col=1, )
     fig.add_trace(go.Scatter(x=grid_distances,
-                             y=xarr['powerline_noise'].values,
+                             y=plni,
                              line=dict(color='black', width=1),
                              showlegend=False, hoverinfo='skip'),
                   row=2, col=1, )
 
-    lm_data = xarr['low_moment_Z-component_EM_data'].values
-    hm_data = xarr['high_moment_Z-component_EM_data'].values
+
     # Adaptive marker size
-    size = 1200./lm_data.shape[0]
+    #size = 1200./lm_data.shape[0]
 
-    labels = np.tile(["low moment gate " + str(x) for x in range(1,19)], lm_data.shape[0])
+    # prepare the line data
+    for j in range(lm_data.shape[1]):
+        labels = ["low moment gate " + str(j)]
+        fig.add_trace(go.Scatter(x=grid_distances,
+                                 y=lm_data[:,j],
+                                 mode='lines',
+                                 line={
+                                     "color": lm_colours[j]
+                                 },
+                                 hovertext=labels,
+                                 showlegend=False),
+                      row=3, col=1, )
 
-    fig.add_trace(go.Scatter(x=np.repeat(grid_distances, lm_data.shape[1]),
-                             y=lm_data.flatten(),
-                             mode='markers',
-                             marker={
-                                 "color": np.tile(lm_colours, lm_data.shape[0]),
-                                 "size": size
-                             },
-                             hoverinfo='text',
-                             hovertext=labels,
-                             showlegend=False),
-                  row=3, col=1, )
+    # prepare the line data
+    for j in range(hm_data.shape[1]):
+        labels = ["low moment gate " + str(j)]
+        fig.add_trace(go.Scatter(x=grid_distances,
+                                 y=hm_data[:, j],
+                                 mode='lines',
+                                 line={
+                                     "color": hm_colours[j]
+                                 },
+                                 hovertext=labels,
+                                 showlegend=False),
+                      row=4, col=1, )
 
-    labels = np.tile(["high moment gate " + str(x) for x in range(1, 19)], lm_data.shape[1])
-
-    fig.add_trace(go.Scatter(x=np.repeat(grid_distances, hm_data.shape[1]),
-                             y=hm_data.flatten(),
-                             mode='markers',
-                             marker={
-                                 "color": np.tile(hm_colours, hm_data.shape[0]),
-                                 "size": size
-                             },
-                             hoverinfo='text',
-                             hovertext=labels,
-                             showlegend=False),
-                  row=4, col=1, )
 
     fig.update_yaxes(title_text="tx height (m)", row=1, col=1)
     fig.update_yaxes(title_text="PLNI", type="log", row=2, col=1)
@@ -444,7 +476,7 @@ def plot_section_points(fig, line, df_interp, xarr, select_mask):
         # To make selected points obvious
         if len(select_mask) > 0:
             for idx in select_mask:
-                markerSize[idx] += 5.
+                markerSize[idx] += 10.
 
         fig.add_trace(go.Scatter(x = interpx,
                         y = interpz,
@@ -456,8 +488,8 @@ def plot_section_points(fig, line, df_interp, xarr, select_mask):
                                   },
                         name = 'interpretation',
                         showlegend = True,
-                                 xaxis= 'x2',
-                                 yaxis='y2')
+                                 xaxis= 'x3',
+                                 yaxis='y3')
                       )
         fig.update_layout()
     return fig
@@ -555,31 +587,128 @@ def flightline_map(line, vmin, vmax, layer):
                                          "width": 2.},
                                  name = str(lineNo)))
 
-    xmin, xmax = np.min(rj.data['easting'][:]) - 500., np.max(rj.data['easting'][:]) + 500.
-    ymin, ymax = np.min(rj.data['northing'][:]) - 500., np.max(rj.data['northing'][:]) + 500.
+    xmin, xmax = np.min(rj.data['easting'][:]) - 5000., np.max(rj.data['easting'][:]) + 5000.
+    ymin, ymax = np.min(rj.data['northing'][:]) - 5000., np.max(rj.data['northing'][:]) + 5000.
 
     fig.update_layout(yaxis=dict(range=[ymin, ymax],
                                  scaleanchor = 'x',
                                  scaleratio = 1.),
                       xaxis=dict(range=[xmin, xmax]))
+    # PLot the boreholes
+    if borehole_settings['include']:
+        grouped = df_bh.groupby('WELL').mean()
+        coords = grouped[['easting', 'northing']].values
+        wells = grouped.index.values
+        fig.add_trace(go.Scatter(x = coords[:,0],
+                                   y=coords[:,1],
+                                  mode = 'markers',
+                                   marker={"color": 'blue',
+                                         "size": 4.
+                                         },
+                                   hovertext=wells))
     #fig['data'][0]['showscale'] = False
-    return fig
 
-def maintainExtent(fig, relayOut):
-    # Function for assigning the figures extent to the previous extent
-    # https://community.plotly.com/t/how-to-save-current-zoom-and-position-after-filtering/5310/2
-
-    for figkey in ["xaxis", "xaxis2", "xaxis3", "yaxis2"]:
-        ro_key = ".".join([figkey, "range[{}]"])
-        try:
-            fig['layout'][figkey]['range'] = [relayOut[ro_key.format(0)],
-                                              relayOut[ro_key.format(1)]]
-        except KeyError:
-            pass
-    fig['layout']['yaxis2']['autorange']=False
     return fig
 
 
+
+#Define key functions
+def full_width_half_max(interpreted_depth, depth_array, count_array):
+    """
+    Function for calculating the interval that is >0.5 times the probability
+    Parameters
+    ----------
+    interpreted_depth: float of the interpreted depth
+    depth_array: array of depths
+    count_array: array of counts. nb this is a proxy for probabilities
+
+    Returns
+    -------
+    tuple of indices denoting the top and bottom of the full width half max
+    """
+
+    idx_upper = -1
+    idx_lower = -1
+
+    # Find the maximum depth index
+    max_idx = np.argmin(np.abs(depth_array - interpreted_depth))
+
+    # get the maximum probability
+    fmax = count_array[max_idx]
+
+    # Snap to maximum likelihood depth
+    if uncertainty_settings['snap_interpretation']:
+        # find the search window
+        window = int(np.ceil((uncertainty_settings['snap_window']/2.)/2))
+
+        window_slice = [max_idx - window, max_idx + window]
+        # to ensure no index errors
+        if window_slice[0] < 0:
+            window_slice[0] = 0
+        if window_slice[1] >= len(count_array):
+            window_slice[1] = len(count_array)
+
+    # positive direction
+
+    for idx in np.arange(max_idx, depth_array.shape[0]):
+        if count_array[idx] <= fmax/2.:
+            idx_upper = idx
+            break
+    # negative direction
+    for idx in np.arange(max_idx, -1, -1):
+        if count_array[idx] <= fmax/2.:
+            idx_lower = idx
+            break
+    # Now calculate the width
+    return (idx_lower, max_idx, idx_upper)
+
+def uncertainty_from_pmap(point_idx, interpreted_depth):
+    """
+    Fucntion for estimating uncertainty from pmap and depth estimate
+    Parameters
+    ----------
+    point_idx: int
+        rj netcdf point index
+    interpreted_depth: float
+        depth of user interpretation
+    Returns
+    -------
+    Uncertainty: float
+    """
+
+
+    depth_array = rj.data['layer_centre_depth'][:]
+    count_array = rj.data['interface_depth_histogram'][point_idx]
+    [lower_ind, max_ind, upper_ind] = full_width_half_max(interpreted_depth, depth_array, count_array)
+
+    if np.logical_and(lower_ind != -1, upper_ind != -1):
+        if uncertainty_settings['snap_interpretation']:
+            # Snap to maximum depth
+            interpreted_depth = depth_array[max_ind]
+        uncertainty = depth_array[upper_ind] - depth_array[lower_ind]
+        return interpreted_depth, uncertainty
+    else:
+        return interpreted_depth, np.nan
+
+def plot_borehole_segments(fig, df):
+    # Createobjects for plotting
+    y = list(df[['TOP_AHD_M', 'BASE_AHD_M', 'dummy']].values.flatten())
+    x = list(df[['distance_along_line', 'distance_along_line', 'dummy']].values.flatten())
+    labels = list(df[['GA_UNIT', 'GA_UNIT', 'dummy']].values.flatten())
+    fig.add_trace(go.Scatter(x=x,
+                             y=y,
+                             mode='lines+markers',
+                             line={
+                                 "color": 'grey',
+                                 'width': 3.,
+
+                             },
+                             marker_size = 3.,
+                             hovertext=labels,
+                             name = 'boreholes',
+                             showlegend=False),
+                  row=3, col=1, )
+    return fig
 
 stylesheet = "https://codepen.io/chriddyp/pen/bWLwgP.css"
 app = dash.Dash(__name__, external_stylesheets=[stylesheet])
@@ -797,12 +926,11 @@ app.layout = html.Div([
      Input('interp_table', "derived_virtual_selected_rows"),],
      [State('interp_table', 'data'),
       State("surface_dropdown", 'value'),
-      State("section_plot", 'relayoutData'),
       State("interp_memory", 'data'),
       State("model_memory", "data"),
       State('pmap_store', 'data')])
-def update(clickData, previous_table, section, section_tab, line, vmin, vmax, selected_rows, current_table,
-                        surfaceName, relayOut,interpreted_points, model, pmap_store):
+def update_many(clickData, previous_table, section, section_tab, line, vmin, vmax, selected_rows, current_table,
+                        surfaceName, interpreted_points, model, pmap_store):
     trig_id = find_trigger()
 
     #a bunch of "do nothing" cases here - before doing any data transformations to save
@@ -844,7 +972,25 @@ def update(clickData, previous_table, section, section_tab, line, vmin, vmax, se
             northing = xarr['northing'].values[min_idx]
             elevation = xarr['elevation'].values[min_idx]
             depth = elevation - eventydata
-            fid = xy2fid(easting, northing, det)
+
+            # Estimate uncertainty
+            if section == "lci":
+                fid = xy2fid(easting, northing, det)
+                uncertainty = np.nan
+            else:
+                # Find the nearest pmap
+                distances = np.abs(rj.distance_along_line[line]['distance_along_line'] - eventxdata)
+
+                pmap = rj.distance_along_line[line].iloc[np.argmin(distances)]
+                fid = pmap['fiducial']
+                pmap_index = rj.distance_along_line[line].index[np.argmin(distances)]
+
+                if uncertainty_settings and np.min(distances) < uncertainty_settings['maximum_distance']:
+                    # Calculate uncertainty
+                    depth, uncertainty = uncertainty_from_pmap(pmap_index, depth)
+                else:
+                    uncertainty = np.nan
+
 
             # append to the surface object interpreted points
             interp = {'fiducial': fid,
@@ -854,7 +1000,7 @@ def update(clickData, previous_table, section, section_tab, line, vmin, vmax, se
                       'DEPTH': np.round(depth, 0),
                       'ELEVATION': np.round(eventydata,1),
                       'DEM': np.round(elevation,1),
-                      'UNCERTAINTY': np.nan,  # TODO implement FULL WIDTH HALF MAXIMUM
+                      'UNCERTAINTY': uncertainty,
                       'Type': row.Type,
                       'BoundaryNm': row.SurfaceName,
                       'BoundConf': row.BoundConf,
@@ -924,14 +1070,18 @@ def update(clickData, previous_table, section, section_tab, line, vmin, vmax, se
         # PLot section
         if len(df_ss) > 0:
             fig = plot_section_points(fig, line, df_ss, xarr, select_mask=select_mask)
+        # Now plot boreholes
+        df_bh_ss = df_bh[df_bh['line'] == line]
+        if len(df_bh_ss) > 0:
+            # plot the boreholes as segments
+            fig = plot_borehole_segments(fig, df_bh_ss)
+
+
+        fig['layout'].update({'uirevision': line})
 
     elif section_tab == 'data_section':
         fig = dash_EM_section(line)
 
-    # This prevents the section refreshing to its original view
-    relayOut = relayOut or {}
-    if trig_id != "line_dropdown.value" and len(relayOut) > 1:
-        fig = maintainExtent(fig, relayOut)
 
     return df.to_dict('records'), fig, df_ss.to_dict('records'), pmap_store
 
