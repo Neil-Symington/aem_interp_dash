@@ -1,0 +1,9 @@
+SurfaceName,Type,BoundaryNm,BoundConf,BasisOfInt,OvrConf,OvrStrtUnt,OvrStrtCod,UndStrtUnt,UndStrtCod,WithinType,WithinStrt,WithinStNo,WithinConf,InterpRef,Comment,Operator,Colour,Marker,MarkerSize
+Cenozoic-Bandanna,BASE_Cenozoic_TOP_Paleozoic,Top- Bandana interface,M,IAEM,M,Cenozoic Regolith,76541,Bandanna Formation,1032, , , , , , ,Neil Symington,#FFE69B,circle,4
+Cenozoic-Rewan,BASE_Cenozoic_TOP_Mesozoic,Top- Rewan interface,M,IAEM,M,Cenozoic Regolith,76541,Rewan Group,16054, , , , , , ,Neil Symington,#FFFAC3,cross,4
+Cenozoic-Clematis,BASE_Cenozoic_TOP_Mesozoic,Top- Clematis interface,M,IAEM,M,Cenozoic Regolith,76541,Clematis Group,4137, , , , , , ,Neil Symington,#FFFAC4,asterisk,4
+Cenozoic-RollingDowns,BASE_Cenozoic_TOP_Mesozoic,Top- RollingDowns interface,M,IAEM,M,Cenozoic Regolith,76541,Rolling Downs,16267, , , , , , ,Neil Symington,#FFFAC4,asterisk,4
+Dunda-Rewan,INTRA_Mesozoic,Top- Rewan interface,M,IAEM,M,Dunda Beds,5808,Precipice Sandstone,15540,,, , , , ,Neil Symington,#CDFFFF,x,10
+Moolayember-Clematis,INTRA_Mesozoic,Top-Clematis interface,M,IAEM,M,Moolayember Formation,12187,Clematis Group,4137,,,,,,,Neil Symington,#CDFFFF,pentagon,10
+Clematis-Rewan,INTRA_Mesozoic,Top-Rewan interface,M,IAEM,M,Clematis Group,4137,Rewan Group,16054,,,,,,,Neil Symington,#CDFFFF,triangle,10
+Mackunda-Allaru,INTRA_Paleozoic,Top-Allaru interface,M,IAEM,M,Mackunda Formation,10952,Allaru Mudstone,291,,Rolling Downs,16267,H,,,Neil Symington,#64FF64,circle,6
