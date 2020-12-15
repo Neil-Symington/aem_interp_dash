@@ -26,8 +26,8 @@ Utility functions for dealing with netcdf data
 
 import netCDF4
 import numpy as np
-import spatial_functions
-from misc_utils import pickle2xarray
+from garjmcmctdem_utils import spatial_functions
+from garjmcmctdem_utils.misc_utils import pickle2xarray
 import pandas as pd
 
 def object2array(variable, dtype):
@@ -69,7 +69,6 @@ def get_lines(dataset, line_numbers, variables):
     # Chekc netcdf dataset
     if not dataset.__class__ == netCDF4._netCDF4.Dataset:
         raise ValueError("Input datafile is not netCDF4 format")
-        return None
 
     # Iterate through lines and get the point indices
     for line in line_numbers:

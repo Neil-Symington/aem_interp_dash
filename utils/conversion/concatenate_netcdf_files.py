@@ -18,7 +18,7 @@
 
 """
 A script for compiling individual conductivity probability maps netcdf files
-that are output by the garjmcmctdem inversion code into a single netcdf file.
+that are output by the garjmcmctdem_utils inversion code into a single netcdf file.
 
 ## N.B this currently cannot deal with compiling files with varying array lengths.
 For example if the user changed the number of layers, samples etc

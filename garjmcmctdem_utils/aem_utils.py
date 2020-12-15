@@ -24,11 +24,9 @@ Code for creating AEM inversion and data objects
 
 '''
 import pickle
-import h5py
 import numpy as np
-import spatial_functions
-from netcdf_utils import get_lines, testNetCDFDataset, get_lookup_mask
-import misc_utils
+from garjmcmctdem_utils import spatial_functions, misc_utils
+from garjmcmctdem_utils.netcdf_utils import get_lines, testNetCDFDataset, get_lookup_mask
 import gc, glob, os
 from shapely.geometry import LineString
 import geopandas as gpd

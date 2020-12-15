@@ -16,7 +16,6 @@
 #    limitations under the License.
 #===============================
 from collections import Sequence
-import h5py
 import numpy as np
 import xarray as xr
 import pickle
@@ -37,15 +36,6 @@ def check_list_arg(object):
         return object
     else:
         return [object]
-
-def dict_to_hdf5(fname, dictionary):
-    """
-    Save a dictionary to hdf5
-    """
-    f = h5py.File(fname, "w")
-    for key in dictionary.keys():
-        dset = f.create_dataset(key, data=dictionary[key])
-    f.close()
 
 def extract_hdf5_data(file, grid_vars):
     """Short summary.

@@ -2,15 +2,11 @@
 import numpy as np
 import yaml
 import netCDF4
-import sys, os
-sys.path.append("../scripts")
-sys.path.append("/home/nsymington/PycharmProjects/garjmcmctdem_utils/scripts")
+import os
 from dash.exceptions import PreventUpdate
-import spatial_functions
-import aem_utils
-import netcdf_utils
-import plotting_functions as plots
-from misc_utils import pickle2xarray, xarray2pickle
+from garjmcmctdem_utils import spatial_functions, aem_utils, netcdf_utils
+from garjmcmctdem_utils import plotting_functions as plots
+from garjmcmctdem_utils.misc_utils import pickle2xarray, xarray2pickle
 import warnings
 import pandas as pd
 import geopandas as gpd
@@ -561,7 +557,7 @@ def dash_pmap_plot(point_index):
                                  scaleratio = 100.))
     return fig
 
-def flightline_map(line, vmin, vmax, layer):
+def flightline_map(line, vmin, vmax, ):#layer):
 
     fig = go.Figure()
 
@@ -726,6 +722,11 @@ def plot_borehole_segments(fig, df):
 stylesheet = "https://codepen.io/chriddyp/pen/bWLwgP.css"
 app = dash.Dash(__name__, external_stylesheets=[stylesheet])
 
+colours = {
+    'background': '#111111',
+    'text': '#7FDBFF'
+}
+
 # To do add some check in here
 df_model_template = pd.read_csv(model_settings['templateFile'])
 
@@ -802,13 +803,13 @@ app.layout = html.Div([
                                             options=[
                                                     {'label': 'laterally constrained inversion',
                                                      'value': 'lci'},
-                                                    {'label': 'garjmcmctdem - p50',
+                                                    {'label': 'garjmcmctdem_utils - p50',
                                                      'value': 'rj-p50'},
-                                                    {'label': 'garjmcmctdem - p10',
+                                                    {'label': 'garjmcmctdem_utils - p10',
                                                      'value': 'rj-p10'},
-                                                    {'label': 'garjmcmctdem - p90',
+                                                    {'label': 'garjmcmctdem_utils - p90',
                                                      'value': 'rj-p90'},
-                                                    {'label': 'garjmcmctdem - layer probability',
+                                                    {'label': 'garjmcmctdem_utils - layer probability',
                                                      'value': 'rj-lpp'}],
                                             value="lci"),
 
@@ -835,7 +836,7 @@ app.layout = html.Div([
                                             row_selectable=False,
                                             row_deletable=False,
                                               style_table={
-                                                  'maxHeight': '400px',
+                                                  'maxHeight': '100px',
                                                   'overflowY': 'scroll',
                                                   'maxWidth': '500px',
                                                   'overflowX': 'scroll'}
@@ -849,10 +850,10 @@ app.layout = html.Div([
                                     id="vmax", type="number",
                                     min=0.001, max=10, value = section_settings['vmax'])],
                          className='row'),
-                         html.Div(["AEM layer grid: ", dcc.Input(
-                                    id="layerGrid", type="number",
-                                    min=1, max=30, value = 1, step = 1)],
-                         className='row'),
+                         #html.Div(["AEM layer grid: ", dcc.Input(
+                         #           id="layerGrid", type="number",
+                         #           min=1, max=30, value = 1, step = 1)],
+                         #className='row'),
                     ],
                     className = "three columns"),
                 html.Div([
@@ -872,8 +873,8 @@ app.layout = html.Div([
                  ]),
         html.Div([dcc.Graph(
             id='section_plot',
-        )], style={'height': '600',}),
-        ],style = {'marginTop': 20}),
+        )], style={'height': '600'}),
+        ],style = {'marginTop': 20, 'backgroundColor': colours['background'], 'color': colours['text']}),
     html.Div([html.Div(
         html.Div([
             dash_table.DataTable(id='interp_table',
@@ -920,7 +921,7 @@ app.layout = html.Div([
     dcc.Store(id = "model_memory"), # storage for model template file
     dcc.Store(id = 'pmap_store')
 
-])
+], style={'backgroundColor': colours['background'], 'color': colours['text']})
 
 # megacallback function for updating the interpreted points. This is either done by clicking on the section or deleting
 # from the table
@@ -1094,7 +1095,6 @@ def update_many(clickData, previous_table, section, section_tab, line, vmin, vma
     elif section_tab == 'data_section':
         fig = dash_EM_section(line)
 
-
     return df.to_dict('records'), fig, df_ss.to_dict('records'), pmap_store
 
 
@@ -1104,16 +1104,17 @@ def update_many(clickData, previous_table, section, section_tab, line, vmin, vma
                Input("line_dropdown", 'value'),
                Input('vmin', 'value'),
                Input('vmax', 'value'),
-               Input('layerGrid', 'value'),
+               #Input('layerGrid', 'value'),
                Input('section_plot', 'clickData')])
-def update_tab(tab, line, vmin, vmax, layer, clickData):
+def update_tab(tab, line, vmin, vmax, #layer,
+               clickData):
     if tab == 'map_plot':
         trig_id = find_trigger()
         #do nothing if active tab is the map and we only
         #clicked on the section
         if trig_id == 'section_plot.clickData':
             raise PreventUpdate
-        fig = flightline_map(line, vmin, vmax, layer)
+        fig = flightline_map(line, vmin, vmax)#, layer)
         return html.Div([
             dcc.Graph(
                 id='polylines',

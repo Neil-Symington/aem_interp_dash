@@ -24,14 +24,12 @@ These are functions used to visualise hydrogeological data
 '''
 
 import matplotlib.pyplot as plt
-from netcdf_utils import get_lines
-import spatial_functions
+from garjmcmctdem_utils.netcdf_utils import get_lines
+from garjmcmctdem_utils import spatial_functions
 import numpy as np
-import h5py
 import gc, os
 import netCDF4
 import math
-import spatial_functions
 from scipy.interpolate import griddata
 from scipy.interpolate import interp1d
 from matplotlib.colors import Normalize

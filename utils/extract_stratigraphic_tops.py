@@ -3,10 +3,7 @@ import netCDF4
 import numpy as np
 import geopandas as gpd
 import sys, os
-sys.path.append("../scripts")
-sys.path.append("/home/nsymington/PycharmProjects/garjmcmctdem_utils/scripts")
-import aem_utils
-import spatial_functions
+from garjmcmctdem_utils import spatial_functions, aem_utils
 from shapely.geometry import Point
 
 # Point to AEM inversion netcdf
