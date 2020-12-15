@@ -53,7 +53,7 @@ def profile(f):
 yaml_file = "interpretation_config.yaml"
 settings = yaml.safe_load(open(yaml_file))
 
-interp_settings, model_settings, AEM_settings, det_inv_settings, stochastic_inv_settings, section_kwargs,\
+interp_settings, model_settings, AEM_settings, det_inv_settings, stochastic_inv_settings, section_settings,\
 borehole_settings, crs = settings.values()
 
 uncertainty_settings = stochastic_inv_settings['uncertainty']
@@ -130,7 +130,8 @@ else:
 if borehole_settings['include']:
     infile = os.path.join(root, borehole_settings['borehole_file'])
     ## TODO add a chacking function
-    cols = ['ENO', 'WELL', 'TOP_AHD_M', 'BASE_AHD_M', 'GA_UNIT', 'TOP_MD_M', 'BASE_MD_M', 'fiducial', 'line', 'geometry']
+    cols = ['ENO', 'WELL', 'TOP_AHD_M', 'BASE_AHD_M', 'GA_UNIT', 'Strat_name',
+            'TOP_MD_M', 'BASE_MD_M', 'fiducial', 'line', 'geometry']
     df_bh = pd.read_csv(infile)[cols]
     geom = [wkt.loads(s) for s in df_bh['geometry']]
     df_bh['easting'] = [coord.x for coord in geom]
@@ -143,8 +144,9 @@ em.section_path = {}
 det.section_path = {}
 rj.section_path = {}
 rj.distance_along_line = {}
+# We need to get these data into the same reference frame as our grids
 df_bh['distance_along_line'] = np.nan
-df_bh['dummy'] = None #Dummy column for plotting
+df_bh['AEM_elevation'] = np.nan
 
 
 # Iterate through the lines
@@ -193,10 +195,16 @@ for lin in lines:
                                            'grid_distances',
                                             max_distance = 500.)
         df_bh.at[df_bh_ss.index, 'distance_along_line'] = dists_
+        elevs_ = spatial_functions.xy_2_var(em_section_data,
+                                           bh_coords,
+                                           'elevation',
+                                            max_distance = 500.)
+        df_bh.at[df_bh_ss.index, 'AEM_elevation'] = elevs_
     # Remove from memory
     rj_section_data = None
     det_section_data = None
     gc.collect()
+
 
 # Define colour stretch for em data
 
@@ -691,23 +699,28 @@ def uncertainty_from_pmap(point_idx, interpreted_depth):
         return interpreted_depth, np.nan
 
 def plot_borehole_segments(fig, df):
-    # Createobjects for plotting
-    y = list(df[['TOP_AHD_M', 'BASE_AHD_M', 'dummy']].values.flatten())
-    x = list(df[['distance_along_line', 'distance_along_line', 'dummy']].values.flatten())
-    labels = list(df[['GA_UNIT', 'GA_UNIT', 'dummy']].values.flatten())
-    fig.add_trace(go.Scatter(x=x,
-                             y=y,
-                             mode='lines+markers',
-                             line={
-                                 "color": 'grey',
-                                 'width': 3.,
-
-                             },
-                             marker_size = 3.,
-                             hovertext=labels,
-                             name = 'boreholes',
-                             showlegend=False),
-                  row=3, col=1, )
+    # Plot each row at a time
+    for index, row in df.iterrows():
+        y = row[['AEM_elevation', 'AEM_elevation']].values - row[['TOP_MD_M', 'BASE_MD_M']].values
+        # For visualisation we will give units with no lower depth a thickness of 4m
+        if np.isnan(y[1]):
+            y[1] = y[0] - 4.
+        x = row[['distance_along_line', 'distance_along_line']].values
+        colour = borehole_settings['unit_colours'][row['Strat_name']]
+        labels = [row['GA_UNIT']] * 2
+        fig.add_trace(go.Scatter(x=x,
+                                 y=y,
+                                 mode='lines+markers',
+                                 line={
+                                     "color": colour,
+                                     'width': 3.,
+                                 },
+                                 marker_size = 3.,
+                                 marker_symbol = 'hash',
+                                 hovertext=labels,
+                                 name = 'boreholes',
+                                 showlegend=False),
+                      row=3, col=1, )
     return fig
 
 stylesheet = "https://codepen.io/chriddyp/pen/bWLwgP.css"
@@ -830,11 +843,11 @@ app.layout = html.Div([
                          className = "three columns"),
                 html.Div([html.Div(["Conductivity plotting minimum: ", dcc.Input(
                                     id="vmin", type="number",
-                                    min=0.001, max=10, value = section_kwargs['vmin'])],
+                                    min=0.001, max=10, value = section_settings['vmin'])],
                          className = 'row'),
                          html.Div(["Conductivity plotting maximum: ", dcc.Input(
                                     id="vmax", type="number",
-                                    min=0.001, max=10, value = section_kwargs['vmax'])],
+                                    min=0.001, max=10, value = section_settings['vmax'])],
                          className='row'),
                          html.Div(["AEM layer grid: ", dcc.Input(
                                     id="layerGrid", type="number",
@@ -1056,7 +1069,7 @@ def update_many(clickData, previous_table, section, section_tab, line, vmin, vma
         fig = dash_conductivity_section(section, line,
                                         vmin=vmin,
                                         vmax=vmax,
-                                        cmap=section_kwargs['cmap'],
+                                        cmap=section_settings['cmap'],
                                         xarr = xarr,
                                         pmap_kwargs = pmap_store)
 
@@ -1075,7 +1088,6 @@ def update_many(clickData, previous_table, section, section_tab, line, vmin, vma
         if len(df_bh_ss) > 0:
             # plot the boreholes as segments
             fig = plot_borehole_segments(fig, df_bh_ss)
-
 
         fig['layout'].update({'uirevision': line})
 
