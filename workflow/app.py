@@ -52,6 +52,7 @@ settings = yaml.safe_load(open(yaml_file))
 interp_settings, model_settings, AEM_settings, det_inv_settings, stochastic_inv_settings, section_settings,\
 borehole_settings, crs = settings.values()
 
+# Set key variables for convenience
 uncertainty_settings = stochastic_inv_settings['uncertainty']
 
 root = interp_settings['data_directory']
@@ -63,15 +64,15 @@ em = aem_utils.AEM_data(name = AEM_settings['name'],
                         system_name = AEM_settings['system_name'],
                         netcdf_dataset = netCDF4.Dataset(os.path.join(root, AEM_settings['nc_path'])))
 
+# Grid the data if the user wants
 if AEM_settings["grid_sections"]:
+    print("Gridding AEM data. This may take a few minutes.")
     ## TODO add path checking function
-    outdir = os.path.join(root, AEM_settings['gridding_params']['section_dir'])
+    outdir = os.path.join(root, AEM_settings['section_directory'])
     if not os.path.exists(outdir):
         os.mkdir(outdir)
-    em.griddify_variables(variables=AEM_settings['gridding_params']['grid_vars'], lines=lines,
-                             save_to_disk=True,
-                             output_dir = outdir)
-
+    grid_vars = AEM_settings['grid_variables']
+    em.griddify_variables(variables=grid_vars, lines=lines, save_to_disk=True, output_dir = outdir)
 
 # Prepare deterministic inversion
 
@@ -80,22 +81,24 @@ det = aem_utils.AEM_inversion(name = det_inv_settings['inversion_name'],
                               netcdf_dataset = netCDF4.Dataset(os.path.join(root, det_inv_settings['nc_path'])))
 
 if det_inv_settings["grid_sections"]:
+    print("Gridding deterministic AEM inversion. This may take a few minutes.")
     ## TODO add path checking function
-    outdir = os.path.join(root, det_inv_settings['gridding_params']['section_dir'])
+    outdir = os.path.join(root, det_inv_settings['section_directory'])
     if not os.path.exists(outdir):
         os.mkdir(outdir)
-    det.grid_sections(variables = det_inv_settings['gridding_params']['grid_vars'], lines = lines,
-                      xres = det_inv_settings['gridding_params']['xres'],
-                      yres = det_inv_settings['gridding_params']['yres'],
+    det.grid_sections(variables = det_inv_settings['grid_variables'], lines = lines,
+                      xres = det_inv_settings['horizontal_resolution'],
+                      yres = det_inv_settings['verticaL_resolution'],
                       return_interpolated = False, save_to_disk = True,
                       output_dir = outdir)
 else:
     pass
 
-# loaad layer grids
-grid_file = os.path.join(root, det_inv_settings['layer_grid_path'])
-# Not enough density to plot grid
-#det.load_lci_layer_grids_from_pickle(grid_file)
+if det_inv_settings['plot_grid']:
+    # loaad layer grids
+    grid_file = os.path.join(root, det_inv_settings['layer_grid_path'])
+    # Not enough density to plot grid
+    det.load_lci_layer_grids_from_pickle(grid_file)
 
 # Create polylines
 det.create_flightline_polylines(crs = crs['projected'])
@@ -110,17 +113,20 @@ rj = aem_utils.AEM_inversion(name = stochastic_inv_settings['inversion_name'],
 
 
 if stochastic_inv_settings["grid_sections"]:
+    print("Gridding stochastic AEM inversion. This may take a few minutes.")
     ## TODO add path checking function
     outdir = os.path.join(root, stochastic_inv_settings['gridding_params']['section_dir'])
     if not os.path.exists(outdir):
         os.mkdir(outdir)
-    rj.grid_sections(variables = stochastic_inv_settings['gridding_params']['grid_vars'], lines = lines,
-                      xres = stochastic_inv_settings['gridding_params']['xres'],
-                      yres = stochastic_inv_settings['gridding_params']['yres'],
+    rj.grid_sections(variables = stochastic_inv_settings['grid_variables'], lines = lines,
+                      xres = stochastic_inv_settings['horizontal_resolution'],
+                      yres = stochastic_inv_settings['verticaL_resolution'],
                       return_interpolated = False, save_to_disk = True,
                       output_dir = outdir)
 else:
     pass
+
+exit()
 
 # Prepare borehole data
 if borehole_settings['include']:
@@ -722,11 +728,6 @@ def plot_borehole_segments(fig, df):
 stylesheet = "https://codepen.io/chriddyp/pen/bWLwgP.css"
 app = dash.Dash(__name__, external_stylesheets=[stylesheet])
 
-colours = {
-    'background': '#111111',
-    'text': '#7FDBFF'
-}
-
 # To do add some check in here
 df_model_template = pd.read_csv(model_settings['templateFile'])
 
@@ -771,7 +772,7 @@ surface_options = list2options(df_model_template['SurfaceName'].values)
 app.layout = html.Div([
     html.Div(
                 [
-                    html.Div(html.H1("AEM interpretation dash board"),
+                    html.Div(html.H1(' '.join([str(model_settings['name']), " AEM interpretation app"])),
                              className= "three columns"),
                     html.Div([html.H4("Select surface"),
                               dcc.Upload(
@@ -874,7 +875,7 @@ app.layout = html.Div([
         html.Div([dcc.Graph(
             id='section_plot',
         )], style={'height': '600'}),
-        ],style = {'marginTop': 20, 'backgroundColor': colours['background'], 'color': colours['text']}),
+        ],style = {'marginTop': 20}),
     html.Div([html.Div(
         html.Div([
             dash_table.DataTable(id='interp_table',
@@ -921,7 +922,7 @@ app.layout = html.Div([
     dcc.Store(id = "model_memory"), # storage for model template file
     dcc.Store(id = 'pmap_store')
 
-], style={'backgroundColor': colours['background'], 'color': colours['text']})
+])
 
 # megacallback function for updating the interpreted points. This is either done by clicking on the section or deleting
 # from the table

@@ -439,7 +439,7 @@ class AEM_data:
 
             em_var_dict['grid_distances'] = spatial_functions.coords2distance(utm_coords)
 
-            griddified[line_no] = xr = misc_utils.dict2xr(em_var_dict, dims=['grid_distances'])
+            griddified[line_no] = misc_utils.dict2xr(em_var_dict, dims=['grid_distances'])
 
             if save_to_disk:
                 fname = os.path.join(output_dir, str(int(line_no)) + '.pkl')
