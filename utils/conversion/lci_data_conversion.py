@@ -17,17 +17,16 @@ logging.debug("test")
 
 # Define paths
 
-root = "/home/nsymington/Documents/GA/AEM/LCI"
+root = r"C:\Users\u77932\Documents\EFTF2\SW\data\existing\AEM\110284_Data_Package\AEM\conductivity LCI\01_Data\Mugrave_WB_MGA52"
 
+nc_out_path = os.path.join(root, "Mugrave_WB_MGA52.nc")
 
-nc_out_path = os.path.join(root, "Galilee_WB_MGA55.nc")
+dat_in_path = os.path.join(root, 'Mugrave_WB_MGA52.dat')
 
-dat_in_path = os.path.join(root, 'aseg_gdf', 'Galilee_WB_MGA55.dat')
+dfn_in_path = os.path.join(root, 'Mugrave_WB_MGA52.dfn')
 
-dfn_in_path = os.path.join(root, 'aseg_gdf', 'Galilee_WB_MGA55.dfn')
-
-# GDA94 MGA zone 55
-crs_string = "epsg:28355"
+# GDA94 MGA zone 52
+crs_string = "epsg:28352"
 
 # Initialise instance of ASEG2GDF netcdf converter
 

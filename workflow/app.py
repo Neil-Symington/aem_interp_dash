@@ -126,8 +126,6 @@ if stochastic_inv_settings["grid_sections"]:
 else:
     pass
 
-exit()
-
 # Prepare borehole data
 if borehole_settings['include']:
     infile = os.path.join(root, borehole_settings['borehole_file'])
@@ -154,11 +152,11 @@ df_bh['AEM_elevation'] = np.nan
 # Iterate through the lines
 for lin in lines:
     # Add path as attribute
-    em.section_path[lin] = os.path.join(root, AEM_settings['gridding_params']['section_dir'],
+    em.section_path[lin] = os.path.join(root, AEM_settings['section_directory'],
                                         "{}.pkl".format(str(lin)))
-    det.section_path[lin] = os.path.join(root, det_inv_settings['gridding_params']['section_dir'],
+    det.section_path[lin] = os.path.join(root, det_inv_settings['section_directory'],
                                          "{}.pkl".format(str(lin)))
-    rj.section_path[lin] = os.path.join(root, stochastic_inv_settings['gridding_params']['section_dir'],
+    rj.section_path[lin] = os.path.join(root, stochastic_inv_settings['section_directory'],
                                         "{}.pkl".format(str(lin)))
     # Using this gridding we find the distance along the line for each garjmcmc site
     # Get a line mask
@@ -947,6 +945,7 @@ app.layout = html.Div([
 def update_many(clickData, previous_table, section, section_tab, line, vmin, vmax, selected_rows, current_table,
                         surfaceName, interpreted_points, model, pmap_store):
     trig_id = find_trigger()
+    print(trig_id)
 
     #a bunch of "do nothing" cases here - before doing any data transformations to save
     #on useless computation

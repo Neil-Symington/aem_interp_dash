@@ -29,7 +29,7 @@ from garjmcmctdem_utils import spatial_functions, misc_utils
 from garjmcmctdem_utils.netcdf_utils import get_lines, testNetCDFDataset, get_lookup_mask
 import gc, glob, os
 from shapely.geometry import LineString
-import geopandas as gpd
+#import geopandas as gpd
 import re
 
 
@@ -384,7 +384,6 @@ class AEM_data:
 
         # Get the AEM data
         aem_gate_data = self.data[data_variable][:].data
-
 
         # Calculate the additive noies
         additive_noise_arr = self.calculate_additive_noise(aem_gate_data, high_altitude_mask)

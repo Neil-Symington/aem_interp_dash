@@ -35,9 +35,9 @@ from pyproj import CRS,Transformer
 import gc
 
 # Find the file paths from the pmap directory
-indir = "/media/nsymington/My Passport/GA/AEM/Galilee/combined/pmaps"
+indir = r"C:\Users\u77932\Documents\EFTF2\SW\working\synthetics\hydrostrat_resolvability_testing\output\pmaps"
 yml_file = "netcdf_settings.yml"
-nc_outfile = "Galilee_rjmcmc_pmaps.nc"
+nc_outfile = r"C:\Users\u77932\Documents\EFTF2\SW\working\synthetics\hydrostrat_resolvability_testing\output\synthetics_rjmcmc_pmaps.nc"
 
 # We are going to discard non-convergent models by first checking the misfits in the netcdf files
 

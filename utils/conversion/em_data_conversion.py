@@ -12,8 +12,8 @@ import numpy as np
 # SO we can see the logging. This enables us to debug
 import logging
 import sys
-sys.path.append('../scripts')
-from aem_utils import AEM_System
+sys.path.append(r'C:\Users\u77932\Documents\github\garjmcmctdem_utils\garjmcmctdem_utils')
+from garjmcmctdem_utils.aem_utils import AEM_System
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 logging.debug("test")
@@ -50,25 +50,21 @@ def rollpitchyaw_array(roll, pitch, yaw):
 
 # Define paths
 
-root = r"C:\Users\symin\OneDrive\Documents\GA\AEM\EM"
+root = r"C:\Users\u77932\Documents\EFTF2\SW\data\existing\AEM\110284_Data_Package\AEM\EM_located_data\AUS_10013_Musgrave_EM"
 
-nc_out_path = os.path.join(root, "AUS_10024_InJune_EM_MGA55.nc")
-#nc_out_path = os.path.join(root, "AUS_10024_Orana_MGA56.nc")
-#nc_out_path = os.path.join(root, "AUS_10023_SSC_EM_MGA53.nc")
+nc_out_path = os.path.join(root, "AUS_10013_Musgrave_EM.nc")
 
-dat_in_path = os.path.join(root, 'ASEG_gdf', 'AUS_10024_InJune_EM_MGA55.dat')
-#dat_in_path = os.path.join(root, 'ASEG_gdf', 'AUS_10024_Orana_EM_MGA56.dat')
-#dat_in_path = r"C:\Users\symin\OneDrive\Documents\GA\AEM\delivered\Delivered_20171113\01_EM\AUS_10023_SouthernStuart_EM\AUS_10023_SouthernStuart_EM.dat"
+#dat_in_path = r"C:\temp\someline.dat"#
+dat_in_path = os.path.join(root, 'AUS_10013_Musgrave_EM_corrected_again.dat')
 
-dfn_in_path = os.path.join(root, 'ASEG_gdf', 'AUS_10024_InJune_EM_MGA55.dfn')
-#dfn_in_path = os.path.join(root, 'ASEG_gdf', 'AUS_10024_Orana_EM_MGA56.dfn')
-#dfn_in_path = r"C:\Users\symin\OneDrive\Documents\GA\AEM\delivered\Delivered_20171113\01_EM\AUS_10023_SouthernStuart_EM\AUS_10023_SouthernStuart_EM.dfn"
+dfn_in_path = os.path.join(root, 'AUS_10013_Musgrave_EM.dfn')
 
-# GDA94 MGA zone 55
-crs_string = "EPSG:28355"
+
+# GDA94 MGA zone 52
+crs_string = "EPSG:28352"
 
 # Open the lm and hm files
-root = r"C:\Users\symin\OneDrive\Documents\GA\AEM\STM"
+root = r"C:\Users\u77932\Documents\EFTF2\SW\data\existing\AEM\110284_Data_Package\STM"
 
 lm_file = os.path.join(root, "Skytem312Fast-LM_pV.stm")
 
@@ -153,7 +149,7 @@ lm_window_times[:] = lm_gates
 hm_window_times[:] = hm_gates
 
 rx_x_pos = d.createVariable("Rx_z_component_position_x","f8",())
-rx_x_pos[:] = -13.37
+rx_x_pos[:] = -13.35
 rx_x_pos.units = 'm'
 rx_x_pos.long_name = 'Z-component EM sensor relative position from centre of horizontal frame, in flight direction'
 rx_x_pos.sign_convention = 'Front of frame is positive'
@@ -171,7 +167,7 @@ rx_z_pos.long_name = 'Z-component EM sensor relative position from centre of hor
 rx_z_pos.sign_convention = 'Up is positive'
 
 rx_x_x_pos = d.createVariable("Rx_x_component_position_x","f8",())
-rx_x_x_pos[:] = -14.75
+rx_x_x_pos[:] = -14.65
 rx_x_x_pos.units = 'm'
 rx_x_x_pos.long_name = 'X-component EM sensor relative position from centre of horizontal frame, in flight direction'
 rx_x_x_pos.sign_convention = 'Front of frame is positive'
@@ -183,12 +179,10 @@ rx_x_y_pos.long_name = 'X-component EM sensor relative position from centre of h
 rx_x_y_pos.sign_convention = 'Starboard of frame is positive'
 
 rx_x_z_pos = d.createVariable("Rx_x_component_position_z","f8",())
-rx_x_z_pos[:] = -0.04
+rx_x_z_pos[:] = 0.03
 rx_x_z_pos.units = 'm'
 rx_x_z_pos.long_name = 'X-component EM sensor relative position from centre of horizontal frame, in vertical direction'
-rx_x_z_pos.sign_convention = 'Down is positive'
-
-
+rx_x_z_pos.sign_convention = 'Up is positive'
 
 lm_waverform_current.units = 'normalised_current_amplitude'
 hm_waverform_current.units = 'normalised_current_amplitude'
@@ -281,5 +275,7 @@ txrx_dz.units = 'm'
 txrx_dz.aseg_gdf_format = 'E7.2'
 txrx_dz.long_name = 'Z-component EM sensor relative position from centre of frame, in vertical direction'
 txrx_dz.sign_convention = 'Down is positive'
+
+print(d)
 
 d.close()
