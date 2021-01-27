@@ -115,7 +115,7 @@ rj = aem_utils.AEM_inversion(name = stochastic_inv_settings['inversion_name'],
 if stochastic_inv_settings["grid_sections"]:
     print("Gridding stochastic AEM inversion. This may take a few minutes.")
     ## TODO add path checking function
-    outdir = os.path.join(root, stochastic_inv_settings['gridding_params']['section_dir'])
+    outdir = os.path.join(root, stochastic_inv_settings['section_directory'])
     if not os.path.exists(outdir):
         os.mkdir(outdir)
     rj.grid_sections(variables = stochastic_inv_settings['grid_variables'], lines = lines,
@@ -126,13 +126,11 @@ if stochastic_inv_settings["grid_sections"]:
 else:
     pass
 
-exit()
-
 # Prepare borehole data
 if borehole_settings['include']:
     infile = os.path.join(root, borehole_settings['borehole_file'])
     ## TODO add a chacking function
-    cols = ['ENO', 'WELL', 'TOP_AHD_M', 'BASE_AHD_M', 'GA_UNIT', 'Strat_name',
+    cols = ['WELL', 'TOP_AHD_M', 'BASE_AHD_M', 'GA_UNIT', 'Strat_name',
             'TOP_MD_M', 'BASE_MD_M', 'fiducial', 'line', 'geometry']
     df_bh = pd.read_csv(infile)[cols]
     geom = [wkt.loads(s) for s in df_bh['geometry']]
@@ -154,11 +152,11 @@ df_bh['AEM_elevation'] = np.nan
 # Iterate through the lines
 for lin in lines:
     # Add path as attribute
-    em.section_path[lin] = os.path.join(root, AEM_settings['gridding_params']['section_dir'],
+    em.section_path[lin] = os.path.join(root, AEM_settings['section_directory'],
                                         "{}.pkl".format(str(lin)))
-    det.section_path[lin] = os.path.join(root, det_inv_settings['gridding_params']['section_dir'],
+    det.section_path[lin] = os.path.join(root, det_inv_settings['section_directory'],
                                          "{}.pkl".format(str(lin)))
-    rj.section_path[lin] = os.path.join(root, stochastic_inv_settings['gridding_params']['section_dir'],
+    rj.section_path[lin] = os.path.join(root, stochastic_inv_settings['section_directory'],
                                         "{}.pkl".format(str(lin)))
     # Using this gridding we find the distance along the line for each garjmcmc site
     # Get a line mask
@@ -465,8 +463,8 @@ def dash_EM_section(line):
 
     fig.update_yaxes(title_text="tx height (m)", row=1, col=1)
     fig.update_yaxes(title_text="PLNI", type="log", row=2, col=1)
-    fig.update_yaxes(title_text="LMZ data (V/Am^4)", type="log", row=3, col=1)
-    fig.update_yaxes(title_text="HMZ data (V/Am^4)", type="log", row=4, col=1)
+    fig.update_yaxes(title_text="LMZ data (pV/Am^4)", type="log", row=3, col=1)
+    fig.update_yaxes(title_text="HMZ data (pV/Am^4)", type="log", row=4, col=1)
     fig.update_xaxes(title_text="distance along line " + " (m)", row=4, col=1)
     fig['layout'].update({'height': 600})
 
