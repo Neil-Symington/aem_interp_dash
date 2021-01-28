@@ -137,6 +137,10 @@ if borehole_settings['include']:
     df_bh['easting'] = [coord.x for coord in geom]
     df_bh['northing'] = [coord.y for coord in geom]
 
+    # We need to get these data into the same reference frame as our grids
+    df_bh['distance_along_line'] = np.nan
+    df_bh['AEM_elevation'] = np.nan
+
 # To reduce the amount of data that is stored in memory the section data are stored as xarrays in pickle files
 #  We will only bring them into memory as needed. Here we point the inversions to their pickle files
 
@@ -144,9 +148,7 @@ em.section_path = {}
 det.section_path = {}
 rj.section_path = {}
 rj.distance_along_line = {}
-# We need to get these data into the same reference frame as our grids
-df_bh['distance_along_line'] = np.nan
-df_bh['AEM_elevation'] = np.nan
+
 
 
 # Iterate through the lines
@@ -186,20 +188,21 @@ for lin in lines:
         xarray2pickle(rj_section_data, rj.section_path[lin])
 
     #Calculate distance along the line for the boreholes
-    line_mask = df_bh['line'] == lin
-    df_bh_ss = df_bh[line_mask]
-    if len(df_bh_ss) > 0:
-        bh_coords = df_bh_ss[['easting', 'northing']].values
-        dists_ = spatial_functions.xy_2_var(em_section_data,
-                                           bh_coords,
-                                           'grid_distances',
-                                            max_distance = 500.)
-        df_bh.at[df_bh_ss.index, 'distance_along_line'] = dists_
-        elevs_ = spatial_functions.xy_2_var(em_section_data,
-                                           bh_coords,
-                                           'elevation',
-                                            max_distance = 500.)
-        df_bh.at[df_bh_ss.index, 'AEM_elevation'] = elevs_
+    if borehole_settings['include']:
+        line_mask = df_bh['line'] == lin
+        df_bh_ss = df_bh[line_mask]
+        if len(df_bh_ss) > 0:
+            bh_coords = df_bh_ss[['easting', 'northing']].values
+            dists_ = spatial_functions.xy_2_var(em_section_data,
+                                               bh_coords,
+                                               'grid_distances',
+                                                max_distance = 500.)
+            df_bh.at[df_bh_ss.index, 'distance_along_line'] = dists_
+            elevs_ = spatial_functions.xy_2_var(em_section_data,
+                                               bh_coords,
+                                               'elevation',
+                                                max_distance = 500.)
+            df_bh.at[df_bh_ss.index, 'AEM_elevation'] = elevs_
     # Remove from memory
     rj_section_data = None
     det_section_data = None
@@ -565,20 +568,20 @@ def flightline_map(line, vmin, vmax, ):#layer):
 
     fig = go.Figure()
 
-    #cond_grid = np.log10(det.layer_grids['Layer_{}'.format(layer)]['conductivity'])
+    cond_grid = np.log10(det.layer_grids['Layer_{}'.format(layer)]['conductivity'])
 
-    #x1, x2, y1, y2 = det.layer_grids['bounds']
-    #n_y_cells, n_x_cells = cond_grid.shape
-    #x = np.linspace(x1, x2, n_x_cells)
-    #y = np.linspace(y2, y1, n_y_cells)
+    x1, x2, y1, y2 = det.layer_grids['bounds']
+    n_y_cells, n_x_cells = cond_grid.shape
+    x = np.linspace(x1, x2, n_x_cells)
+    y = np.linspace(y2, y1, n_y_cells)
 
-    #fig.add_trace(go.Heatmap(z=cond_grid,
-    #                           zmin=np.log10(vmin),
-    #                           zmax=np.log10(vmax),
-    #                           x=x,
-    #                           y=y,
-    #                           colorscale="jet"
-    #                         ))
+    fig.add_trace(go.Heatmap(z=cond_grid,
+                               zmin=np.log10(vmin),
+                               zmax=np.log10(vmax),
+                               x=x,
+                               y=y,
+                               colorscale="jet"
+                             ))
 
     for linestring, lineNo in zip(gdf_lines.geometry, gdf_lines.lineNumber):
 
@@ -1084,10 +1087,10 @@ def update_many(clickData, previous_table, section, section_tab, line, vmin, vma
         if len(df_ss) > 0:
             fig = plot_section_points(fig, line, df_ss, xarr, select_mask=select_mask)
         # Now plot boreholes
-        df_bh_ss = df_bh[df_bh['line'] == line]
-        if len(df_bh_ss) > 0:
-            # plot the boreholes as segments
-            fig = plot_borehole_segments(fig, df_bh_ss)
+        #df_bh_ss = df_bh[df_bh['line'] == line]
+        #if len(df_bh_ss) > 0:
+        #    # plot the boreholes as segments
+        #    fig = plot_borehole_segments(fig, df_bh_ss)
 
         fig['layout'].update({'uirevision': line})
 
