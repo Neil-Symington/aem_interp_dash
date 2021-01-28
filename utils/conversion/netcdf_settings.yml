@@ -1,0 +1,84 @@
+field_definitions:
+  # 1D Variables
+  x: {long_name: UTM Easting (x) ordinate, short_name: easting, units: m}
+  y: {long_name: UTM Northing (y) ordinate, short_name: northing, units: m}
+  lat: {long_name: Latitude, short_name: latitude, units: degrees North}
+  lon: {long_name: Longitude, short_name: longitude, units: degrees East}
+  line: {long_name: Line number, short_name: line}
+  elevation: {long_name: Ground elevation relative to local datum, short_name: elevation,
+    units: m}
+  fiducial: {long_name: Fiducial, short_name: fiducial}
+  date: {long_name: UTC date, short_name: utc_date, units: yyyymmdd}
+  flight: {long_name: Flight number, short_name: flight}
+  nlayers_min: {long_name: Minimum number of conductivity layers,
+     short_name: nlayers_min}
+  nlayers_max: {long_name: Maximum number of conductivity layers,
+     short_name: nlayers_max}
+  nsamples: {long_name: Number of geophysical inversions per chain,
+     short_name: nsamples}
+  nchains: {long_name: Number of Markov chains,
+     short_name: nchains}
+  nburnin: {long_name: Number of inital models discarded,
+    short_name: nburnin}
+  thinrate: {long_name: Rate at which Markov chains are thinned,
+    short_name: thinrate}
+  vmin: {long_name: Minimum log10 conductivity value in pmap histogram,
+    short_name: min_log10_conductivity}
+  vmax: {long_name: Maximum log10 conductivity value in pmap histogram,
+    short_name: max_log10_conductivity}
+  pmin: {long_name: Minimum depth in pmap histogram,
+    short_name: min_depth}
+  pmax: {long_name: Maximum depth in pmap histogram,
+    short_name: max_depth}
+ # 2D Variables - must have dimensions attribute defined
+ # dimensions attribute must either be a single dimension name or list of part dimension names
+  observations: {long_name: Data values measured at each gate, short_name: data_values, units: pV/(A.turns.m4),
+    dimensions: data}
+  errors: {long_name: Absolute uncertainty of data value, short_name: data_absolute_uncertainty,
+    units: pV/(A.turns.m4), dimensions: data}
+  depth: {long_name: Depth to the centre of the layer, short_name: layer_centre_depth,
+     units: m, dimensions: depth}
+  value: {long_name: Centre value of log10 conductivity bins, short_name: cond_bin_centre,
+     dimensions: conductivity_cells}
+  log10conductivity_histogram: {long_name: Two-dimensional conductivity histogram,
+    short_name: log10conductivity_histogram, units: counts,
+     dimensions: [depth, conductivity_cells]}
+  interface_depth_histogram: {Histogram of conductivity layer boundary depths,
+    short_name: interface_depth_histogram, units: counts,
+    dimensions: depth}
+  nlayers_histogram: {long_name: Histogram of number of layers for rj-MCMC model ensemble,
+    short_name: nlayers_histogram, units: counts, dimensions: layer}
+  #ensemble_residuals: { long_name: Data residual for our model ensemble,
+  #                      short_name: ensemble_residuals, dimensions: ensemble_sample }
+  #misfit: {long_name: Unnormalised chi-squared misfit, short_name: misfit,
+  #  dimensions: [chain, convergence_sample]}
+  mean_model: {long_name: Conductivity of mean model, short_name: conductivity_mean,
+    units: 'log10 S/m', dimensions: depth}
+  mode_model: {long_name: Conductivity of mode model, short_name: conductivity_mode,
+    units: 'log10 S/m', dimensions: depth}
+  p10_model: {long_name: Conductivity at 10th percentile, short_name: conductivity_p10,
+    units: 'log10 S/m', dimensions: depth}
+  p50_model: {long_name: Conductivity at 50th percentile, short_name: conductivity_p50,
+    units: 'log10 S/m', dimensions: depth}
+  p90_model: {long_name: Conductivity at 90th percentile, short_name: conductivity_p90,
+    units: 'log10 S/m', dimensions: depth}
+
+
+# String containing comma-separated list of keywords
+keywords: geophysics, airborne, AEM, conductivity, garjmcmcmtdem
+
+# List of possible dimension field names definining dimension sizes.
+dimension_fields:
+  data: {dimension_name: 'data'}
+  depth: {dimension_name: 'depth'}
+  value: {dimension_name: 'conductivity_cells'}
+  layer: {dimension_name: 'layer'}
+  #ensemble_sample: {dimension_name: 'ensemble_sample'}
+  #chain: {dimension_name: chain}
+
+  #convergence_sample: {dimension_name: convergence_sample}
+  line: {dimension_name: 'line'}
+
+crs:
+  projected: {epsg: 28355}
+  geographic: {epsg: 7844}
