@@ -51,7 +51,7 @@ def rollpitchyaw_array(roll, pitch, yaw):
 
 # Define paths
 
-root = r"C:\Users\symin\OneDrive\Documents\GA\AEM\EM"
+root = '/home/nsymington/Documents/GA/AEM/EM"
 
 nc_out_path = os.path.join(root, "AUS_10024_InJune_EM_MGA55.nc")
 #nc_out_path = os.path.join(root, "AUS_10024_Orana_MGA56.nc")

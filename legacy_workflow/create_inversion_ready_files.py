@@ -9,9 +9,8 @@ interpretation.
 
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 import sys, os, glob
-sys.path.append(r"C:/Users/symin/github/garjmcmctdem_utils/scripts")
+sys.path.append("../scripts")
 import shapely
 import netCDF4
 import aem_utils
@@ -83,7 +82,7 @@ def write_inversion_ready_file(dataset, outpath, nc_variables,
                 counter += shape[1]
 
 
-infile = r"C:\Users\symin\OneDrive\Documents\GA\AEM\EM\AUS_10023_SSC_EM_MGA53.nc"
+infile = r"/home/nsymington/Documents/GA/AEM/EM/AUS_10024_InJune_EM_MGA55.nc"
 
 injune = aem_utils.AEM_data(name = 'Southern Stuart Corridor AEM data',
                               system_name = 'SkyTEM312',
@@ -118,17 +117,17 @@ for file in glob.glob(os.path.join(r"C:\Users\symin\github\garjmcmctdem_utils\da
         interp_coords= np.append(interp_coords, np.loadtxt(file, skiprows = 1, usecols = [0, 2,3]), axis = 0)
 
 # Now lets do a spatial search on our AEM coordinates
-aem_coords = injune.coords
+#aem_coords = injune.coords
 
-dist, inds = spatial_functions.nearest_neighbours(interp_coords[:,1:], aem_coords)
+#dist, inds = spatial_functions.nearest_neighbours(interp_coords[:,1:], aem_coords)
 
-final_inds = np.unique(inds)#[::5]
+#final_inds = np.unique(inds)#[::5]
 
 # Create a boolean mask array
 
 mask_array = np.zeros(injune.data.dimensions['point'].size, dtype=np.bool)
 
-#mask_array[final_inds] = True
+mask_array[:] = True
 
 # Now write these data to a .dat file with the variables that are important for inversion.
 
@@ -145,7 +144,7 @@ other_data = {'rel_uncertainty_low_moment_Z-component': {'array': lm_runc, 'form
               'rel_uncertainty_high_moment_Z-component': {'array': hm_runc, 'format': '{:15.6E}'}}
 
 # Define the outfile
-outfile = r"C:\Users\symin\OneDrive\Documents\GA\AEM\inversion_ready\SSC_inversion_ready.dat"
+outfile = "/home/nsymington/Documents/GA/AEM/inversion_ready/Injune_inversion_ready.dat"
 
 # Write the inversion file to disc
 write_inversion_ready_file(injune.data, outfile, nc_variables,
@@ -155,12 +154,12 @@ write_inversion_ready_file(injune.data, outfile, nc_variables,
 # Here we write the additive noise to a file. This allows us to copy and past it into a control file,
 # which is required by some inversions
 
-outfile = r"C:\Users\symin\OneDrive\Documents\GA\AEM\inversion_ready\SSC_hm_additive_noise.txt"
+outfile = "/home/nsymington/Documents/GA/AEM/inversion_ready/Injune_hm_additive_noise.txt"
 
 with open(outfile, 'w') as f:
     f.write('\t'.join(map(str,injune.high_moment_Z_component_EM_data_additive_noise)))
 
-outfile = r"C:\Users\symin\OneDrive\Documents\GA\AEM\inversion_ready\SSC_lm_additive_noise.txt"
+outfile = "/home/nsymington/Documents/GA/AEM/inversion_ready/Injune_lm_additive_noise.txt"
 
 with open(outfile, 'w') as f:
     f.write('\t'.join(map(str,injune.low_moment_Z_component_EM_data_additive_noise)))
