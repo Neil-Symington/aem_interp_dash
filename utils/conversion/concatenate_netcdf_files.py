@@ -35,9 +35,9 @@ from pyproj import CRS,Transformer
 import gc
 
 # Find the file paths from the pmap directory
-indir = "/media/nsymington/My Passport/GA/AEM/Galilee/combined/pmaps"
+indir = "/home/nsymington/Documents/GA/AEM/Injune_additional_pmaps"
 yml_file = "netcdf_settings.yml"
-nc_outfile = "Galilee_rjmcmc_pmaps.nc"
+nc_outfile = "/home/nsymington/Documents/GA/dash_data_Surat/Injune_additional_rjmcmc_pmaps.nc"
 
 # We are going to discard non-convergent models by first checking the misfits in the netcdf files
 
@@ -232,7 +232,6 @@ for key in var_dict.keys():
     if 'units' in var_dict[key].keys():
         nc_vars[key].units = var_dict[key]['units']
 
-
 ## Add some key metadata information
 
 rootgrp.setncattr("value_parameterization",dataset.value_parameterization)
@@ -267,7 +266,6 @@ min_misfit_var = d.createVariable("misfit_lowest","f8",('point'))
 min_misfit_var[:] = min_misfit
 min_misfit_var.aseg_gdf_format = 'E10.6'
 min_misfit_var.long_name = 'Lowest misfit on any chain'
-
 
 ave_misfit_var = d.createVariable("misfit_average","f8",('point'))
 ave_misfit_var[:] = ave_misfit

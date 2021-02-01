@@ -3,7 +3,7 @@ import os
 import numpy as np
 from garjmcmctdem_utils import spatial_functions
 
-infile = "/home/nsymington/Documents/GA/dash_data_Surat/Injune_rjmcmc_pmaps.nc"
+infile = "/home/nsymington/Documents/GA/dash_data_Surat/Injune_pmaps_reduced_concatenated.nc"
 rj = netCDF4.Dataset(infile)
 
 rj_coords = np.column_stack((rj['easting'][:],
@@ -16,8 +16,10 @@ em = netCDF4.Dataset(infile)
 
 long_line = 200001
 
-line_index_mask = np.where(np.logical_and(np.where(em['line'][:] < 912999, True, False),
-                           np.where(em['line'][:] != long_line, True, False)))[0]
+#line_index_mask = np.where(np.logical_and(np.where(em['line'][:] < 912999, True, False),
+#                           np.where(em['line'][:] != long_line, True, False)))[0]
+
+line_index_mask = np.where(em['line'][:] == 200701)[0][0]
 
 line_mask = np.where(np.isin(em['line_index'][:], line_index_mask))[0]
 
@@ -27,8 +29,8 @@ em_coords = np.column_stack((em['easting'][line_mask],
 
 fids = []
 
-for i in range(200):
-    dist, inds = spatial_functions.nearest_neighbours( em_coords[:,:2], rj_coords, max_distance = 1000000.)
+for i in range(60):
+    dist, inds = spatial_functions.nearest_neighbours( em_coords[:,:2], rj_coords, max_distance = 100.)
     furthest_coord = em_coords[np.argmax(dist)]
     fids.append(furthest_coord[2])
     # NOw add the furthest coord to the rj_cords and repeat
@@ -37,7 +39,7 @@ for i in range(200):
 # Now we go through the inversion ready file and keep lines if the fid is in fids
 infile = "/home/nsymington/Documents/GA/AEM/inversion_ready/Injune_inversion_ready.dat"
 
-outfile = "/home/nsymington/Documents/GA/AEM/inversion_ready/Injune_inversion_ready_lonely_points.dat"
+outfile = "/home/nsymington/Documents/GA/AEM/inversion_ready/Injune_inversion_line_200701_lonely_points.dat"
 
 with open(infile, 'r') as f:
     with open(outfile, 'w') as outf:
@@ -46,7 +48,4 @@ with open(infile, 'r') as f:
             fid = np.float(list[4])
             if fid in fids:
                 outf.write(line)
-
-
-
 

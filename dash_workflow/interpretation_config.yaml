@@ -3,9 +3,10 @@ general_settings:
   data_directory: "/home/nsymington/Documents/GA/dash_data_Surat"
   # directory with the AEM data
   # The line numbers that we are interested in visualising
-  lines: [200101,  200401, 200501, 200601, 200701, 200801, 200901, 201001, 201101, 201201, 201301, 201401,
-          201501, 201601, 201701, 201801, 201901, 202001, 202101, 202201, 202301, 202401, 202501, 202601,
-          202701, 202801, 912011]
+  lines: [ 200101, 200201, 200301, 200401, 200501, 200601, 200701,
+           200801, 200901, 201001, 201101, 201201, 201301, 201401, 201501,
+           201601, 201701, 201801, 201901, 202001, 202101, 202201, 202301,
+           202401, 202501, 202601, 202701, 202801, 202901, 912011 ]
 
 model_settings:
   name: "Surat hydrostratigraphy"
@@ -55,12 +56,12 @@ stochastic_inversion_settings:
   # stochastic inversion
   inversion_name: "garjmcmctdem_utils"
   # Path to netcdf file for AEM stochastic inversion.
-  nc_path: "Injune_rjmcmc_pmaps.nc"
+  nc_path: "Injune_pmaps_reduced_concatenated.nc"
   grid_sections: False # True if you want to grid the AEM inversion data into vertical sections
   grid_variables: [ 'conductivity_p10', 'conductivity_p50', 'conductivity_p90', 'interface_depth_histogram',
                     'misfit_lowest' ]
   # horizontal resolution of sections
-  horizontal_resolution: 100.
+  horizontal_resolution: 80.
   # Vertical resolution of sections
   verticaL_resolution: 2.
   section_directory: "section_data_rj"

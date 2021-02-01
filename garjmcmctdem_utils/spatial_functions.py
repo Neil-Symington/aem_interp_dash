@@ -461,9 +461,11 @@ def scale_distance_along_line(xarr1, xarr2):
     # create the interpolator
     coords = np.column_stack((xarr1['easting'].values,
                               xarr1['northing'].values))
+
     # Now interpolate
     new_coords = np.column_stack((xarr2['easting'].values,
                                   xarr2['northing'].values))
+
     # Our new coordinates are always sitting between two points
     d, i = nearest_neighbours(new_coords, coords, points_required = 2,max_distance = 250.)
 

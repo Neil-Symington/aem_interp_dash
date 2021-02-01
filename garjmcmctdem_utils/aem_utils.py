@@ -144,6 +144,8 @@ class AEM_inversion:
             # Extract the variables and coordinates for the line in question
             line_no, cond_var_dict = next(cond_lines)
 
+            print(line_no)
+
             # Now we need to sort the cond_var_dict and run it east to west
             cond_var_dict = spatial_functions.sort_variables(cond_var_dict)
 

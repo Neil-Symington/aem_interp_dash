@@ -27,23 +27,6 @@ import base64, io
 import gc
 import math
 
-#profiling
-import time
-from functools import wraps
-def profile(f):
-    @wraps(f)
-    def profiling_wrapper(*args, **kwargs):
-        tic = time.perf_counter()
-        try:
-            res = f(*args, **kwargs)
-            toc = time.perf_counter()
-            print("Call to", f.__name__, "took", toc - tic, "seconds")
-        except PreventUpdate:
-            toc = time.perf_counter()
-            print("Call to", f.__name__, "took", toc - tic, "seconds and did not update")
-            raise PreventUpdate
-        return res
-    return profiling_wrapper
 
 #yaml_file = "dash_workflow/interpretation_config.yaml"
 yaml_file = "interpretation_config.yaml"
@@ -114,7 +97,6 @@ rj = aem_utils.AEM_inversion(name = stochastic_inv_settings['inversion_name'],
 
 if stochastic_inv_settings["grid_sections"]:
     print("Gridding stochastic AEM inversion. This may take a few minutes.")
-    ## TODO add path checking function
     outdir = os.path.join(root, stochastic_inv_settings['section_directory'])
     if not os.path.exists(outdir):
         os.mkdir(outdir)
@@ -149,8 +131,6 @@ det.section_path = {}
 rj.section_path = {}
 rj.distance_along_line = {}
 
-
-
 # Iterate through the lines
 for lin in lines:
     # Add path as attribute
@@ -182,7 +162,13 @@ for lin in lines:
 
         rj_section_data = pickle2xarray(rj.section_path[lin])
 
-        rj_section_data['grid_distances'] = spatial_functions.scale_distance_along_line(em_section_data, rj_section_data)
+        try:
+
+            rj_section_data['grid_distances'] = spatial_functions.scale_distance_along_line(em_section_data,
+                                                                                            rj_section_data)
+        except IndexError: # This happens in cases where there are insufficient points on a line for interpolation
+            pass
+
         # Save xarray back to pickle file
 
         xarray2pickle(rj_section_data, rj.section_path[lin])
@@ -505,66 +491,147 @@ def plot_section_points(fig, line, df_interp, xarr, select_mask):
         fig.update_layout()
     return fig
 
+def extract_rj_sounding(rj, det, point_index=0):
+
+    rj_dat = rj.data
+    det_dat = det.data
+
+    n_hist_samples = rj_dat['log10conductivity_histogram'][point_index].data.sum(axis = 1)[0]
+
+    freq = rj_dat['log10conductivity_histogram'][point_index].data.astype(np.float)
+
+    easting = np.float(rj_dat['easting'][point_index].data)
+    northing = np.float(rj_dat['northing'][point_index].data)
+
+    cond_pdf = freq / freq.sum(axis=1)[0]
+
+    cond_pdf[cond_pdf == 0] = np.nan
+
+    cp_freq = rj_dat["interface_depth_histogram"][point_index].data.astype(np.float)
+
+    cp_pdf = cp_freq / freq.sum(axis=1)[0]
+
+
+    cond_cells = rj_dat['conductivity_cells'][:]
+
+    depth_cells = rj_dat['layer_centre_depth'][:]
+
+    extent = [cond_cells.min(), cond_cells.max(), depth_cells.max(), depth_cells.min()]
+
+    p10 = np.power(10, rj_dat['conductivity_p10'][point_index].data)
+    p50 = np.power(10, rj_dat['conductivity_p50'][point_index].data)
+    p90 = np.power(10, rj_dat['conductivity_p90'][point_index].data)
+
+    distances, indices = spatial_functions.nearest_neighbours([easting, northing],
+                                                              det.coords,
+                                                              max_distance=100.)
+    point_ind_det = indices[0]
+
+    det_cond = det_dat['conductivity'][point_ind_det].data
+    det_depth_top = det_dat['layer_top_depth'][point_ind_det].data
+
+    det_doi = det_dat['depth_of_investigation'][point_ind_det].data
+
+    # get line under new schema
+    line_index = int(rj_dat['line_index'][point_index])
+    line = int(rj_dat['line'][line_index])
+    fiducial = float(rj_dat['fiducial'][point_index])
+    elevation = rj_dat['elevation'][point_index]
+
+    # Need to create this for opening pickle files with xarrays
+    xarr = pickle2xarray(det.section_path[line])
+
+    dist = spatial_functions.xy_2_var(xarr, np.array([[easting, northing]]), 'grid_distances')
+
+    return {'conductivity_pdf': cond_pdf, "change_point_pdf": cp_pdf, "conductivity_extent": extent,
+            'cond_p10': p10, 'cond_p50': p50, 'cond_p90': p90, 'depth_cells': depth_cells,
+            'cond_cells': cond_cells, 'det_cond': det_cond, 'det_depth_top': det_depth_top, 'det_doi': det_doi,
+            'line': line, 'northing': northing, 'easting': easting, 'fiducial': fiducial,
+            'elevation': elevation, 'det_dist': dist, 'det_line': xarr, 'n_histogram_samples': n_hist_samples}
+
+
 def dash_pmap_plot(point_index):
     # Extract the data from the netcdf data
-    D = netcdf_utils.extract_rj_sounding(rj, det,
-                                         point_index)
+    D = extract_rj_sounding(rj, det, point_index)
     pmap = D['conductivity_pdf']
     x1,x2,y1,y2 = D['conductivity_extent']
     n_depth_cells, n_cond_cells  = pmap.shape
 
     x = np.linspace(x1,x2, n_cond_cells)
-    y = np.linspace(y2,y1, n_depth_cells)
+    y = D['elevation'] - np.linspace(y2,y1, n_depth_cells)
 
-    fig = px.imshow(img = pmap,
-                    x = x, y = y,
-                    zmin = 0,
-                    zmax = np.max(pmap),
-                    aspect = 5,
-                    color_continuous_scale = 'plasma')
+    fig = make_subplots(rows=1, cols=2, shared_yaxes=True,
+                        horizontal_spacing=0.01,
+                        column_widths=[0.7, 0.3])
+
+    fig.add_trace(go.Heatmap(z = pmap,
+                            zmin = 0,
+                            zmax = np.max(pmap),
+                            x = x,
+                            y = y,
+                            colorscale ='plasma',
+                            colorbar=dict(
+                                 title="probability",
+                             )),
+                             row = 1, col = 1)
+
     #  PLot the median, and percentile plots
     fig.add_trace(go.Scatter(x = np.log10(D['cond_p10']),
-                             y = D['depth_cells'],
+                             y = y,#D['depth_cells'],
                              mode = 'lines',
                              line = {"color": 'black',
                                      "width": 1.},
                              name = "p10 conductivity",
-                             showlegend = False))
+                             showlegend = False),
+                  row = 1, col=1)
     fig.add_trace(go.Scatter(x = np.log10(D['cond_p90']),
-                             y = D['depth_cells'],
+                             y = y,#D['depth_cells'],
                              mode = 'lines',
                              line = {"color": 'black',
                                      "width": 1.},
                              name = "p90 conductivity",
-                             showlegend = False))
+                             showlegend = False),
+                  row = 1, col=1)
     fig.add_trace(go.Scatter(x = np.log10(D['cond_p50']),
-                             y = D['depth_cells'],
+                             y = y,#D['depth_cells'],
                              mode = 'lines',
                              line = {"color": 'gray',
                                      "width": 1.,
                                      'dash': 'dash'},
                              name = "p50 conductivity",
-                             showlegend = False))
+                             showlegend = False),
+                  row = 1, col=1)
 
     det_expanded, depth_expanded = plots.profile2layer_plot(D['det_cond'], D['det_depth_top'])
 
     fig.add_trace(go.Scatter(x=np.log10(det_expanded),
-                             y= depth_expanded,
+                             y= D['elevation'] - depth_expanded,
                              mode='lines',
                              line={"color": 'pink',
                                    "width": 1.,
                                    'dash': 'dash'},
                              name=det.name,
-                             showlegend=False))
+                             showlegend=False),
+                  row = 1, col=1)
+
+    fig.add_trace(go.Scatter(x=D['change_point_pdf'],
+                             y= y,
+                             mode='lines',
+                             line={"color": 'black',
+                                   "width": 2.},
+                             name=det.name,
+                             showlegend=False),
+                  row = 1, col=2)
 
     fig.update_layout(
         autosize=False,
         height=600)
+
     fig.update_layout(xaxis=dict(scaleanchor = 'y',
                                  scaleratio = 100.))
     return fig
 
-def flightline_map(line, vmin, vmax, ):#layer):
+def flightline_map(line, vmin, vmax, layer):
 
     fig = go.Figure()
 
@@ -580,7 +647,7 @@ def flightline_map(line, vmin, vmax, ):#layer):
                                zmax=np.log10(vmax),
                                x=x,
                                y=y,
-                               colorscale="jet"
+                              colorscale="jet"
                              ))
 
     for linestring, lineNo in zip(gdf_lines.geometry, gdf_lines.lineNumber):
@@ -620,8 +687,6 @@ def flightline_map(line, vmin, vmax, ):#layer):
     #fig['data'][0]['showscale'] = False
 
     return fig
-
-
 
 #Define key functions
 def full_width_half_max(interpreted_depth, depth_array, count_array):
@@ -852,10 +917,10 @@ app.layout = html.Div([
                                     id="vmax", type="number",
                                     min=0.001, max=10, value = section_settings['vmax'])],
                          className='row'),
-                         #html.Div(["AEM layer grid: ", dcc.Input(
-                         #           id="layerGrid", type="number",
-                         #           min=1, max=30, value = 1, step = 1)],
-                         #className='row'),
+                         html.Div(["AEM layer grid: ", dcc.Input(
+                                    id="layerGrid", type="number",
+                                    min=1, max=30, value = 1, step = 1)],
+                         className='row'),
                     ],
                     className = "three columns"),
                 html.Div([
@@ -1106,9 +1171,9 @@ def update_many(clickData, previous_table, section, section_tab, line, vmin, vma
                Input("line_dropdown", 'value'),
                Input('vmin', 'value'),
                Input('vmax', 'value'),
-               #Input('layerGrid', 'value'),
+               Input('layerGrid', 'value'),
                Input('section_plot', 'clickData')])
-def update_tab(tab, line, vmin, vmax, #layer,
+def update_tab(tab, line, vmin, vmax, layer,
                clickData):
     if tab == 'map_plot':
         trig_id = find_trigger()
@@ -1116,7 +1181,7 @@ def update_tab(tab, line, vmin, vmax, #layer,
         #clicked on the section
         if trig_id == 'section_plot.clickData':
             raise PreventUpdate
-        fig = flightline_map(line, vmin, vmax)#, layer)
+        fig = flightline_map(line, vmin, vmax, layer)
         return html.Div([
             dcc.Graph(
                 id='polylines',
