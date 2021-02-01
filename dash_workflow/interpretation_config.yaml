@@ -9,18 +9,25 @@ general_settings:
            202401, 202501, 202601, 202701, 202801, 202901, 912011 ]
 
 model_settings:
-  name: "Surat hydrostratigraphy"
+  name: "Injune"
 
   # Path to template csv file
   templateFile: "../data/SuratSurfaces.csv"
   # Path to existing interpretations
-  interpFile: "../data/blank_interp_example.csv"
+  interpFile: "../data/blank_interp_example.csv" # for starting a fresh interpretation
+  importStratPicksFromFile: True
+  stratPicksFile: "/home/nsymington/Documents/GA/dash_data_Surat/Surat_basin_AEM_interpretations.csv"
+  unit_colours: { 'Top_upper_Evergreen': 'darkgoldenrod', 'Top_Precipice_SSt': 'cyan',
+                  "Top_lower_Evergreen": 'forestgreen',
+                  'Top_Boxvale': 'lightskyblue', 'Top_intra_Precipice_Sst': 'yellowgreen',
+                  'Base_lower_Precipice': 'lightpink', 'Top_Lower_Precipice_Sst': 'orchid' }
+  marker_size: 8.
 
 AEM_data_settings:
   name: "Surat_AEM-data"
   # System name
   system_name: "SkyTEM_312"
-  # Path to netcdf file for AEM data. If this is the file name without a path the app will search for it
+  # Path to netcdf file for AEM data. I f this is the file name without a path the app will search for it
   # in the data directory
   nc_path: "AUS_10024_InJune_EM_MGA55.nc"
   # True if you want to grid the AEM data into vertical sections for visualisation false if already done.
@@ -42,7 +49,7 @@ deterministic_inversion_settings:
   # variables to grid
   grid_variables: ['conductivity', 'data_residual', 'depth_of_investigation']
   # horizontal resolution of sections
-  horizontal_resolution: 50.
+  horizontal_resolution: 25.
   # Vertical resolution of sections
   verticaL_resolution: 5.
   # section to read or write pickle files
@@ -89,3 +96,5 @@ borehole_settings:
 crs:
   projected: 'EPSG:28355'
   geographic: 'EPSG:4283'
+
+

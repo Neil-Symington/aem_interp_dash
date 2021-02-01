@@ -27,182 +27,10 @@ import base64, io
 import gc
 import math
 
-
 #yaml_file = "dash_workflow/interpretation_config.yaml"
 yaml_file = "interpretation_config.yaml"
-settings = yaml.safe_load(open(yaml_file))
 
-interp_settings, model_settings, AEM_settings, det_inv_settings, stochastic_inv_settings, section_settings,\
-borehole_settings, crs = settings.values()
-
-# Set key variables for convenience
-uncertainty_settings = stochastic_inv_settings['uncertainty']
-
-root = interp_settings['data_directory']
-
-lines = interp_settings['lines']
-
-# Prepare AEM data
-em = aem_utils.AEM_data(name = AEM_settings['name'],
-                        system_name = AEM_settings['system_name'],
-                        netcdf_dataset = netCDF4.Dataset(os.path.join(root, AEM_settings['nc_path'])))
-
-# Grid the data if the user wants
-if AEM_settings["grid_sections"]:
-    print("Gridding AEM data. This may take a few minutes.")
-    ## TODO add path checking function
-    outdir = os.path.join(root, AEM_settings['section_directory'])
-    if not os.path.exists(outdir):
-        os.mkdir(outdir)
-    grid_vars = AEM_settings['grid_variables']
-    em.griddify_variables(variables=grid_vars, lines=lines, save_to_disk=True, output_dir = outdir)
-
-# Prepare deterministic inversion
-
-det = aem_utils.AEM_inversion(name = det_inv_settings['inversion_name'],
-                              inversion_type = 'deterministic',
-                              netcdf_dataset = netCDF4.Dataset(os.path.join(root, det_inv_settings['nc_path'])))
-
-if det_inv_settings["grid_sections"]:
-    print("Gridding deterministic AEM inversion. This may take a few minutes.")
-    ## TODO add path checking function
-    outdir = os.path.join(root, det_inv_settings['section_directory'])
-    if not os.path.exists(outdir):
-        os.mkdir(outdir)
-    det.grid_sections(variables = det_inv_settings['grid_variables'], lines = lines,
-                      xres = det_inv_settings['horizontal_resolution'],
-                      yres = det_inv_settings['verticaL_resolution'],
-                      return_interpolated = False, save_to_disk = True,
-                      output_dir = outdir)
-else:
-    pass
-
-if det_inv_settings['plot_grid']:
-    # loaad layer grids
-    grid_file = os.path.join(root, det_inv_settings['layer_grid_path'])
-    # Not enough density to plot grid
-    det.load_lci_layer_grids_from_pickle(grid_file)
-
-# Create polylines
-det.create_flightline_polylines(crs = crs['projected'])
-
-gdf_lines = det.flightlines[np.isin(det.flightlines['lineNumber'], lines)]
-
-# Prepare stochastic inversion
-
-rj = aem_utils.AEM_inversion(name = stochastic_inv_settings['inversion_name'],
-                              inversion_type = 'stochastic',
-                              netcdf_dataset = netCDF4.Dataset(os.path.join(root, stochastic_inv_settings['nc_path'])))
-
-
-if stochastic_inv_settings["grid_sections"]:
-    print("Gridding stochastic AEM inversion. This may take a few minutes.")
-    outdir = os.path.join(root, stochastic_inv_settings['section_directory'])
-    if not os.path.exists(outdir):
-        os.mkdir(outdir)
-    rj.grid_sections(variables = stochastic_inv_settings['grid_variables'], lines = lines,
-                      xres = stochastic_inv_settings['horizontal_resolution'],
-                      yres = stochastic_inv_settings['verticaL_resolution'],
-                      return_interpolated = False, save_to_disk = True,
-                      output_dir = outdir)
-else:
-    pass
-
-# Prepare borehole data
-if borehole_settings['include']:
-    infile = os.path.join(root, borehole_settings['borehole_file'])
-    ## TODO add a chacking function
-    cols = ['WELL', 'TOP_AHD_M', 'BASE_AHD_M', 'GA_UNIT', 'Strat_name',
-            'TOP_MD_M', 'BASE_MD_M', 'fiducial', 'line', 'geometry']
-    df_bh = pd.read_csv(infile)[cols]
-    geom = [wkt.loads(s) for s in df_bh['geometry']]
-    df_bh['easting'] = [coord.x for coord in geom]
-    df_bh['northing'] = [coord.y for coord in geom]
-
-    # We need to get these data into the same reference frame as our grids
-    df_bh['distance_along_line'] = np.nan
-    df_bh['AEM_elevation'] = np.nan
-
-# To reduce the amount of data that is stored in memory the section data are stored as xarrays in pickle files
-#  We will only bring them into memory as needed. Here we point the inversions to their pickle files
-
-em.section_path = {}
-det.section_path = {}
-rj.section_path = {}
-rj.distance_along_line = {}
-
-# Iterate through the lines
-for lin in lines:
-    # Add path as attribute
-    em.section_path[lin] = os.path.join(root, AEM_settings['section_directory'],
-                                        "{}.pkl".format(str(lin)))
-    det.section_path[lin] = os.path.join(root, det_inv_settings['section_directory'],
-                                         "{}.pkl".format(str(lin)))
-    rj.section_path[lin] = os.path.join(root, stochastic_inv_settings['section_directory'],
-                                        "{}.pkl".format(str(lin)))
-    # Using this gridding we find the distance along the line for each garjmcmc site
-    # Get a line mask
-    line_mask = netcdf_utils.get_lookup_mask(lin, rj.data)
-    # get the coordinates
-    line_coords = rj.coords[line_mask]
-
-    em_section_data = pickle2xarray(em.section_path[lin])
-
-    dists = spatial_functions.xy_2_var(em_section_data,
-                                      line_coords,
-                                      'grid_distances')
-
-    # Add a dictionary with the point index distance along the line to our inversion instance
-    rj.distance_along_line[lin] = pd.DataFrame(data = {"point_index": np.where(line_mask)[0],
-                                                       "distance_along_line": dists,
-                                                       'fiducial': rj.data['fiducial'][line_mask]}
-                                               ).set_index('point_index')
-    # If we are gridding the stochastic inversions, then we scale them to the deterministic inversions
-    if stochastic_inv_settings["grid_sections"]:
-
-        rj_section_data = pickle2xarray(rj.section_path[lin])
-
-        try:
-
-            rj_section_data['grid_distances'] = spatial_functions.scale_distance_along_line(em_section_data,
-                                                                                            rj_section_data)
-        except IndexError: # This happens in cases where there are insufficient points on a line for interpolation
-            pass
-
-        # Save xarray back to pickle file
-
-        xarray2pickle(rj_section_data, rj.section_path[lin])
-
-    #Calculate distance along the line for the boreholes
-    if borehole_settings['include']:
-        line_mask = df_bh['line'] == lin
-        df_bh_ss = df_bh[line_mask]
-        if len(df_bh_ss) > 0:
-            bh_coords = df_bh_ss[['easting', 'northing']].values
-            dists_ = spatial_functions.xy_2_var(em_section_data,
-                                               bh_coords,
-                                               'grid_distances',
-                                                max_distance = 500.)
-            df_bh.at[df_bh_ss.index, 'distance_along_line'] = dists_
-            elevs_ = spatial_functions.xy_2_var(em_section_data,
-                                               bh_coords,
-                                               'elevation',
-                                                max_distance = 500.)
-            df_bh.at[df_bh_ss.index, 'AEM_elevation'] = elevs_
-    # Remove from memory
-    rj_section_data = None
-    det_section_data = None
-    gc.collect()
-
-
-# Define colour stretch for em data
-
-viridis = cm.get_cmap('viridis')
-lm_colours = [matplotlib.colors.rgb2hex(x) for x in viridis(np.linspace(0, 1, 18))]
-
-plasma = cm.get_cmap('plasma')
-hm_colours = [matplotlib.colors.rgb2hex(x) for x in plasma(np.linspace(0, 1, 23))]
-
+#functions
 def list2options(list):
     options = []
     for l in list:
@@ -289,7 +117,8 @@ def dash_conductivity_section(section, line, vmin, vmax, cmap, xarr, pmap_kwargs
         elif section == "rj-p90":
             z = np.log10(xarr['conductivity_p90'])
         elif section == "rj-lpp":
-            z = xarr['interface_depth_histogram'] / rj.data.histogram_samples
+            print(rj.data)
+            z = xarr['interface_depth_histogram'] / rj.data['histogram_samples']
             vmin = 0.01
             vmax = 0.8
             cmap = 'greys'
@@ -549,7 +378,6 @@ def extract_rj_sounding(rj, det, point_index=0):
             'line': line, 'northing': northing, 'easting': easting, 'fiducial': fiducial,
             'elevation': elevation, 'det_dist': dist, 'det_line': xarr, 'n_histogram_samples': n_hist_samples}
 
-
 def dash_pmap_plot(point_index):
     # Extract the data from the netcdf data
     D = extract_rj_sounding(rj, det, point_index)
@@ -557,8 +385,8 @@ def dash_pmap_plot(point_index):
     x1,x2,y1,y2 = D['conductivity_extent']
     n_depth_cells, n_cond_cells  = pmap.shape
 
-    x = np.linspace(x1,x2, n_cond_cells)
-    y = D['elevation'] - np.linspace(y2,y1, n_depth_cells)
+    x = 10**np.linspace(x1,x2, n_cond_cells)
+    y = np.linspace(y2,y1, n_depth_cells)
 
     fig = make_subplots(rows=1, cols=2, shared_yaxes=True,
                         horizontal_spacing=0.01,
@@ -576,27 +404,27 @@ def dash_pmap_plot(point_index):
                              row = 1, col = 1)
 
     #  PLot the median, and percentile plots
-    fig.add_trace(go.Scatter(x = np.log10(D['cond_p10']),
-                             y = y,#D['depth_cells'],
+    fig.add_trace(go.Scatter(x = D['cond_p10'],
+                             y = y,
                              mode = 'lines',
                              line = {"color": 'black',
                                      "width": 1.},
                              name = "p10 conductivity",
                              showlegend = False),
                   row = 1, col=1)
-    fig.add_trace(go.Scatter(x = np.log10(D['cond_p90']),
-                             y = y,#D['depth_cells'],
+    fig.add_trace(go.Scatter(x = D['cond_p90'],
+                             y = y,
                              mode = 'lines',
                              line = {"color": 'black',
                                      "width": 1.},
                              name = "p90 conductivity",
                              showlegend = False),
                   row = 1, col=1)
-    fig.add_trace(go.Scatter(x = np.log10(D['cond_p50']),
-                             y = y,#D['depth_cells'],
+    fig.add_trace(go.Scatter(x = D['cond_p50'],
+                             y = y,
                              mode = 'lines',
                              line = {"color": 'gray',
-                                     "width": 1.,
+                                     "width": 1.5,
                                      'dash': 'dash'},
                              name = "p50 conductivity",
                              showlegend = False),
@@ -604,11 +432,11 @@ def dash_pmap_plot(point_index):
 
     det_expanded, depth_expanded = plots.profile2layer_plot(D['det_cond'], D['det_depth_top'])
 
-    fig.add_trace(go.Scatter(x=np.log10(det_expanded),
-                             y= D['elevation'] - depth_expanded,
+    fig.add_trace(go.Scatter(x=det_expanded,
+                             y= depth_expanded,
                              mode='lines',
                              line={"color": 'pink',
-                                   "width": 1.,
+                                   "width": 1.5,
                                    'dash': 'dash'},
                              name=det.name,
                              showlegend=False),
@@ -629,6 +457,9 @@ def dash_pmap_plot(point_index):
 
     fig.update_layout(xaxis=dict(scaleanchor = 'y',
                                  scaleratio = 100.))
+    fig.update_xaxes(type="log", title_text="Conductivity (S/m)",
+                     row = 1, col = 1)
+    fig.update_yaxes(autorange='reversed', row=1, col=1)
     return fig
 
 def flightline_map(line, vmin, vmax, layer):
@@ -647,8 +478,9 @@ def flightline_map(line, vmin, vmax, layer):
                                zmax=np.log10(vmax),
                                x=x,
                                y=y,
-                              colorscale="jet"
-                             ))
+                              colorscale=section_settings['cmap'],
+                             showlegend=False
+                             ) )
 
     for linestring, lineNo in zip(gdf_lines.geometry, gdf_lines.lineNumber):
 
@@ -791,8 +623,210 @@ def plot_borehole_segments(fig, df):
                       row=3, col=1, )
     return fig
 
-stylesheet = "https://codepen.io/chriddyp/pen/bWLwgP.css"
-app = dash.Dash(__name__, external_stylesheets=[stylesheet])
+settings = yaml.safe_load(open(yaml_file))
+
+interp_settings, model_settings, AEM_settings, det_inv_settings, stochastic_inv_settings, section_settings,\
+borehole_settings, crs = settings.values()
+
+# Set key variables for convenience
+uncertainty_settings = stochastic_inv_settings['uncertainty']
+
+root = interp_settings['data_directory']
+
+lines = interp_settings['lines']
+
+# Prepare AEM data
+em = aem_utils.AEM_data(name = AEM_settings['name'],
+                        system_name = AEM_settings['system_name'],
+                        netcdf_dataset = netCDF4.Dataset(os.path.join(root, AEM_settings['nc_path'])))
+
+# Grid the data if the user wants
+if AEM_settings["grid_sections"]:
+    print("Gridding AEM data. This may take a few minutes.")
+    ## TODO add path checking function
+    outdir = os.path.join(root, AEM_settings['section_directory'])
+    if not os.path.exists(outdir):
+        os.mkdir(outdir)
+    grid_vars = AEM_settings['grid_variables']
+    em.griddify_variables(variables=grid_vars, lines=lines, save_to_disk=True, output_dir = outdir)
+
+# Prepare deterministic inversion
+
+det = aem_utils.AEM_inversion(name = det_inv_settings['inversion_name'],
+                              inversion_type = 'deterministic',
+                              netcdf_dataset = netCDF4.Dataset(os.path.join(root, det_inv_settings['nc_path'])))
+
+if det_inv_settings["grid_sections"]:
+    print("Gridding deterministic AEM inversion. This may take a few minutes.")
+    ## TODO add path checking function
+    outdir = os.path.join(root, det_inv_settings['section_directory'])
+    if not os.path.exists(outdir):
+        os.mkdir(outdir)
+    det.grid_sections(variables = det_inv_settings['grid_variables'], lines = lines,
+                      xres = det_inv_settings['horizontal_resolution'],
+                      yres = det_inv_settings['verticaL_resolution'],
+                      return_interpolated = False, save_to_disk = True,
+                      output_dir = outdir)
+else:
+    pass
+
+if det_inv_settings['plot_grid']:
+    # loaad layer grids
+    grid_file = os.path.join(root, det_inv_settings['layer_grid_path'])
+    # Not enough density to plot grid
+    det.load_lci_layer_grids_from_pickle(grid_file)
+
+# Create polylines
+det.create_flightline_polylines(crs = crs['projected'])
+
+gdf_lines = det.flightlines[np.isin(det.flightlines['lineNumber'], lines)]
+
+# Prepare stochastic inversion
+
+rj = aem_utils.AEM_inversion(name = stochastic_inv_settings['inversion_name'],
+                              inversion_type = 'stochastic',
+                              netcdf_dataset = netCDF4.Dataset(os.path.join(root, stochastic_inv_settings['nc_path'])))
+
+
+if stochastic_inv_settings["grid_sections"]:
+    print("Gridding stochastic AEM inversion. This may take a few minutes.")
+    outdir = os.path.join(root, stochastic_inv_settings['section_directory'])
+    if not os.path.exists(outdir):
+        os.mkdir(outdir)
+    rj.grid_sections(variables = stochastic_inv_settings['grid_variables'], lines = lines,
+                      xres = stochastic_inv_settings['horizontal_resolution'],
+                      yres = stochastic_inv_settings['verticaL_resolution'],
+                      return_interpolated = False, save_to_disk = True,
+                      output_dir = outdir)
+else:
+    pass
+
+# Prepare borehole data
+if borehole_settings['include']:
+    infile = os.path.join(root, borehole_settings['borehole_file'])
+    ## TODO add a chacking function
+    cols = ['WELL', 'TOP_AHD_M', 'BASE_AHD_M', 'GA_UNIT', 'Strat_name',
+            'TOP_MD_M', 'BASE_MD_M', 'fiducial', 'line', 'geometry']
+    df_bh = pd.read_csv(infile)[cols]
+    geom = [wkt.loads(s) for s in df_bh['geometry']]
+    df_bh['easting'] = [coord.x for coord in geom]
+    df_bh['northing'] = [coord.y for coord in geom]
+
+    # We need to get these data into the same reference frame as our grids
+    df_bh['distance_along_line'] = np.nan
+    df_bh['AEM_elevation'] = np.nan
+
+# Process imported strat picks if avaialble
+
+if model_settings['importStratPicksFromFile']:
+    df_strat = pd.read_csv(model_settings['stratPicksFile'])
+    # Add the correct colour
+    df_strat['colour'] = ""
+    for item in model_settings['unit_colours']:
+        mask = df_strat['BoundaryNm'] == item
+        # apply mask
+        df_strat.at[mask, 'colours'] = model_settings['unit_colours'][item]
+    df_strat['distance_along_line'] = np.nan
+    df_strat['AEM_elevation'] = np.nan
+
+
+# To reduce the amount of data that is stored in memory the section data are stored as xarrays in pickle files
+#  We will only bring them into memory as needed. Here we point the inversions to their pickle files
+
+em.section_path = {}
+det.section_path = {}
+rj.section_path = {}
+rj.distance_along_line = {}
+
+# Iterate through the lines
+for lin in lines:
+    # Add path as attribute
+    em.section_path[lin] = os.path.join(root, AEM_settings['section_directory'],
+                                        "{}.pkl".format(str(lin)))
+    det.section_path[lin] = os.path.join(root, det_inv_settings['section_directory'],
+                                         "{}.pkl".format(str(lin)))
+    rj.section_path[lin] = os.path.join(root, stochastic_inv_settings['section_directory'],
+                                        "{}.pkl".format(str(lin)))
+    # Using this gridding we find the distance along the line for each garjmcmc site
+    # Get a line mask
+    line_mask = netcdf_utils.get_lookup_mask(lin, rj.data)
+    # get the coordinates
+    line_coords = rj.coords[line_mask]
+
+    det_section_data = pickle2xarray(det.section_path[lin])
+
+    dists = spatial_functions.xy_2_var(det_section_data,
+                                      line_coords,
+                                      'grid_distances')
+
+    # Add a dictionary with the point index distance along the line to our inversion instance
+    rj.distance_along_line[lin] = pd.DataFrame(data = {"point_index": np.where(line_mask)[0],
+                                                       "distance_along_line": dists,
+                                                       'fiducial': rj.data['fiducial'][line_mask]}
+                                               ).set_index('point_index')
+    # If we are gridding the stochastic inversions, then we scale them to the deterministic inversions
+    if stochastic_inv_settings["grid_sections"]:
+
+        rj_section_data = pickle2xarray(rj.section_path[lin])
+
+        try:
+
+            rj_section_data['grid_distances'] = spatial_functions.scale_distance_along_line(det_section_data,
+                                                                                            rj_section_data)
+        except IndexError: # This happens in cases where there are insufficient points on a line for interpolation
+            pass
+
+        # Save xarray back to pickle file
+
+        xarray2pickle(rj_section_data, rj.section_path[lin])
+
+    #Calculate distance along the line for the boreholes
+    if borehole_settings['include']:
+        line_mask = df_bh['line'] == lin
+        df_bh_ss = df_bh[line_mask]
+        if len(df_bh_ss) > 0:
+            bh_coords = df_bh_ss[['easting', 'northing']].values
+            dists_ = spatial_functions.xy_2_var(det_section_data,
+                                               bh_coords,
+                                               'grid_distances',
+                                                max_distance = 500.)
+            df_bh.at[df_bh_ss.index, 'distance_along_line'] = dists_
+            elevs_ = spatial_functions.xy_2_var(det_section_data,
+                                               bh_coords,
+                                               'elevation',
+                                                max_distance = 500.)
+            df_bh.at[df_bh_ss.index, 'AEM_elevation'] = elevs_
+    if model_settings['importStratPicksFromFile']:
+        line_mask = df_strat['SURVEY_LINE'] == lin
+        df_strat_ss = df_strat[line_mask]
+        if len(df_strat_ss) > 0:
+            strat_coords = df_strat_ss[['X', 'Y']].values
+            dists_ = spatial_functions.xy_2_var(det_section_data,
+                                                strat_coords,
+                                                'grid_distances',
+                                                max_distance=500.)
+            df_strat.at[df_strat_ss.index, 'distance_along_line'] = dists_
+            elevs_ = spatial_functions.xy_2_var(det_section_data,
+                                                strat_coords,
+                                                'elevation',
+                                                max_distance=500.)
+            df_strat.at[df_strat_ss.index, 'AEM_elevation'] = elevs_ - df_strat_ss['DEPTH'].values
+
+
+    # Remove from memory
+    rj_section_data = None
+    det_section_data = None
+    gc.collect()
+
+
+# Define colour stretch for em data
+
+viridis = cm.get_cmap('viridis')
+lm_colours = [matplotlib.colors.rgb2hex(x) for x in viridis(np.linspace(0, 1, 18))]
+
+plasma = cm.get_cmap('plasma')
+hm_colours = [matplotlib.colors.rgb2hex(x) for x in plasma(np.linspace(0, 1, 23))]
+
 
 # To do add some check in here
 df_model_template = pd.read_csv(model_settings['templateFile'])
@@ -830,10 +864,16 @@ df_interpreted_points['Colour'] = colour
 df_interpreted_points['Marker'] = marker
 df_interpreted_points['MarkerSize']  = marker_size
 
+
+    # Now we want to find the distance along line of each point so we can project it
+
 # for use with the dropdown
 line_options = list2options(lines)
 
 surface_options = list2options(df_model_template['SurfaceName'].values)
+
+stylesheet = "https://codepen.io/chriddyp/pen/bWLwgP.css"
+app = dash.Dash(__name__, external_stylesheets=[stylesheet])
 
 app.layout = html.Div([
     html.Div(
@@ -860,10 +900,11 @@ app.layout = html.Div([
                                         },
                                 # Allow multiple files to be uploaded
                                 multiple=False),
-                             dcc.Dropdown(id = "surface_dropdown",
+                             html.Div(["Select the surface for current interpretation: ",
+                                       dcc.Dropdown(id = "surface_dropdown",
                                             options=surface_options,
                                             value=(surface_options[0]['label']))
-
+                                          ]),
                              ],className = "three columns"),
                     html.Div([html.H4("Select section"),
                              dcc.Dropdown(id = "section_dropdown",
@@ -909,6 +950,15 @@ app.layout = html.Div([
                                                   'overflowX': 'scroll'}
                                               ),
                          className = "three columns"),
+                html.Div(["Include imported straigraphic picks on section: ", dcc.RadioItems(
+                    id="strat_checkbox",
+                    options=[
+                        {'label': 'Yes', 'value': 'yes'},
+                        {'label': 'No', 'value': 'no'},
+                    ],
+                    labelStyle={'display': 'inline-block'},
+                    value='yes')],
+                          className = "three columns"),
                 html.Div([html.Div(["Conductivity plotting minimum: ", dcc.Input(
                                     id="vmin", type="number",
                                     min=0.001, max=10, value = section_settings['vmin'])],
@@ -1004,14 +1054,16 @@ app.layout = html.Div([
      Input("line_dropdown", 'value'),
      Input('vmin', 'value'),
      Input('vmax', 'value'),
-     Input('interp_table', "derived_virtual_selected_rows"),],
+     Input('interp_table', "derived_virtual_selected_rows"),
+     Input("strat_checkbox", 'value')],
      [State('interp_table', 'data'),
       State("surface_dropdown", 'value'),
       State("interp_memory", 'data'),
       State("model_memory", "data"),
-      State('pmap_store', 'data')])
-def update_many(clickData, previous_table, section, section_tab, line, vmin, vmax, selected_rows, current_table,
-                        surfaceName, interpreted_points, model, pmap_store):
+      State('pmap_store', 'data'),
+      ])
+def update_many(clickData, previous_table, section, section_tab, line, vmin, vmax, selected_rows, plot_strat,
+                current_table, surfaceName, interpreted_points, model, pmap_store):
     trig_id = find_trigger()
 
     #a bunch of "do nothing" cases here - before doing any data transformations to save
@@ -1141,6 +1193,28 @@ def update_many(clickData, previous_table, section, section_tab, line, vmin, vma
                                         xarr = xarr,
                                         pmap_kwargs = pmap_store)
 
+        # Add existing interp to the section)
+        if model_settings['importStratPicksFromFile'] and plot_strat == "yes":
+            df_strat_ss = df_strat[df_strat['SURVEY_LINE'] == line]
+            if len(df_strat_ss) > 0:
+                # plot the points
+                colours= df_strat_ss['colours']
+                labels = df_strat_ss['BoundaryNm']
+                fig.add_trace(go.Scatter(x=df_strat_ss["distance_along_line"],
+                                         y=df_strat_ss["AEM_elevation"],
+                                         mode='markers',
+                                         hovertext = labels,
+                                         hoverinfo='text',
+                                         marker={"symbol": "circle",
+                                                 "color": colours,
+                                                 "size": model_settings['marker_size'],
+                                                 },
+                                         name='interpretation',
+                                         showlegend=False,
+                                         xaxis='x3',
+                                         yaxis='y3')
+                              )
+
 
         # Check for selected rows which will be plotted differently
         if len(selected_rows) > 0:
@@ -1151,11 +1225,8 @@ def update_many(clickData, previous_table, section, section_tab, line, vmin, vma
         # PLot section
         if len(df_ss) > 0:
             fig = plot_section_points(fig, line, df_ss, xarr, select_mask=select_mask)
-        # Now plot boreholes
-        #df_bh_ss = df_bh[df_bh['line'] == line]
-        #if len(df_bh_ss) > 0:
-        #    # plot the boreholes as segments
-        #    fig = plot_borehole_segments(fig, df_bh_ss)
+            # Now plot strat points
+
 
         fig['layout'].update({'uirevision': line})
 
