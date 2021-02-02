@@ -5,7 +5,7 @@ This script is for converting aseg-gdf EM data to a netcdf file. The netcdf file
 AEM system metadata.
 '''
 
-from geophys_utils.netcdf_converter import aseg_gdf2netcdf_converter
+#from geophys_utils.netcdf_converter import aseg_gdf2netcdf_converter
 import netCDF4
 import os, math
 import numpy as np
@@ -13,7 +13,7 @@ import numpy as np
 import logging
 import sys
 sys.path.append('../scripts')
-from aem_utils import AEM_System
+from garjmcmctdem_utils.aem_utils import AEM_System
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 logging.debug("test")
@@ -50,32 +50,31 @@ def rollpitchyaw_array(roll, pitch, yaw):
 
 # Define paths
 
-root = r"C:\Users\symin\OneDrive\Documents\GA\AEM\EM"
+root = "/home/nsymington/Documents/GA/AEM/EM"
 
-nc_out_path = os.path.join(root, "AUS_10024_InJune_EM_MGA55.nc")
+#nc_out_path = os.path.join(root, "AUS_10024_InJune_EM_MGA55.nc")
 #nc_out_path = os.path.join(root, "AUS_10024_Orana_MGA56.nc")
 #nc_out_path = os.path.join(root, "AUS_10023_SSC_EM_MGA53.nc")
 
-dat_in_path = os.path.join(root, 'ASEG_gdf', 'AUS_10024_InJune_EM_MGA55.dat')
+#dat_in_path = os.path.join(root, 'ASEG_gdf', 'AUS_10024_InJune_EM_MGA55.dat')
 #dat_in_path = os.path.join(root, 'ASEG_gdf', 'AUS_10024_Orana_EM_MGA56.dat')
 #dat_in_path = r"C:\Users\symin\OneDrive\Documents\GA\AEM\delivered\Delivered_20171113\01_EM\AUS_10023_SouthernStuart_EM\AUS_10023_SouthernStuart_EM.dat"
 
-dfn_in_path = os.path.join(root, 'ASEG_gdf', 'AUS_10024_InJune_EM_MGA55.dfn')
+#dfn_in_path = os.path.join(root, 'ASEG_gdf', 'AUS_10024_InJune_EM_MGA55.dfn')
 #dfn_in_path = os.path.join(root, 'ASEG_gdf', 'AUS_10024_Orana_EM_MGA56.dfn')
 #dfn_in_path = r"C:\Users\symin\OneDrive\Documents\GA\AEM\delivered\Delivered_20171113\01_EM\AUS_10023_SouthernStuart_EM\AUS_10023_SouthernStuart_EM.dfn"
 
 # GDA94 MGA zone 55
-crs_string = "EPSG:28355"
+crs_string = "EPSG:28352"
 
 # Open the lm and hm files
-root = r"C:\Users\symin\OneDrive\Documents\GA\AEM\STM"
 
-lm_file = os.path.join(root, "Skytem312Fast-LM_pV.stm")
+lm_file = os.path.join(root, "STM/Skytem312Fast-LM_pV.stm")
 
-hm_file = os.path.join(root, "Skytem312Fast-HM_pV.stm")
+hm_file = os.path.join(root, "STM/Skytem312Fast-HM_pV.stm")
 
 # Initialise instance of ASEG2GDF netcdf converter
-
+'''
 d2n = aseg_gdf2netcdf_converter.ASEGGDF2NetCDFConverter(nc_out_path,
                                                  dat_in_path,
                                                  dfn_in_path,
@@ -85,6 +84,8 @@ d2n = aseg_gdf2netcdf_converter.ASEGGDF2NetCDFConverter(nc_out_path,
 d2n.convert2netcdf()
 
 # Now open the file
+
+'''
 
 d = netCDF4.Dataset(nc_out_path, "a")
 
