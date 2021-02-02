@@ -32,6 +32,7 @@ field_definitions:
     short_name: max_depth}
  # 2D Variables - must have dimensions attribute defined
  # dimensions attribute must either be a single dimension name or list of part dimension names
+
   observations: {long_name: Data values measured at each gate, short_name: data_values, units: pV/(A.turns.m4),
     dimensions: data}
   errors: {long_name: Absolute uncertainty of data value, short_name: data_absolute_uncertainty,
@@ -50,8 +51,8 @@ field_definitions:
     short_name: nlayers_histogram, units: counts, dimensions: layer}
   #ensemble_residuals: { long_name: Data residual for our model ensemble,
   #                      short_name: ensemble_residuals, dimensions: ensemble_sample }
-  #misfit: {long_name: Unnormalised chi-squared misfit, short_name: misfit,
-  #  dimensions: [chain, convergence_sample]}
+  misfit: {long_name: Unnormalised chi-squared misfit, short_name: misfit,
+    dimensions: [chain, convergence_sample]}
   mean_model: {long_name: Conductivity of mean model, short_name: conductivity_mean,
     units: 'log10 S/m', dimensions: depth}
   mode_model: {long_name: Conductivity of mode model, short_name: conductivity_mode,
@@ -63,7 +64,6 @@ field_definitions:
   p90_model: {long_name: Conductivity at 90th percentile, short_name: conductivity_p90,
     units: 'log10 S/m', dimensions: depth}
 
-
 # String containing comma-separated list of keywords
 keywords: geophysics, airborne, AEM, conductivity, garjmcmcmtdem
 
@@ -73,8 +73,11 @@ dimension_fields:
   depth: {dimension_name: 'depth'}
   value: {dimension_name: 'conductivity_cells'}
   layer: {dimension_name: 'layer'}
-  ensemble_sample: {dimension_name: 'ensemble_sample'}
+  #ensemble_sample: {dimension_name: 'ensemble_sample'}
+  convergence_sample: {dimension_name: 'convergence_sample'}
   chain: {dimension_name: 'chain'}
+  nuisance_bin: {dimension_name: "nuisance_bin"}
+  nuisance: {dimension_name: "nuisance"}
 
   #convergence_sample: {dimension_name: convergence_sample}
   line: {dimension_name: 'line'}
