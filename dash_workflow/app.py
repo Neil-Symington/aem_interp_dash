@@ -750,6 +750,7 @@ for lin in lines:
     # Using this gridding we find the distance along the line for each garjmcmc site
     # Get a line mask
     line_mask = netcdf_utils.get_lookup_mask(lin, rj.data)
+
     # get the coordinates
     line_coords = rj.coords[line_mask]
 
@@ -757,7 +758,8 @@ for lin in lines:
 
     dists = spatial_functions.xy_2_var(det_section_data,
                                       line_coords,
-                                      'grid_distances')
+                                      'grid_distances',
+                                       max_distance = 200.)
 
     # Add a dictionary with the point index distance along the line to our inversion instance
     rj.distance_along_line[lin] = pd.DataFrame(data = {"point_index": np.where(line_mask)[0],
@@ -878,7 +880,26 @@ app = dash.Dash(__name__, external_stylesheets=[stylesheet])
 app.layout = html.Div([
     html.Div(
                 [
-                    html.Div(html.H1(' '.join([str(model_settings['name']), " AEM interpretation app"])),
+                    html.Div([html.H1(' '.join([str(model_settings['name']), " AEM interpretation app"])),
+                              html.Div(dash_table.DataTable(id='surface_table',
+                                                            css=[{'selector': '.row', 'rule': 'margin: 0'}],
+                                                            columns=[{"name": i, "id": i} for i in
+                                                                     df_model_template.columns],
+                                                            data=df_model_template.to_dict('records'),
+                                                            editable=True,
+                                                            fixed_columns={'headers': True},
+                                                            sort_action="native",
+                                                            sort_mode="multi",
+                                                            row_selectable=False,
+                                                            row_deletable=False,
+                                                            style_table={
+                                                                'maxHeight': '100px',
+                                                                'overflowY': 'scroll',
+                                                                'maxWidth': '500px',
+                                                                'overflowX': 'scroll'}
+                                                            ),
+                                       )
+                              ],
                              className= "three columns"),
                     html.Div([html.H4("Select surface"),
                               dcc.Upload(
@@ -905,6 +926,14 @@ app.layout = html.Div([
                                             options=surface_options,
                                             value=(surface_options[0]['label']))
                                           ]),
+                            html.Div(["Include imported straigraphic picks on section: ", dcc.RadioItems(
+                                  id="strat_checkbox",
+                                  options=[
+                                      {'label': 'Yes', 'value': 'yes'},
+                                      {'label': 'No', 'value': 'no'},
+                                  ],
+                                  labelStyle={'display': 'inline-block'},
+                                  value='yes')]),
                              ],className = "three columns"),
                     html.Div([html.H4("Select section"),
                              dcc.Dropdown(id = "section_dropdown",
@@ -920,12 +949,25 @@ app.layout = html.Div([
                                                     {'label': 'garjmcmctdem_utils - layer probability',
                                                      'value': 'rj-lpp'}],
                                             value="lci"),
-
-                             ],className = "three columns"),
+                              html.Div(["Conductivity plotting minimum: ", dcc.Input(
+                                                    id="vmin", type="number",
+                                                    min=0.001, max=10, value=section_settings['vmin'])]),
+                                        html.Div(["Conductivity plotting maximum: ", dcc.Input(
+                                            id="vmax", type="number",
+                                            min=0.001, max=10, value=section_settings['vmax'])]),
+                                        html.Div(["AEM layer grid:                ", dcc.Input(
+                                            id="layerGrid", type="number",
+                                            min=1, max=30, value=1, step=1)]),
+                                        ],
+                                       className="three columns"),
                     html.Div([html.H4("Select line"),
                              dcc.Dropdown(id = "line_dropdown",
                                             options=line_options,
                                             value= line_options[0]['value']),
+                              html.Div(html.Button('Export results', id='export', n_clicks=0)),
+                              html.Div(dcc.Input(id='export-path', type='text',
+                                                 placeholder = 'Input valid output path')),
+                              html.Div(id='export_message')
                              ],className = "three columns")
                 ], className = 'row'
             ),
@@ -933,55 +975,6 @@ app.layout = html.Div([
             [
                 html.Div(html.Div(id='message'),
                          className = "three columns"),
-                html.Div(dash_table.DataTable(id='surface_table',
-                                                css=[{'selector': '.row', 'rule': 'margin: 0'}],
-                                              columns = [{"name": i, "id": i} for i in df_model_template.columns],
-                                              data=df_model_template.to_dict('records'),
-                                                editable=True,
-                                            fixed_columns={ 'headers': True},
-                                            sort_action="native",
-                                            sort_mode="multi",
-                                            row_selectable=False,
-                                            row_deletable=False,
-                                              style_table={
-                                                  'maxHeight': '100px',
-                                                  'overflowY': 'scroll',
-                                                  'maxWidth': '500px',
-                                                  'overflowX': 'scroll'}
-                                              ),
-                         className = "three columns"),
-                html.Div(["Include imported straigraphic picks on section: ", dcc.RadioItems(
-                    id="strat_checkbox",
-                    options=[
-                        {'label': 'Yes', 'value': 'yes'},
-                        {'label': 'No', 'value': 'no'},
-                    ],
-                    labelStyle={'display': 'inline-block'},
-                    value='yes')],
-                          className = "three columns"),
-                html.Div([html.Div(["Conductivity plotting minimum: ", dcc.Input(
-                                    id="vmin", type="number",
-                                    min=0.001, max=10, value = section_settings['vmin'])],
-                         className = 'row'),
-                         html.Div(["Conductivity plotting maximum: ", dcc.Input(
-                                    id="vmax", type="number",
-                                    min=0.001, max=10, value = section_settings['vmax'])],
-                         className='row'),
-                         html.Div(["AEM layer grid: ", dcc.Input(
-                                    id="layerGrid", type="number",
-                                    min=1, max=30, value = 1, step = 1)],
-                         className='row'),
-                    ],
-                    className = "three columns"),
-                html.Div([
-
-                         html.Div(html.Button('Export results', id='export', n_clicks=0),
-                                  className = 'row'),
-                         html.Div(dcc.Input(id='export-path', type='text', placeholder = 'Input valid output path'),
-                                 className= 'row'),
-                         html.Div(id='export_message', className= 'row')
-                          ],
-                         className= "three columns"),
              ], className = "row"),
     html.Div([
             dcc.Tabs(id='section_tabs', value='conductivity_section', children=[
