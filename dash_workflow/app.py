@@ -200,7 +200,7 @@ def dash_conductivity_section(section, line, vmin, vmax, cmap, xarr, pmap_kwargs
         except IndexError:
             pass
     site_distances = df_rj_sites['distance_along_line'].values
-    #site_plot_elevation = 20. + np.max(xarr['elevation'].values) * np.ones(shape=len(df_rj_sites), dtype=np.float)
+
     fig.add_trace(go.Scatter(x=site_distances,
                              y=np.zeros(shape = site_distances.shape),
                              mode='markers',
@@ -719,7 +719,7 @@ if borehole_settings['include']:
 # Process imported strat picks if avaialble
 
 if model_settings['importStratPicksFromFile']:
-    df_strat = pd.read_csv(model_settings['stratPicksFile'])
+    df_strat = pd.read_csv(model_settings['stratPicksFile'], index_col = 0)
     # Add the correct colour
     df_strat['colour'] = ""
     for item in model_settings['unit_colours']:
@@ -926,14 +926,15 @@ app.layout = html.Div([
                                             options=surface_options,
                                             value=(surface_options[0]['label']))
                                           ]),
-                            html.Div(["Include imported straigraphic picks on section: ", dcc.RadioItems(
+                            html.Div(["Plot straigraphic picks on section: ", dcc.RadioItems(
                                   id="strat_checkbox",
                                   options=[
-                                      {'label': 'Yes', 'value': 'yes'},
+                                      {'label': 'Yes - with error bars', 'value': 'yes_bars'},
+                                      {'label': 'Yes - without error bars', 'value': 'yes_nobars'},
                                       {'label': 'No', 'value': 'no'},
                                   ],
                                   labelStyle={'display': 'inline-block'},
-                                  value='yes')]),
+                                  value='yes_nobars')]),
                              ],className = "three columns"),
                     html.Div([html.H4("Select section"),
                              dcc.Dropdown(id = "section_dropdown",
@@ -1187,12 +1188,24 @@ def update_many(clickData, previous_table, section, section_tab, line, vmin, vma
                                         pmap_kwargs = pmap_store)
 
         # Add existing interp to the section)
-        if model_settings['importStratPicksFromFile'] and plot_strat == "yes":
+        if model_settings['importStratPicksFromFile'] and plot_strat.startswith("yes"):
             df_strat_ss = df_strat[df_strat['SURVEY_LINE'] == line]
             if len(df_strat_ss) > 0:
                 # plot the points
                 colours= df_strat_ss['colours']
-                labels = df_strat_ss['BoundaryNm']
+                labels = []
+                for i in range(len(df_strat_ss)):
+                    labels.append(" ".join([df_strat_ss['BoundaryNm'].values[i],
+                                            ' - index = ',
+                                            str(df_strat_ss.index.values[i])]))
+                error_y = dict(
+                    type='data',  # value of error bar given in data coordinates
+                    array=df_strat_ss['DEPTH_UNCERTAINTY'],
+                    visible=True)
+                if plot_strat == "yes_bars":
+                    error_y["visible"] = True
+                else:
+                    error_y["visible"] = False
                 fig.add_trace(go.Scatter(x=df_strat_ss["distance_along_line"],
                                          y=df_strat_ss["AEM_elevation"],
                                          mode='markers',
@@ -1202,6 +1215,7 @@ def update_many(clickData, previous_table, section, section_tab, line, vmin, vma
                                                  "color": colours,
                                                  "size": model_settings['marker_size'],
                                                  },
+                                         error_y  = error_y,
                                          name='interpretation',
                                          showlegend=False,
                                          xaxis='x3',

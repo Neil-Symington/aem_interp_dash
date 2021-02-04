@@ -16,7 +16,7 @@ model_settings:
   # Path to existing interpretations
   interpFile: "../data/blank_interp_example.csv" # for starting a fresh interpretation
   importStratPicksFromFile: True
-  stratPicksFile: "/home/nsymington/Documents/GA/dash_data_Surat/Surat_basin_AEM_interpretations.csv"
+  stratPicksFile: "/home/nsymington/Documents/GA/dash_data_Surat/Surat_basin_AEM_interpretations_uncerts.csv"
   unit_colours: { 'Top_upper_Evergreen': 'darkgoldenrod', 'Top_Precipice_SSt': 'cyan',
                   "Top_lower_Evergreen": 'forestgreen',
                   'Top_Boxvale': 'lightskyblue', 'Top_intra_Precipice_Sst': 'yellowgreen',
@@ -47,7 +47,7 @@ deterministic_inversion_settings:
   # variables to grid
   grid_variables: ['conductivity', 'data_residual', 'depth_of_investigation']
   # horizontal resolution of sections
-  horizontal_resolution: 25.
+  horizontal_resolution: 15.
   # Vertical resolution of sections
   verticaL_resolution: 5.
   # section to read or write pickle files
