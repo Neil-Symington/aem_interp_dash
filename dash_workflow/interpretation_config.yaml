@@ -66,7 +66,7 @@ stochastic_inversion_settings:
   grid_variables: [ 'conductivity_p10', 'conductivity_p50', 'conductivity_p90', 'interface_depth_histogram',
                     'misfit_lowest' ]
   # horizontal resolution of sections
-  horizontal_resolution: 80.
+  horizontal_resolution: 40.
   # Vertical resolution of sections
   verticaL_resolution: 2.
   section_directory: "section_data_rj"

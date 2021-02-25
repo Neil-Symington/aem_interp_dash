@@ -9,11 +9,9 @@ from garjmcmctdem_utils import plotting_functions as plots
 from garjmcmctdem_utils.misc_utils import pickle2xarray, xarray2pickle
 import warnings
 import pandas as pd
-import geopandas as gpd
 from shapely import wkt
 warnings.filterwarnings('ignore')
 # Dash dependencies
-import plotly.express as px
 import dash
 from dash.dependencies import Input, Output, State
 import dash_core_components as dcc
