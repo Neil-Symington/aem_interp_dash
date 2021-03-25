@@ -6,13 +6,16 @@ properties of stratigraphy from the Surat Basin
 
 import numpy as np
 import pandas as pd
-from garjmcmctdem_utils import spatial_functions, aem_utils, netcdf_utils
+from garjmcmctdem_utils import spatial_functions, aem_utils
 from scipy import interpolate
 import netCDF4
-import os
 import matplotlib.pyplot as plt
 
-infile = "/home/nsymington/Documents/GA/dash_data_Surat/200401_interp.csv"
+
+
+
+line = 200401
+infile = "../data/{}_interp.csv".format(line)
 
 df_interp = pd.read_csv(infile)
 
@@ -37,6 +40,7 @@ df_results = pd.DataFrame(columns = cols)
 df_results['rj_index'] = unique_inds
 df_results['easting'] = rj.data['easting'][unique_inds].data
 df_results['northing'] = rj.data['northing'][unique_inds].data
+df_results['elevation'] = rj.data['elevation'][unique_inds].data
 
 # subset the interpretations into dataframes
 df_interp_EvgPrecMool = df_interp[df_interp['BoundaryNm'] == "BaseEvergreenTopPrecipice"]
@@ -73,6 +77,14 @@ precipice_cond_histogram = np.zeros(shape = rj.data.dimensions['conductivity_cel
                                     dtype = int)
 moolyamber_cond_histogram = np.zeros(shape = rj.data.dimensions['conductivity_cells'].size,
                                      dtype = int)
+
+evergreen_cond_elev = np.zeros(shape = rj.data.dimensions['conductivity_cells'].size,
+                                    dtype = float)
+precipice_cond_elev = np.zeros(shape = rj.data.dimensions['conductivity_cells'].size,
+                                    dtype = float)
+moolyamber_elev = np.zeros(shape = rj.data.dimensions['conductivity_cells'].size,
+                                     dtype = float)
+
 
 # iterate through the dataframe and find the conductivity histogram for the ranges
 for index, row in df_results.iterrows():
@@ -111,15 +123,14 @@ counts_, bins_, _ = ax_array[2].hist(rj.data['conductivity_cells'][:], bins=len(
 ax_array[2].set_title('Moolyamber Formation')
 ax_array[2].set_xlabel('conductivity (S/m)')
 ax_array[1].set_ylabel('probability')
-
-#ax_array[0].set_xticks(10**ax_array[0].get_xticks())
-#ax_array[1].set_xticks(10**ax_array[1].get_xticks())
-#for i in range()
-ax_array[2].set_xticklabels(['{:.3f}'.format(10**x) for x in ax_array[2].get_xticks()])
-#print(ax_array[2].get_xticks())
+ax_array[2].set_xlim(rj.data['conductivity_cells'][0],
+                     0.)
+ax_array[2].set_xticklabels(['{:.4f}'.format(10**x) for x in ax_array[2].get_xticks()])
 ax_array[0].grid(True)
 ax_array[1].grid(True)
 ax_array[2].grid(True)
-plt.savefig("Surat_line_200401_histogram.png", dpi = 200)
+fig.tight_layout()
+
+plt.savefig("Surat_line_{}_histogram.png".format(line), dpi = 200)
 plt.show()
 

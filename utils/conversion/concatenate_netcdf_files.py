@@ -39,7 +39,7 @@ indir = "/home/nsymington/Documents/GA/AEM/EK_inversions_AEGC/combined/pmaps"
 yml_file = "netcdf_settings.yml"
 nc_outfile = "/home/nsymington/Documents/GA/EK_salinity_mapping/EK_inversions_AEGC/EK_pilot_points_rjmcmc_pmaps.nc"
 
-# We are going to discard non-convergent models by first checking the misfits in the netcdf files
+# We are going to discard non-convergent models b y first checking the misfits in the netcdf files
 
 fnames = []
 min_misfit = []
