@@ -292,7 +292,7 @@ class AEM_inversion:
 
 class AEM_data:
     """
-    Class for handling AEM inversions
+    Class for handling AEM data
     """
 
     def __init__(self, name = '', system_name = '', netcdf_dataset = None):

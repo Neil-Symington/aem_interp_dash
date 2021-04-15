@@ -1,92 +1,61 @@
 general_settings:
   # session settings
-  data_directory: "/home/nsymington/Documents/GA/dash_data_Galilee"
+  data_directory: "/home/nsymington/Documents/GA/dash_data_Block1"
   # directory with the AEM data
   # The line numbers that we are interested in visualising
-  lines: [ 300001, 300101, 300102, 300201, 300301, 300302, 300401,
-           300501, 300502, 300503, 300504, 300601, 300602, 300603,
-           300604, 300701, 300702, 300801, 300802, 300901, 301001,
-           301101, 301201, 301301, 301401, 301402, 301501, 301601,
-           301701, 301801, 301901 ]
+  lines: [ 11010, 11020, 11032, 11042, 11050, 11060, 11072, 11080,
+           11090, 11100, 11110, 11120, 11130, 11140, 11152, 11160,
+           11170, 11180, 11190, 11200, 11210, 11220, 11230, 11240,
+           11250, 11260, 11270, 11280, 11290, 11300, 11310, 11320,
+           11330, 11340, 11350, 11360, 11370, 11380, 11392, 11400,
+           11410, 11420, 11430, 11440, 11450, 11462, 11470, 11480,
+           11490, 11500, 11510, 11520, 11530, 11532, 11540, 11550,
+           11560, 11570, 11580, 11590, 11600, 11610, 11620, 11630,
+           11640, 11650, 11660, 11670, 11680, 11690, 11700, 11710,
+           11720, 11730, 11740, 11750, 11760, 11770, 11780, 11790,
+           11800, 11810, 11820, 11830, 11840, 11850, 11860, 11870,
+           11880, 11890, 11900, 11910, 11920, 11930, 11940, 11950,
+           11960, 11970, 11980, 11990, 12000, 12010, 12020, 12030,
+           12040, 12050, 12060, 12070, 12080, 12090, 12100, 12110,
+           12120, 12130, 12140, 12150, 12160, 12170, 12180, 12190,
+           12200, 12210, 12220]
 
 model_settings:
-  name: "Galilee hydrostratigraphy"
-
+  name: "Musgrave hydrostratigraphy"
   # Path to template csv file
   templateFile: "../data/GalileeSurfaces.csv"
   # Path to existing interpretations
   interpFile: "../data/blank_interp_example.csv"
 
-AEM_data_settings:
-  name: "Galilee_AEM-data"
-  # System name
-  system_name: "SkyTEM_312"
-  # Path to netcdf file for AEM data. If this is the file name without a path the app will search for it
-  # in the data directory
-  nc_path: "AUS_10024_Galilee_EM_MGA55.nc"
-  # True if you want to grid the AEM data into vertical sections for visualisation false if already done.
-  grid_sections: False
-  # Parameters for gridding
-  grid_variables: [ 'low_moment_Z-component_EM_data', 'high_moment_Z-component_EM_data', 'roll',
-                    'pitch', 'tx_height_measured', 'powerline_noise', 'gps_height' ]
-  section_directory: "section_data_EM_grid"
-
-
-
 deterministic_inversion_settings:
   # deterministic inversion
-  inversion_name: "lci"
+  inversion_name: "galei"
   # Path to netcdf file for AEM deterministic inversion.
-  nc_path: "Galilee_WB_MGA55.nc"
+  nc_path: "Musgraves_block1.nc"
   # True if you want to grid the AEM inversion data into vertical sections for visualisation false if already done.
-  grid_sections: False
+  grid_sections: True
   # variables to grid
-  grid_variables: ['conductivity', 'data_residual', 'depth_of_investigation']
+  grid_variables: ['conductivity', 'phid', 'tx_height', "inverted_txrx_dx", "inverted_txrx_dz",
+                   'x_primary_field_observed', 'x_secondary_field_observed', 'z_primary_field_observed',
+                   'z_secondary_field_observed', 'x_primary_field_predicted', 'x_secondary_field_predicted',
+                   'z_primary_field_predicted', 'z_secondary_field_predicted']
   # horizontal resolution of sections
   horizontal_resolution: 100.
   # Vertical resolution of sections
-  verticaL_resolution: 5.
+  verticaL_resolution: 4.
   # section to read or write pickle files
-  section_directory: "section_data_lci"
+  section_directory: "section_data_galei "
   # A flag for if the user wishes to plot the grid
   plot_grid: False
   # Path to the grid
   layer_grid_path: None
 
-stochastic_inversion_settings:
-  # stochastic inversion
-  inversion_name: "garjmcmctdem_utils"
-  # Path to netcdf file for AEM stochastic inversion.
-  nc_path: "Galilee_rjmcmc_pmaps.nc"
-  grid_sections: False # True if you want to grid the AEM inversion data into vertical sections
-  grid_variables: [ 'conductivity_p10', 'conductivity_p50', 'conductivity_p90', 'interface_depth_histogram',
-                    'misfit_lowest' ]
-  # horizontal resolution of sections
-  horizontal_resolution: 200.
-  # Vertical resolution of sections
-  verticaL_resolution: 2.
-  section_directory: "section_data_rj"
-  uncertainty: {estimate: True, # Will estimate depth uncertainty using full width half maximum method if true
-                snap_interpretation: True, # will snap the interpretation to the most likely depth within this window if True
-                snap_window: 20., # The size of the search window for uncertainty interpretation
-                maximum_distance: 200.} # Maximum horizontal distance between pmap and interpretation for uncertainty estimation
-
 visualisation_settings:
   vmin: 0.01 # Starting minimum conductivity for colourstretch
   vmax: 1. # Starting maximum conductivity for colourstretch
   cmap: 'jet' # AEM conductivity section colourstretch
-  section_plot: 'lci' # Which section to start on
   colourbar_label: 'Conductivity (S/m)'
 
-borehole_settings:
-  # If you have borehole data to include True otherwise False
-  include: True
-  borehole_file: "Galilee_strat_proximal_to_AEM.csv"
-  # colours for plotting borehole stratigraphy. see https://developer.mozilla.org/en-US/docs/Web/CSS/color_value
-  unit_colours: {'Cenozoic': 'darkgoldenrod', 'Bandanna Formation': 'cyan', "Rewan Group": 'forestgreen',
-                 'Precipice Sandstone': 'lightskyblue', 'Clematis Group': 'yellowgreen', 'Dunda Beds': 'tomato',
-                 'Moolayember Formation': 'lightpink', 'Rolling Downs Group': 'orchid'}
-
 crs:
-  projected: 'EPSG:28355'
+  projected: 'EPSG:28352'
   geographic: 'EPSG:4283'

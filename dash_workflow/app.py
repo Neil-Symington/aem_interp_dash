@@ -45,34 +45,14 @@ def profile(f):
         return res
     return profiling_wrapper
 
-#yaml_file = "dash_workflow/interpretation_config.yaml"
 yaml_file = "interpretation_config.yaml"
 settings = yaml.safe_load(open(yaml_file))
 
-interp_settings, model_settings, AEM_settings, det_inv_settings, stochastic_inv_settings, section_settings,\
-borehole_settings, crs = settings.values()
-
-# Set key variables for convenience
-uncertainty_settings = stochastic_inv_settings['uncertainty']
+interp_settings, model_settings, det_inv_settings, section_settings, crs = settings.values()
 
 root = interp_settings['data_directory']
 
 lines = interp_settings['lines']
-
-# Prepare AEM data
-em = aem_utils.AEM_data(name = AEM_settings['name'],
-                        system_name = AEM_settings['system_name'],
-                        netcdf_dataset = netCDF4.Dataset(os.path.join(root, AEM_settings['nc_path'])))
-
-# Grid the data if the user wants
-if AEM_settings["grid_sections"]:
-    print("Gridding AEM data. This may take a few minutes.")
-    ## TODO add path checking function
-    outdir = os.path.join(root, AEM_settings['section_directory'])
-    if not os.path.exists(outdir):
-        os.mkdir(outdir)
-    grid_vars = AEM_settings['grid_variables']
-    em.griddify_variables(variables=grid_vars, lines=lines, save_to_disk=True, output_dir = outdir)
 
 # Prepare deterministic inversion
 
@@ -94,6 +74,8 @@ if det_inv_settings["grid_sections"]:
 else:
     pass
 
+exit()
+
 if det_inv_settings['plot_grid']:
     # loaad layer grids
     grid_file = os.path.join(root, det_inv_settings['layer_grid_path'])
@@ -105,105 +87,13 @@ det.create_flightline_polylines(crs = crs['projected'])
 
 gdf_lines = det.flightlines[np.isin(det.flightlines['lineNumber'], lines)]
 
-# Prepare stochastic inversion
-
-rj = aem_utils.AEM_inversion(name = stochastic_inv_settings['inversion_name'],
-                              inversion_type = 'stochastic',
-                              netcdf_dataset = netCDF4.Dataset(os.path.join(root, stochastic_inv_settings['nc_path'])))
-
-
-if stochastic_inv_settings["grid_sections"]:
-    print("Gridding stochastic AEM inversion. This may take a few minutes.")
-    ## TODO add path checking function
-    outdir = os.path.join(root, stochastic_inv_settings['section_directory'])
-    if not os.path.exists(outdir):
-        os.mkdir(outdir)
-    rj.grid_sections(variables = stochastic_inv_settings['grid_variables'], lines = lines,
-                      xres = stochastic_inv_settings['horizontal_resolution'],
-                      yres = stochastic_inv_settings['verticaL_resolution'],
-                      return_interpolated = False, save_to_disk = True,
-                      output_dir = outdir)
-else:
-    pass
-
-# Prepare borehole data
-if borehole_settings['include']:
-    infile = os.path.join(root, borehole_settings['borehole_file'])
-    ## TODO add a chacking function
-    cols = ['WELL', 'TOP_AHD_M', 'BASE_AHD_M', 'GA_UNIT', 'Strat_name',
-            'TOP_MD_M', 'BASE_MD_M', 'fiducial', 'line', 'geometry']
-    df_bh = pd.read_csv(infile)[cols]
-    geom = [wkt.loads(s) for s in df_bh['geometry']]
-    df_bh['easting'] = [coord.x for coord in geom]
-    df_bh['northing'] = [coord.y for coord in geom]
-
-# To reduce the amount of data that is stored in memory the section data are stored as xarrays in pickle files
-#  We will only bring them into memory as needed. Here we point the inversions to their pickle files
-
-em.section_path = {}
 det.section_path = {}
-rj.section_path = {}
-rj.distance_along_line = {}
-# We need to get these data into the same reference frame as our grids
-df_bh['distance_along_line'] = np.nan
-df_bh['AEM_elevation'] = np.nan
-
 
 # Iterate through the lines
 for lin in lines:
     # Add path as attribute
-    em.section_path[lin] = os.path.join(root, AEM_settings['section_directory'],
-                                        "{}.pkl".format(str(lin)))
     det.section_path[lin] = os.path.join(root, det_inv_settings['section_directory'],
                                          "{}.pkl".format(str(lin)))
-    rj.section_path[lin] = os.path.join(root, stochastic_inv_settings['section_directory'],
-                                        "{}.pkl".format(str(lin)))
-    # Using this gridding we find the distance along the line for each garjmcmc site
-    # Get a line mask
-    line_mask = netcdf_utils.get_lookup_mask(lin, rj.data)
-    # get the coordinates
-    line_coords = rj.coords[line_mask]
-
-    em_section_data = pickle2xarray(em.section_path[lin])
-
-    dists = spatial_functions.xy_2_var(em_section_data,
-                                      line_coords,
-                                      'grid_distances')
-
-    # Add a dictionary with the point index distance along the line to our inversion instance
-    rj.distance_along_line[lin] = pd.DataFrame(data = {"point_index": np.where(line_mask)[0],
-                                                       "distance_along_line": dists,
-                                                       'fiducial': rj.data['fiducial'][line_mask]}
-                                               ).set_index('point_index')
-    # If we are gridding the stochastic inversions, then we scale them to the deterministic inversions
-    if stochastic_inv_settings["grid_sections"]:
-
-        rj_section_data = pickle2xarray(rj.section_path[lin])
-
-        rj_section_data['grid_distances'] = spatial_functions.scale_distance_along_line(em_section_data, rj_section_data)
-        # Save xarray back to pickle file
-
-        xarray2pickle(rj_section_data, rj.section_path[lin])
-
-    #Calculate distance along the line for the boreholes
-    line_mask = df_bh['line'] == lin
-    df_bh_ss = df_bh[line_mask]
-    if len(df_bh_ss) > 0:
-        bh_coords = df_bh_ss[['easting', 'northing']].values
-        dists_ = spatial_functions.xy_2_var(em_section_data,
-                                           bh_coords,
-                                           'grid_distances',
-                                            max_distance = 500.)
-        df_bh.at[df_bh_ss.index, 'distance_along_line'] = dists_
-        elevs_ = spatial_functions.xy_2_var(em_section_data,
-                                           bh_coords,
-                                           'elevation',
-                                            max_distance = 500.)
-        df_bh.at[df_bh_ss.index, 'AEM_elevation'] = elevs_
-    # Remove from memory
-    rj_section_data = None
-    det_section_data = None
-    gc.collect()
 
 
 # Define colour stretch for em data
@@ -287,24 +177,10 @@ def dash_conductivity_section(section, line, vmin, vmax, cmap, xarr, pmap_kwargs
     logplot = True
 
     # Extract data based on the section plot keyword argument
-    if section == 'lci':
-        misfit = xarr['data_residual'].values
-        z = np.log10(xarr['conductivity'].values)
+    misfit = xarr['phid'].values
+    z = np.log10(xarr['conductivity'].values)
 
-    elif section.startswith('rj'):
-        misfit = xarr['misfit_lowest'].values
-        if section == "rj-p50":
-            z = np.log10(xarr['conductivity_p50'])
-        elif section == "rj-p10":
-            z = np.log10(xarr['conductivity_p10'])
-        elif section == "rj-p90":
-            z = np.log10(xarr['conductivity_p90'])
-        elif section == "rj-lpp":
-            z = xarr['interface_depth_histogram'] / rj.data.histogram_samples
-            vmin = 0.01
-            vmax = 0.8
-            cmap = 'greys'
-            logplot = False
+
 
     tickvals = np.linspace(vmin, vmax, 5)
     if logplot:
@@ -366,32 +242,6 @@ def dash_conductivity_section(section, line, vmin, vmax, cmap, xarr, pmap_kwargs
                              name = "coordinates"),
                   row=4, col=1, )
 
-    df_rj_sites = rj.distance_along_line[line]
-
-    labels = ["netcdf_point_index = " + str(x) for x in df_rj_sites.index]
-    colours = len(df_rj_sites) * ['purple']
-    symbols = len(df_rj_sites) * ['circle']
-    marker_size = len(df_rj_sites) * [5]
-    if len(pmap_kwargs) > 0:
-        pt_idx = pmap_kwargs['point_idx']
-        try:
-            idx = np.where(df_rj_sites.index == pt_idx)[0][0]
-            colours[idx] = 'red'
-            symbols[idx] = 'triangle-up'
-            marker_size[idx] = 10.
-        except IndexError:
-            pass
-    site_distances = df_rj_sites['distance_along_line'].values
-    #site_plot_elevation = 20. + np.max(xarr['elevation'].values) * np.ones(shape=len(df_rj_sites), dtype=np.float)
-    fig.add_trace(go.Scatter(x=site_distances,
-                             y=np.zeros(shape = site_distances.shape),
-                             mode='markers',
-                             marker_symbol = symbols,
-                             marker_color = colours,
-                             hovertext=labels,
-                             marker_size = marker_size,
-                             showlegend=False),
-                  row=2, col=1)
     # Reverse y-axis
     fig.update_yaxes(autorange=True, row = 1, col = 1, title_text = "data residual")
     fig.update_yaxes(autorange=True, row=3, col=1, title_text="elevation (mAHD)")
@@ -405,30 +255,28 @@ def dash_conductivity_section(section, line, vmin, vmax, cmap, xarr, pmap_kwargs
 def dash_EM_section(line):
 
     # Create subplots
-    fig = make_subplots(rows=4, cols = 1, shared_xaxes=True,
+    fig = make_subplots(rows=5, cols = 1, shared_xaxes=True,
                         vertical_spacing=0.01,
-                        row_heights=[0.1, 0.1, 0.4, 0.4])
+                        row_heights=[0.1, 0.1, 0.1, 0.35, 0.35])
     # get data
-    xarr = pickle2xarray(em.section_path[line])
+    xarr = pickle2xarray(det.section_path[line])
     grid_distances = xarr['grid_distances'].values
     # Subset based on line length to avoid long rendering for plots
     ss = np.int(math.ceil(np.max(grid_distances)/10000.))
     grid_distances = grid_distances[::ss]
-    plni = xarr['powerline_noise'].values[::ss]
+
     tx_height = xarr['tx_height_measured'].values[::ss]
-    lm_data = xarr['low_moment_Z-component_EM_data'].values[::ss]
-    hm_data = xarr['high_moment_Z-component_EM_data'].values[::ss]
+    txrx_dx = xarr['inverted_txrx_dx'].values[::ss]
+    txrx_dz = xarr['inverted_txrx_dz'].values[::ss]
+    x_data = xarr['low_moment_Z-component_EM_data'].values[::ss]
+    z_data = xarr['high_moment_Z-component_EM_data'].values[::ss]
 
     fig.add_trace(go.Scatter(x=grid_distances,
                              y=tx_height,
                              line=dict(color='black', width=1),
                              showlegend=False, hoverinfo='skip'),
                   row=1, col=1, )
-    fig.add_trace(go.Scatter(x=grid_distances,
-                             y=plni,
-                             line=dict(color='black', width=1),
-                             showlegend=False, hoverinfo='skip'),
-                  row=2, col=1, )
+
 
 
     # Adaptive marker size

@@ -1,7 +1,8 @@
 '''
 Created on 14/6/2020
 @author: Neil Symington
-This script is for converting aseg-gdf EM data to a netcdf file. The netcdf file will also include some additional
+This script is for converting aseg-gdf conductivity data to a netcdf file.
+The netcdf file will also include some additional
 AEM system metadata.
 '''
 
@@ -15,46 +16,41 @@ logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 logging.debug("test")
 
-# Define paths
 
-def depth_to_thickness(depth):
+def thickness_to_depth(thickness):
     """
-    Function for calculating thickness from depth array
-    :param depth: an array of depths
+    Function for calculating depth top from a thickness array
+    :param depth: an array of thicknesses
     :return:
-    a flat array of thicknesses with the last entry being a null
+    a flat array of depth
     """
     # Create a new thickness array
-    thickness = np.nan*np.ones(shape=depth.shape,
+    depth = np.zeros(shape=thickness.shape,
                                dtype=np.float)
     # Iterate through the depth array
-    if len(depth.shape) == 1:
-        thickness[0:-1] = depth[1:] - depth[:-1]
-        return thickness
+    depth[1:] = np.cumsum(thickness[:-1])
 
-    elif len(depth.shape) == 2:
-        thickness[:, 0:-1] = depth[:, 1:] - depth[:, :-1]
-        return thickness
+    return depth
 
-    elif len(depth.shape) == 3:
+# Define paths
 
-        thickness[:-1,:,:] = depth[1:,:, :] - depth[:-1,:, :]
-        return thickness
+root = "/home/nsymington/Documents/GA/AEM/Spectrem/Block1/run.05/output"
 
-root = "/home/nsymington/Documents/GA/AEM/GALEIALLATONCE/run1/output"
+nc_out_path = os.path.join("/home/nsymington/Documents/GA/AEM/Spectrem/nc",
+                           "Musgraves_block1_flight7.nc")
 
-nc_out_path = os.path.join(root, "Mugrave_galeiallatonce.nc")
+dat_in_path = os.path.join(root, 'inversion.output.dat')
 
-dat_in_path = os.path.join(root, 'galeiallatonce.dat')
+dfn_in_path = os.path.join(root, 'inversion.output.dfn')
 
-dfn_in_path = os.path.join(root, 'galeiallatonce.dfn')
+# Initialise instance of ASEG2GDF netcdf converter
+
+settings_file = "/home/nsymington/PycharmProjects/garjmcmctdem_utils/utils/conversion/aseg_gdf_settings.yml"
 
 # GDA94 MGA zone 52
 crs_string = "epsg:28352"
 
 # Initialise instance of ASEG2GDF netcdf converter
-
-settings_file = "/home/nsymington/PycharmProjects/garjmcmctdem_utils/utils/conversion/aseg_gdf_settings.yml"
 
 d2n = aseg_gdf2netcdf_converter.ASEGGDF2NetCDFConverter(nc_out_path,
                                                  dat_in_path,
@@ -62,18 +58,17 @@ d2n = aseg_gdf2netcdf_converter.ASEGGDF2NetCDFConverter(nc_out_path,
                                                  crs_string,
                                                  fix_precision=True,
                                                  settings_path = settings_file)
-d2n.convert2netcdf()
 
-# Here we do some processing to ensure our lci file is somewhat standard
+d2n.convert2netcdf()
 
 # Create a python object with the lci dataset
 d = netCDF4.Dataset(nc_out_path, "a")
 
 layer_top_depth = np.zeros(shape = d['thickness'].shape, dtype = np.float32)
 
-layer_top_depth = depth_to_thickness(d['thickness'][:])
+layer_top_depth = thickness_to_depth(d['thickness'][0])
 
-layer_top_depth[:] = np.tile(layer_top_depth, d['thickness'].shape[0]).reshape(d['thickness'].shape)
+layer_top_depth = np.tile(layer_top_depth, d['thickness'][:].shape[0]).reshape(d['thickness'][:].shape)
 
 ltop = d.createVariable("layer_top_depth","f8",("point","layer"))
 ltop[:] = layer_top_depth

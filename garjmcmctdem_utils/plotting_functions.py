@@ -332,9 +332,10 @@ def plot_grid(ax, gridded_variables, variable, panel_kwargs, x_ax_var='grid_dist
 
     ax.plot(line_x, gridded_variables['elevation'], 'k')
 
+
     # To remove gridded values that stick above this line we will fill the sky in as white
-    ax.fill_between(line_x, max_elevation * np.ones(np.shape(line_x)),
-                    gridded_variables['elevation'], interpolate=True, color='white', alpha=1)
+    #ax.fill_between(line_x, max_elevation * np.ones(np.shape(line_x)),
+    #                gridded_variables['elevation'], interpolate=True, color='white', alpha=1)
 
     # Add ylabel
     try:
