@@ -25,21 +25,19 @@ def galei_plot(line_number, plot_kwargs, save_fig = True, figsize = (12,30)):
 
     fig = plt.figure(figsize = figsize)
 
-    ax1 = fig.add_axes([0.1, 0.90, 0.8, 0.05])
-    ax2 = fig.add_axes([0.1, 0.83, 0.8, 0.05])
+    ax1 = fig.add_axes([0.1, 0.83, 0.8, 0.15])
+    ax2 = fig.add_axes([0.1, 0.76, 0.8, 0.05])
     ax2.sharex(ax1)
-    ax3 = fig.add_axes([0.1, 0.76, 0.8, 0.05])
+    ax3 = fig.add_axes([0.1, 0.69, 0.8, 0.05])
     ax3.sharex(ax2)
-    ax4 = fig.add_axes([0.1, 0.69, 0.8, 0.05])
+    ax4 = fig.add_axes([0.1, 0.62, 0.8, 0.05])
     ax4.sharex(ax3)
-    ax5 = fig.add_axes([0.1, 0.62, 0.8, 0.05])
+    ax5 = fig.add_axes([0.1, 0.55, 0.8, 0.05])
     ax5.sharex(ax4)
-    ax6 = fig.add_axes([0.1, 0.45, 0.8, 0.18])
+    ax6 = fig.add_axes([0.1, 0.30, 0.8, 0.23])
     ax6.sharex(ax5)
-    ax7 = fig.add_axes([0.1, 0.25, 0.8, 0.18])
+    ax7 = fig.add_axes([0.1, 0.05, 0.8, 0.23])
     ax7.sharex(ax6)
-    ax8 = fig.add_axes([0.1, 0.05, 0.8, 0.18])
-    ax8.sharex(ax7)
     cbar_ax = fig.add_axes([0.93, 0.05, 0.01, 0.2])
 
     grid_distances = galei.section_data[line_number]['grid_distances'].values
@@ -87,40 +85,38 @@ def galei_plot(line_number, plot_kwargs, save_fig = True, figsize = (12,30)):
     em_secondary_x_obs = em.section_data[line_number]['x_secondary_field_observed'].values
     em_secondary_x_pred = em.section_data[line_number]['x_secondary_field_predicted'].values
 
+    vector_sum_obs = np.sqrt(em_secondary_z_obs**2 + em_secondary_x_obs**2)
+    vector_sum_pred = np.sqrt(em_secondary_z_pred ** 2 + em_secondary_x_pred ** 2)
+
+
     colours = ['blue', 'orange', 'green', 'red', 'purple', 'brown', 'pink',
                'grey', 'olive', 'cyan']
 
     for i in range(em_secondary_z_obs.shape[1]):
         ax6.plot(em.section_data[line_number]['grid_distances'],
-                 np.arcsinh(em_secondary_x_obs[:,i]), 'k')
+                 np.arcsinh(vector_sum_obs[:,i]), 'k')
         ax6.plot(em.section_data[line_number]['grid_distances'],
-                 np.arcsinh(em_secondary_x_pred[:,i]), color = colours[i],
+                 np.arcsinh(vector_sum_pred[:,i]), color = colours[i],
                  linewidth = 0.5)
 
-        ax7.plot(em.section_data[line_number]['grid_distances'],
-                 np.arcsinh(em_secondary_z_obs[:,i]), 'k')
-        ax7.plot(em.section_data[line_number]['grid_distances'],
-                 np.arcsinh(em_secondary_z_pred[:,i]), color = colours[i],
-                 linewidth = 0.5)
 
     ax6.set_ylabel('asinh (fT)')
-    ax7.set_ylabel('asinh (fT)')
 
     # PLot the section
 
-    cond_section = plots.plot_grid(ax8, galei.section_data[line_number], 'conductivity',
+    cond_section = plots.plot_grid(ax7, galei.section_data[line_number], 'conductivity',
                                    panel_kwargs=plot_kwargs['panel_7'])
-    ax8.plot(grid_distances,
+    ax7.plot(grid_distances,
              galei.section_data[line_number]['tx_height'] + galei.section_data[line_number]['elevation'],
              color='blue', label='tx')
-    ax8.legend()
+    ax7.legend()
 
     cb = fig.colorbar(cond_section, cax=cbar_ax, orientation='vertical')
 
     cb.ax.set_yticklabels([round(10 ** x, 4) for x in cb.get_ticks()])
     cb.set_label('conductivity (S/m)', fontsize=10)
 
-    ax_array = np.array([ax1,ax2,ax3,ax4, ax5, ax6, ax7, ax8])
+    ax_array = np.array([ax1,ax2,ax3,ax4, ax5, ax6, ax7])
     return fig, ax_array
 
 infile = "/home/nsymington/Documents/GA/AEM/Spectrem/nc/Musgraves_block1.nc"
@@ -131,6 +127,7 @@ galei = aem_utils.AEM_inversion(name = "galei",
 
 lines = [11750, 11760, 11770, 11780, 11790, 11800, 11810, 11820,
          11830, 11840, 11850, 11860, 11870, 11880, 11890]
+
 
 grid_vars = ['conductivity', 'phid', 'tx_height', #'inverted_tx_height',
              "inverted_txrx_dx", "inverted_txrx_dz"]
