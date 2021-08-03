@@ -1231,6 +1231,11 @@ def update_many(clickData, previous_table, section, section_tab, line, vmin, vma
         if len(df_ss) > 0:
             fig = plot_section_points(fig, line, df_ss, xarr, select_mask=select_mask)
             # Now plot strat points
+        if borehole_settings['include']:
+            df_bh_ss = df_bh[df_bh['line'] == line]
+            if len(df_bh_ss) > 0:
+                # plot the boreholes as segments
+                fig = plot_borehole_segments(fig, df_bh_ss)
 
 
         fig['layout'].update({'uirevision': line})

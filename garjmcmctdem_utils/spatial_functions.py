@@ -24,6 +24,7 @@ Spatial functions used for various bits an pieces
 '''
 
 from scipy.spatial.ckdtree import cKDTree
+from scipy.spatial.ckdtree import cKDTree
 import numpy as np
 from scipy.interpolate import griddata
 from scipy.interpolate import interp1d

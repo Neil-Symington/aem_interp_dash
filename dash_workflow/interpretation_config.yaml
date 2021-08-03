@@ -14,7 +14,7 @@ model_settings:
   # Path to template csv file
   templateFile: "../data/SuratSurfaces.csv"
   # Path to existing interpretations
-  interpFile: "../data/blank_interp_example.csv" # for starting a fresh interpretation
+  interpFile: "/home/nsymington/Documents/GA/dash_data_Surat/Injune_interp.csv" # for starting a fresh interpretation
   importStratPicksFromFile: True
   stratPicksFile: "/home/nsymington/Documents/GA/dash_data_Surat/Surat_basin_AEM_interpretations_uncerts.csv"
   unit_colours: { 'Top_upper_Evergreen': 'darkgoldenrod', 'Top_Precipice_SSt': 'cyan',
@@ -70,7 +70,7 @@ stochastic_inversion_settings:
   # Vertical resolution of sections
   verticaL_resolution: 2.
   section_directory: "section_data_rj"
-  uncertainty: {estimate: True, # Will estimate depth uncertainty using full width half maximum method if true
+  uncertainty: {estimate: False, # Will estimate depth uncertainty using full width half maximum method if true
                 snap_interpretation: True, # will snap the interpretation to the most likely depth within this window if True
                 snap_window: 20., # The size of the search window for uncertainty interpretation
                 maximum_distance: 200.} # Maximum horizontal distance between pmap and interpretation for uncertainty estimation
@@ -84,12 +84,11 @@ visualisation_settings:
 
 borehole_settings:
   # If you have borehole data to include True otherwise False
-  include: False
-  borehole_file: "Galilee_strat_proximal_to_AEM.csv"
+  include: True
+  borehole_file: "Injune_strat_proximal_to_AEM.csv"
   # colours for plotting borehole stratigraphy. see https://developer.mozilla.org/en-US/docs/Web/CSS/color_value
-  unit_colours: {'Cenozoic': 'darkgoldenrod', 'Bandanna Formation': 'cyan', "Rewan Group": 'forestgreen',
-                 'Precipice Sandstone': 'lightskyblue', 'Clematis Group': 'yellowgreen', 'Dunda Beds': 'tomato',
-                 'Moolayember Formation': 'lightpink', 'Rolling Downs Group': 'orchid'}
+  unit_colours: { 'Evergreen Formation': 'darkgoldenrod', 'Precipice Sandstone': 'cyan',
+                  "Rewan Formation": 'forestgreen'}
 
 crs:
   projected: 'EPSG:28355'

@@ -1,4 +1,3 @@
 SurfaceName,Type,BoundaryNm,BoundConf,BasisOfInt,OvrConf,OvrStrtUnt,OvrStrtCod,UndStrtUnt,UndStrtCod,WithinType,WithinStrt,WithinStNo,WithinConf,InterpRef,Comment,Operator,Colour,Marker,MarkerSize
-BaseCenozoic,BASE_Cenozoic_TOP_Mesozoic,Top- Evergreen interface,M,IAEM,M,Cenozoic Regolith,76541,Evergreen Formation,6416,,,,,,,Neil Symington,pink,circle,10
-BaseEvergreenTopPrecipice,INTRA_Mesozoic,Top- Precipice interface,M,IAEM,M,Evergreen Formation,6416,Precipice Sandstone,15540,,,,,,,Neil Symington,grey,circle,10
-BasePrecipice_TopMoolyamber,INTRA_Mesozoic,Top- Moorlayamber interface,M,IAEM,M,Precipice Sandstone,15540,Precipice Sandstone,12187,,,,,,,Neil Symington,black,circle,10
+TopPrecipice,INTRA_Mesozoic,Top-Precipice_interface,M,IAEM,M,Evergreen_Formation,6416,Precipice_Sandstone,15540,,,,,,,Neil_Symington,grey,circle,10
+BasePrecipice,INTRA_Mesozoic,Top-Moorlayamber_interface,M,IAEM,M,Precipice_Sandstone,15540,Precipice_Sandstone,12187,,,,,,,Neil_Symington,black,circle,10
