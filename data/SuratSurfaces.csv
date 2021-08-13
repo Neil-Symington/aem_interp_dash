@@ -1,3 +1,10 @@
 SurfaceName,Type,BoundaryNm,BoundConf,BasisOfInt,OvrConf,OvrStrtUnt,OvrStrtCod,UndStrtUnt,UndStrtCod,WithinType,WithinStrt,WithinStNo,WithinConf,InterpRef,Comment,Operator,Colour,Marker,MarkerSize
-TopPrecipice,INTRA_Mesozoic,Top-Precipice_interface,M,IAEM,M,Evergreen_Formation,6416,Precipice_Sandstone,15540,,,,,,,Neil_Symington,grey,circle,10
-BasePrecipice,INTRA_Mesozoic,Top-Moorlayamber_interface,M,IAEM,M,Precipice_Sandstone,15540,Precipice_Sandstone,12187,,,,,,,Neil_Symington,black,circle,10
+TopPrecipice_p50,INTRA_Mesozoic,Top-Precipice_p50,M,IAEM,M,Evergreen_Formation,6416,Precipice_Sandstone,15540,,,,,,,Neil_Symington,black,circle,6
+TopPrecipice_p10,INTRA_Mesozoic,Top-Precipice_p10,M,IAEM,M,Evergreen_Formation,6416,Precipice_Sandstone,15540,,,,,,,Neil_Symington,grey,circle,6
+TopPrecipice_p90,INTRA_Mesozoic,Top-Precipice_p90,M,IAEM,M,Evergreen_Formation,6416,Precipice_Sandstone,15540,,,,,,,Neil_Symington,white,circle,6
+BasePrecipice_p50,INTRA_Mesozoic,Base_Precipice_p50,M,IAEM,M,Precipice_Sandstone,15540,Moolyamber_Formation,12187,,,,,,,Neil_Symington,black,cross-open,6
+BasePrecipice_p10,INTRA_Mesozoic,Base_Precipice_p10,M,IAEM,M,Precipice_Sandstone,15540,Moolyamber_Formation,12187,,,,,,,Neil_Symington,grey,cross-open,6
+BasePrecipice_p90,INTRA_Mesozoic,Base_Precipice_p90,M,IAEM,M,Precipice_Sandstone,15540,Moolyamber_Formation,12187,,,,,,,Neil_Symington,white,cross-open,6
+Moolyamber_Evergreen_p50,INTRA_Mesozoic,MoolyamberEvergreen,M,IAEM,M,Evergreen_Formation,6416,Moolyamber_Formation,12187,,,,,,,Neil_Symington,black,square,6
+Moolyamber_Evergreen_p10,INTRA_Mesozoic,MoolyamberEvergreen,M,IAEM,M,Evergreen_Formation,6416,Moolyamber_Formation,12187,,,,,,,Neil_Symington,grey,square,6
+Moolyamber_Evergreen_p90,INTRA_Mesozoic,MoolyamberEvergreen,M,IAEM,M,Evergreen_Formation,6416,Moolyamber_Formation,12187,,,,,,,Neil_Symington,white,square,6

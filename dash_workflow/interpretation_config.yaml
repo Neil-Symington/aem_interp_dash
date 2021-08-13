@@ -14,7 +14,7 @@ model_settings:
   # Path to template csv file
   templateFile: "../data/SuratSurfaces.csv"
   # Path to existing interpretations
-  interpFile: "/home/nsymington/Documents/GA/dash_data_Surat/Injune_interp.csv" # for starting a fresh interpretation
+  interpFile: "/home/nsymington/Documents/GA/GAB/Injune/quantile_interp.csv" # for starting a fresh interpretation
   importStratPicksFromFile: True
   stratPicksFile: "/home/nsymington/Documents/GA/dash_data_Surat/Surat_basin_AEM_interpretations_uncerts.csv"
   unit_colours: { 'Top_upper_Evergreen': 'darkgoldenrod', 'Top_Precipice_SSt': 'cyan',

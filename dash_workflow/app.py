@@ -115,7 +115,6 @@ def dash_conductivity_section(section, line, vmin, vmax, cmap, xarr, pmap_kwargs
         elif section == "rj-p90":
             z = np.log10(xarr['conductivity_p90'])
         elif section == "rj-lpp":
-            print(rj.data)
             z = xarr['interface_depth_histogram'] / rj.data['histogram_samples']
             vmin = 0.01
             vmax = 0.8
@@ -604,7 +603,10 @@ def plot_borehole_segments(fig, df):
         if np.isnan(y[1]):
             y[1] = y[0] - 4.
         x = row[['distance_along_line', 'distance_along_line']].values
-        colour = borehole_settings['unit_colours'][row['Strat_name']]
+        if row['Strat_name'] in borehole_settings['unit_colours']:
+            colour = borehole_settings['unit_colours'][row['Strat_name']]
+        else:
+            colour = 'white'
         labels = [row['GA_UNIT']] * 2
         fig.add_trace(go.Scatter(x=x,
                                  y=y,
@@ -1139,7 +1141,7 @@ def update_many(clickData, previous_table, section, section_tab, line, vmin, vma
                       'WithinStrt': row.WithinStrt,
                       'WithinStNo': row.WithinStNo,
                       'WithinConf': row.WithinConf,
-                      'InterpRef': row.InterpRef,
+                      #'InterpRef': row.InterpRef,
                       'Comment': row.Comment,
                       'SURVEY_LINE': line,
                       'Operator': row.Operator,
@@ -1166,13 +1168,14 @@ def update_many(clickData, previous_table, section, section_tab, line, vmin, vma
 
         else:
             # Compare dataframes to find which rows have been removed
-            fids = []
 
             for row in previous_table:
                 if row not in current_table:
-                    fids.append(row['fiducial'])
+                    fid = row['fiducial']
+                    name = row['BoundaryNm']
                     # Remove from dataframe
-            df = df[~df['fiducial'].isin(fids)]
+            df = df[(df['fiducial'] != fid) | (df['BoundaryNm'] != name)]
+
 
     # Produce section plots
     df_ss = df[df['SURVEY_LINE'] == line]
