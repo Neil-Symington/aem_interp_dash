@@ -1,0 +1,23 @@
+Metadata-Version: 1.1
+Name: garjmcmctdem-utils
+Version: 0.1
+Summary: Utilities for processing, visualisation and intrepretation of stochastic AEM inversions for (hydro)geological assessments
+Home-page: https://github.com/Neil-Symington/garjmcmctdem_utils
+Author: Neil Symington
+Author-email: neil.symington@ga.gov.au
+License: Apache License Version 2.0
+Description: UNKNOWN
+Platform: UNKNOWN
+Requires: matplotlib
+Requires: netcdf4
+Requires: numpy
+Requires: pandas
+Requires: geopandas
+Requires: xarray
+Requires: dash
+Requires: plotly
+Requires: sklearn
+Requires: pyyaml
+Requires: affine
+Requires: shapely
+Requires: scipy

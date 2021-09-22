@@ -26,6 +26,7 @@ Code for creating geological modelled objects
 import os
 import tempfile
 import numpy as np
+from numpy.core.fromnumeric import var
 import pandas as pd
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import Matern
@@ -85,11 +86,18 @@ class Statigraphic_Model:
         # initiate model using model boundary class
         surface = model_boundary(name=surfaceName)
         setattr(self, surfaceName, surface)
-        self.surfaces.append(surfaceName)
+        if not surfaceName in self.surfaces:
+            self.surfaces.append(surfaceName)
         # iterate through axes in data series and set them as attributes
         for col in series.axes[0]:
             if not col == 'SurfaceName':
                 setattr(getattr(self, surfaceName), col, series[col])
+        # add interpreted points to the model boundary
+        if hasattr(self, "interpreted_points"):
+            setattr(getattr(self, surfaceName), "interpreted_points",
+                     self.interpreted_points[self.interpreted_points['SurfaceName'] == surfaceName])
+
+
 
 class model_boundary:
     """
@@ -123,8 +131,8 @@ class model_boundary:
         shapely polygon
             convex hull
         """
-        coords = np.column_stack((self.interpreted_points['easting'],
-                                 self.interpreted_points['northing']))
+        coords = np.column_stack((self.interpreted_points['X'],
+                                 self.interpreted_points['Y']))
 
         points = [Point(pt) for pt in coords]
         mpt = MultiPoint(points)
@@ -187,25 +195,31 @@ class model_boundary:
         if convex_hull:
             self.convex_hull = self.get_convex_hull(convex_hull_buffer = convex_hull_buffer)
 
-    def fit_interpolator(self, variable, interpolator_name):
+    def fit_interpolator(self, interpolator_name, variable = None, arr = None):
         """Fit the gaussian process to generate a function for prediction.
 
         Parameters
         ----------
         """
-        assert variable in self.interpreted_points.keys()
-
         # first check the interpolator exists
         if not hasattr(self, interpolator_name):
             print('That interpolator does not exist. Please create one or check the interpolator_name keyword argument.')
             raise ValueError()
+        
+        if variable is not None:
+            assert variable in self.interpreted_points.keys()
+            y = self.interpreted_points[variable]
+        elif arr is not None:
+            y = arr
+        else:
+            return None
+        
 
         # Fit the interpolator
 
-        X = np.column_stack((self.interpreted_points['easting'],
-                             self.interpreted_points['northing']))
+        X = np.column_stack((self.interpreted_points['X'],
+                             self.interpreted_points['Y']))
 
-        y = self.interpreted_points[variable]
 
         gp = getattr(self,interpolator_name)
         gp.fit(X,y)
