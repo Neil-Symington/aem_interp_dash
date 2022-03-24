@@ -1,4 +1,3 @@
-# garjmcmctdem_utils
 
 This branch is the code base for running a dash app for visualising and interpreting
 airborne electromagnetic data. A feature of this app is that it is able to create 
