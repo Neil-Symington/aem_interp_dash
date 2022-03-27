@@ -54,7 +54,7 @@ the interpretation_config.yanl file. More information on how this works can be f
 the wiki.
 
 Once the data is prepared and the settings are satisfactory, run the app (app.py) 
-using thw python from the conda environment. If gridding sections, the app may take a
+using the python from the conda environment. If gridding sections, the app may take a
  while to run. Once the preprocessing is done, the terminal should return a message 
  similar to the following:
  
