@@ -88,7 +88,7 @@ if det_inv_settings["grid_sections"]:
         os.mkdir(outdir)
     det.grid_sections(variables = det_inv_settings['grid_variables'], lines = lines,
                       xres = det_inv_settings['horizontal_resolution'],
-                      yres = det_inv_settings['verticaL_resolution'],
+                      yres = det_inv_settings['vertical_resolution'],
                       return_interpolated = False, save_to_disk = True,
                       output_dir = outdir)
 else:
@@ -98,33 +98,12 @@ if det_inv_settings['plot_grid']:
     # loaad layer grids
     grid_file = os.path.join(root, det_inv_settings['layer_grid_path'])
     # Not enough density to plot grid
-    det.load_lci_layer_grids_from_pickle(grid_file)
+    det.load_lci_layer_grids_from_pickle(grid_file) #TODO change this name
 
 # Create polylines
 det.create_flightline_polylines(crs = crs['projected'])
 
 gdf_lines = det.flightlines[np.isin(det.flightlines['lineNumber'], lines)]
-
-# Prepare stochastic inversion
-if stochastic_inv_settings['include']:
-    rj = aem_utils.AEM_inversion(name = stochastic_inv_settings['inversion_name'],
-                              inversion_type = 'stochastic',
-                              netcdf_dataset = netCDF4.Dataset(os.path.join(root, stochastic_inv_settings['nc_path'])))
-
-
-    if stochastic_inv_settings["grid_sections"]:
-        print("Gridding stochastic AEM inversion. This may take a few minutes.")
-        ## TODO add path checking function
-        outdir = os.path.join(root, stochastic_inv_settings['section_directory'])
-        if not os.path.exists(outdir):
-            os.mkdir(outdir)
-        rj.grid_sections(variables = stochastic_inv_settings['grid_variables'], lines = lines,
-                        xres = stochastic_inv_settings['horizontal_resolution'],
-                        yres = stochastic_inv_settings['verticaL_resolution'],
-                        return_interpolated = False, save_to_disk = True,
-                        output_dir = outdir)
-    else:
-        pass
 
 # Prepare borehole data
 if borehole_settings['include']:
@@ -136,17 +115,16 @@ if borehole_settings['include']:
     geom = [wkt.loads(s) for s in df_bh['geometry']]
     df_bh['easting'] = [coord.x for coord in geom]
     df_bh['northing'] = [coord.y for coord in geom]
+    # We need to get these data into the same reference frame as our grids
+    df_bh['distance_along_line'] = np.nan
+    df_bh['AEM_elevation'] = np.nan
 
 # To reduce the amount of data that is stored in memory the section data are stored as xarrays in pickle files
 #  We will only bring them into memory as needed. Here we point the inversions to their pickle files
 
 em.section_path = {}
 det.section_path = {}
-rj.section_path = {}
-rj.distance_along_line = {}
-# We need to get these data into the same reference frame as our grids
-df_bh['distance_along_line'] = np.nan
-df_bh['AEM_elevation'] = np.nan
+
 
 
 # Iterate through the lines
@@ -156,52 +134,26 @@ for lin in lines:
                                         "{}.pkl".format(str(lin)))
     det.section_path[lin] = os.path.join(root, det_inv_settings['section_directory'],
                                          "{}.pkl".format(str(lin)))
-    rj.section_path[lin] = os.path.join(root, stochastic_inv_settings['section_directory'],
-                                        "{}.pkl".format(str(lin)))
-    # Using this gridding we find the distance along the line for each garjmcmc site
-    # Get a line mask
-    line_mask = netcdf_utils.get_lookup_mask(lin, rj.data)
-    # get the coordinates
-    line_coords = rj.coords[line_mask]
-
     em_section_data = pickle2xarray(em.section_path[lin])
 
-    dists = spatial_functions.xy_2_var(em_section_data,
-                                      line_coords,
-                                      'grid_distances')
-
-    # Add a dictionary with the point index distance along the line to our inversion instance
-    rj.distance_along_line[lin] = pd.DataFrame(data = {"point_index": np.where(line_mask)[0],
-                                                       "distance_along_line": dists,
-                                                       'fiducial': rj.data['fiducial'][line_mask]}
-                                               ).set_index('point_index')
-    # If we are gridding the stochastic inversions, then we scale them to the deterministic inversions
-    if stochastic_inv_settings["grid_sections"]:
-
-        rj_section_data = pickle2xarray(rj.section_path[lin])
-
-        rj_section_data['grid_distances'] = spatial_functions.scale_distance_along_line(em_section_data, rj_section_data)
-        # Save xarray back to pickle file
-
-        xarray2pickle(rj_section_data, rj.section_path[lin])
-
     #Calculate distance along the line for the boreholes
-    line_mask = df_bh['line'] == lin
-    df_bh_ss = df_bh[line_mask]
-    if len(df_bh_ss) > 0:
-        bh_coords = df_bh_ss[['easting', 'northing']].values
-        dists_ = spatial_functions.xy_2_var(em_section_data,
-                                           bh_coords,
-                                           'grid_distances',
-                                            max_distance = 500.)
-        df_bh.at[df_bh_ss.index, 'distance_along_line'] = dists_
-        elevs_ = spatial_functions.xy_2_var(em_section_data,
-                                           bh_coords,
-                                           'elevation',
-                                            max_distance = 500.)
-        df_bh.at[df_bh_ss.index, 'AEM_elevation'] = elevs_
+    # Prepare borehole data
+    if borehole_settings['include']:
+        line_mask = df_bh['line'] == lin
+        df_bh_ss = df_bh[line_mask]
+        if len(df_bh_ss) > 0:
+            bh_coords = df_bh_ss[['easting', 'northing']].values
+            dists_ = spatial_functions.xy_2_var(em_section_data,
+                                                bh_coords,
+                                                'grid_distances',
+                                                max_distance = 500.)
+            df_bh.at[df_bh_ss.index, 'distance_along_line'] = dists_
+            elevs_ = spatial_functions.xy_2_var(em_section_data,
+                                               bh_coords,
+                                               'elevation',
+                                                max_distance = 500.)
+            df_bh.at[df_bh_ss.index, 'AEM_elevation'] = elevs_
     # Remove from memory
-    rj_section_data = None
     det_section_data = None
     gc.collect()
 
@@ -209,10 +161,12 @@ for lin in lines:
 # Define colour stretch for em data
 
 viridis = cm.get_cmap('viridis')
-lm_colours = [matplotlib.colors.rgb2hex(x) for x in viridis(np.linspace(0, 1, 18))]
+n_lm_gates = det.data.dimensions['low_moment_gate'].size
+lm_colours = [matplotlib.colors.rgb2hex(x) for x in viridis(np.linspace(0, 1, n_lm_gates))]
 
+n_hm_gates = det.data.dimensions['high_moment_gate'].size
 plasma = cm.get_cmap('plasma')
-hm_colours = [matplotlib.colors.rgb2hex(x) for x in plasma(np.linspace(0, 1, 23))]
+hm_colours = [matplotlib.colors.rgb2hex(x) for x in plasma(np.linspace(0, 1, n_hm_gates))]
 
 def list2options(list):
     options = []
@@ -276,7 +230,7 @@ def interp2scatter(line, xarr, interpreted_points, easting_col = 'X',
 
     return grid_dists, elevs
 
-def dash_conductivity_section(section, line, vmin, vmax, cmap, xarr, pmap_kwargs):
+def dash_conductivity_section(section, line, vmin, vmax, cmap, xarr):
 
     # Create subplots
     fig = make_subplots(rows=4, cols = 1, shared_xaxes=True,
@@ -287,24 +241,9 @@ def dash_conductivity_section(section, line, vmin, vmax, cmap, xarr, pmap_kwargs
     logplot = True
 
     # Extract data based on the section plot keyword argument
-    if section == 'lci':
-        misfit = xarr['data_residual'].values
+    if section == 'galei':
+        misfit = xarr['phid'].values
         z = np.log10(xarr['conductivity'].values)
-
-    elif section.startswith('rj'):
-        misfit = xarr['misfit_lowest'].values
-        if section == "rj-p50":
-            z = np.log10(xarr['conductivity_p50'])
-        elif section == "rj-p10":
-            z = np.log10(xarr['conductivity_p10'])
-        elif section == "rj-p90":
-            z = np.log10(xarr['conductivity_p90'])
-        elif section == "rj-lpp":
-            z = xarr['interface_depth_histogram'] / rj.data.histogram_samples
-            vmin = 0.01
-            vmax = 0.8
-            cmap = 'greys'
-            logplot = False
 
     tickvals = np.linspace(vmin, vmax, 5)
     if logplot:
@@ -366,34 +305,8 @@ def dash_conductivity_section(section, line, vmin, vmax, cmap, xarr, pmap_kwargs
                              name = "coordinates"),
                   row=4, col=1, )
 
-    df_rj_sites = rj.distance_along_line[line]
-
-    labels = ["netcdf_point_index = " + str(x) for x in df_rj_sites.index]
-    colours = len(df_rj_sites) * ['purple']
-    symbols = len(df_rj_sites) * ['circle']
-    marker_size = len(df_rj_sites) * [5]
-    if len(pmap_kwargs) > 0:
-        pt_idx = pmap_kwargs['point_idx']
-        try:
-            idx = np.where(df_rj_sites.index == pt_idx)[0][0]
-            colours[idx] = 'red'
-            symbols[idx] = 'triangle-up'
-            marker_size[idx] = 10.
-        except IndexError:
-            pass
-    site_distances = df_rj_sites['distance_along_line'].values
-    #site_plot_elevation = 20. + np.max(xarr['elevation'].values) * np.ones(shape=len(df_rj_sites), dtype=np.float)
-    fig.add_trace(go.Scatter(x=site_distances,
-                             y=np.zeros(shape = site_distances.shape),
-                             mode='markers',
-                             marker_symbol = symbols,
-                             marker_color = colours,
-                             hovertext=labels,
-                             marker_size = marker_size,
-                             showlegend=False),
-                  row=2, col=1)
     # Reverse y-axis
-    fig.update_yaxes(autorange=True, row = 1, col = 1, title_text = "data residual")
+    fig.update_yaxes(autorange=True, row = 1, col = 1, title_text = "data residual", type = 'log')
     fig.update_yaxes(autorange=True, row=3, col=1, title_text="elevation (mAHD)")
     fig.update_yaxes(visible= False, showticklabels= False, row=2,col=1)
     fig.update_yaxes(visible=False, showticklabels=False, row=4, col=1)
@@ -412,12 +325,16 @@ def dash_EM_section(line):
     xarr = pickle2xarray(em.section_path[line])
     grid_distances = xarr['grid_distances'].values
     # Subset based on line length to avoid long rendering for plots
-    ss = np.int(math.ceil(np.max(grid_distances)/10000.))
+    ss = np.int(math.ceil(np.max(grid_distances)/10000.)) ##TODO move subsetting to the yaml file
+    print(ss)
     grid_distances = grid_distances[::ss]
-    plni = xarr['powerline_noise'].values[::ss]
-    tx_height = xarr['tx_height_measured'].values[::ss]
-    lm_data = xarr['low_moment_Z-component_EM_data'].values[::ss]
-    hm_data = xarr['high_moment_Z-component_EM_data'].values[::ss]
+    tx_height = xarr['tx_height'].values[::ss]
+    roll = xarr['tx_roll'].values[::ss]
+    pitch = xarr['tx_pitch'].values[::ss]
+    lm_observed = -1*xarr['lmz_observed_EM_data'].values#[::ss]
+    lm_predicted = -1*xarr['lmz_predicted_EM_data'].values#[::ss]
+    hm_observed = -1*xarr['hmz_observed_EM_data'].values#[::ss]
+    hm_predicted = -1*xarr['hmz_predicted_EM_data'].values#[::ss]
 
     fig.add_trace(go.Scatter(x=grid_distances,
                              y=tx_height,
@@ -425,8 +342,13 @@ def dash_EM_section(line):
                              showlegend=False, hoverinfo='skip'),
                   row=1, col=1, )
     fig.add_trace(go.Scatter(x=grid_distances,
-                             y=plni,
-                             line=dict(color='black', width=1),
+                             y=pitch,
+                             line=dict(color='red', width=1),
+                             showlegend=False, hoverinfo='skip'),
+                  row=2, col=1, )
+    fig.add_trace(go.Scatter(x=grid_distances,
+                             y=roll,
+                             line=dict(color='blue', width=1),
                              showlegend=False, hoverinfo='skip'),
                   row=2, col=1, )
 
@@ -435,34 +357,50 @@ def dash_EM_section(line):
     #size = 1200./lm_data.shape[0]
 
     # prepare the line data
-    for j in range(lm_data.shape[1]):
+    for j in range(lm_observed.shape[1]):
         labels = ["low moment gate " + str(j)]
         fig.add_trace(go.Scatter(x=grid_distances,
-                                 y=lm_data[:,j],
+                                 y=lm_observed[:,j],
+                                 mode='lines',
+                                 line={
+                                     "color": 'black'
+                                 },
+                                 showlegend=False, hoverinfo='skip'),
+                      row=3, col=1, )
+        fig.add_trace(go.Scatter(x=grid_distances,
+                                 y=lm_predicted[:,j],
                                  mode='lines',
                                  line={
                                      "color": lm_colours[j]
                                  },
                                  hovertext=labels,
-                                 showlegend=False),
+                                 showlegend=False, hoverinfo='skip'),
                       row=3, col=1, )
 
     # prepare the line data
-    for j in range(hm_data.shape[1]):
-        labels = ["low moment gate " + str(j)]
+    for j in range(hm_observed.shape[1]):
+        labels = ["high moment gate " + str(j)]
         fig.add_trace(go.Scatter(x=grid_distances,
-                                 y=hm_data[:, j],
+                                 y=hm_observed[:, j],
+                                 mode='lines',
+                                 line={
+                                     "color": 'black'
+                                 },
+                                 showlegend=False, hoverinfo='skip'),
+                      row=4, col=1, )
+        fig.add_trace(go.Scatter(x=grid_distances,
+                                 y=hm_predicted[:, j],
                                  mode='lines',
                                  line={
                                      "color": hm_colours[j]
                                  },
                                  hovertext=labels,
-                                 showlegend=False),
+                                 showlegend=False, hoverinfo='skip'),
                       row=4, col=1, )
 
 
     fig.update_yaxes(title_text="tx height (m)", row=1, col=1)
-    fig.update_yaxes(title_text="PLNI", type="log", row=2, col=1)
+    fig.update_yaxes(title_text="angle", row=2, col=1)
     fig.update_yaxes(title_text="LMZ data (pV/Am^4)", type="log", row=3, col=1)
     fig.update_yaxes(title_text="HMZ data (pV/Am^4)", type="log", row=4, col=1)
     fig.update_xaxes(title_text="distance along line " + " (m)", row=4, col=1)
@@ -502,83 +440,24 @@ def plot_section_points(fig, line, df_interp, xarr, select_mask):
         fig.update_layout()
     return fig
 
-def dash_pmap_plot(point_index):
-    # Extract the data from the netcdf data
-    D = netcdf_utils.extract_rj_sounding(rj, det,
-                                         point_index)
-    pmap = D['conductivity_pdf']
-    x1,x2,y1,y2 = D['conductivity_extent']
-    n_depth_cells, n_cond_cells  = pmap.shape
-
-    x = np.linspace(x1,x2, n_cond_cells)
-    y = np.linspace(y2,y1, n_depth_cells)
-
-    fig = px.imshow(img = pmap,
-                    x = x, y = y,
-                    zmin = 0,
-                    zmax = np.max(pmap),
-                    aspect = 5,
-                    color_continuous_scale = 'plasma')
-    #  PLot the median, and percentile plots
-    fig.add_trace(go.Scatter(x = np.log10(D['cond_p10']),
-                             y = D['depth_cells'],
-                             mode = 'lines',
-                             line = {"color": 'black',
-                                     "width": 1.},
-                             name = "p10 conductivity",
-                             showlegend = False))
-    fig.add_trace(go.Scatter(x = np.log10(D['cond_p90']),
-                             y = D['depth_cells'],
-                             mode = 'lines',
-                             line = {"color": 'black',
-                                     "width": 1.},
-                             name = "p90 conductivity",
-                             showlegend = False))
-    fig.add_trace(go.Scatter(x = np.log10(D['cond_p50']),
-                             y = D['depth_cells'],
-                             mode = 'lines',
-                             line = {"color": 'gray',
-                                     "width": 1.,
-                                     'dash': 'dash'},
-                             name = "p50 conductivity",
-                             showlegend = False))
-
-    det_expanded, depth_expanded = plots.profile2layer_plot(D['det_cond'], D['det_depth_top'])
-
-    fig.add_trace(go.Scatter(x=np.log10(det_expanded),
-                             y= depth_expanded,
-                             mode='lines',
-                             line={"color": 'pink',
-                                   "width": 1.,
-                                   'dash': 'dash'},
-                             name=det.name,
-                             showlegend=False))
-
-    fig.update_layout(
-        autosize=False,
-        height=600)
-    fig.update_layout(xaxis=dict(scaleanchor = 'y',
-                                 scaleratio = 100.))
-    return fig
-
-def flightline_map(line, vmin, vmax, ):#layer):
+def flightline_map(line, vmin, vmax, layer):
 
     fig = go.Figure()
 
-    #cond_grid = np.log10(det.layer_grids['Layer_{}'.format(layer)]['conductivity'])
+    cond_grid = np.log10(det.layer_grids['Layer_{}'.format(layer)]['conductivity'])
 
-    #x1, x2, y1, y2 = det.layer_grids['bounds']
-    #n_y_cells, n_x_cells = cond_grid.shape
-    #x = np.linspace(x1, x2, n_x_cells)
-    #y = np.linspace(y2, y1, n_y_cells)
+    x1, x2, y1, y2 = det.layer_grids['bounds']
+    n_y_cells, n_x_cells = cond_grid.shape
+    x = np.linspace(x1, x2, n_x_cells)
+    y = np.linspace(y2, y1, n_y_cells)
 
-    #fig.add_trace(go.Heatmap(z=cond_grid,
-    #                           zmin=np.log10(vmin),
-    #                           zmax=np.log10(vmax),
-    #                           x=x,
-    #                           y=y,
-    #                           colorscale="jet"
-    #                         ))
+    fig.add_trace(go.Heatmap(z=cond_grid,
+                               zmin=np.log10(vmin),
+                               zmax=np.log10(vmax),
+                               x=x,
+                               y=y,
+                               colorscale="viridis"
+                             ))
 
     for linestring, lineNo in zip(gdf_lines.geometry, gdf_lines.lineNumber):
 
@@ -595,8 +474,11 @@ def flightline_map(line, vmin, vmax, ):#layer):
                                          "width": 2.},
                                  name = str(lineNo)))
 
-    xmin, xmax = np.min(rj.data['easting'][:]) - 5000., np.max(rj.data['easting'][:]) + 5000.
-    ymin, ymax = np.min(rj.data['northing'][:]) - 5000., np.max(rj.data['northing'][:]) + 5000.
+    #xmin, xmax = np.min(det.data['easting'][:]) - 5000., np.max(det.data['easting'][:]) + 5000.
+    #min, ymax = np.min(det.data['northing'][:]) - 5000., np.max(det.data['northing'][:]) + 5000.
+
+    xmin, xmax = np.min(x) - 500., np.max(x) + 500.
+    ymin, ymax = np.min(y) - 5000., np.max(y) + 5000.
 
     fig.update_layout(yaxis=dict(range=[ymin, ymax],
                                  scaleanchor = 'x',
@@ -618,85 +500,6 @@ def flightline_map(line, vmin, vmax, ):#layer):
 
     return fig
 
-
-
-#Define key functions
-def full_width_half_max(interpreted_depth, depth_array, count_array):
-    """
-    Function for calculating the interval that is >0.5 times the probability
-    Parameters
-    ----------
-    interpreted_depth: float of the interpreted depth
-    depth_array: array of depths
-    count_array: array of counts. nb this is a proxy for probabilities
-
-    Returns
-    -------
-    tuple of indices denoting the top and bottom of the full width half max
-    """
-
-    idx_upper = -1
-    idx_lower = -1
-
-    # Find the maximum depth index
-    max_idx = np.argmin(np.abs(depth_array - interpreted_depth))
-
-    # get the maximum probability
-    fmax = count_array[max_idx]
-
-    # Snap to maximum likelihood depth
-    if uncertainty_settings['snap_interpretation']:
-        # find the search window
-        window = int(np.ceil((uncertainty_settings['snap_window']/2.)/2))
-
-        window_slice = [max_idx - window, max_idx + window]
-        # to ensure no index errors
-        if window_slice[0] < 0:
-            window_slice[0] = 0
-        if window_slice[1] >= len(count_array):
-            window_slice[1] = len(count_array)
-
-    # positive direction
-
-    for idx in np.arange(max_idx, depth_array.shape[0]):
-        if count_array[idx] <= fmax/2.:
-            idx_upper = idx
-            break
-    # negative direction
-    for idx in np.arange(max_idx, -1, -1):
-        if count_array[idx] <= fmax/2.:
-            idx_lower = idx
-            break
-    # Now calculate the width
-    return (idx_lower, max_idx, idx_upper)
-
-def uncertainty_from_pmap(point_idx, interpreted_depth):
-    """
-    Fucntion for estimating uncertainty from pmap and depth estimate
-    Parameters
-    ----------
-    point_idx: int
-        rj netcdf point index
-    interpreted_depth: float
-        depth of user interpretation
-    Returns
-    -------
-    Uncertainty: float
-    """
-
-
-    depth_array = rj.data['layer_centre_depth'][:]
-    count_array = rj.data['interface_depth_histogram'][point_idx]
-    [lower_ind, max_ind, upper_ind] = full_width_half_max(interpreted_depth, depth_array, count_array)
-
-    if np.logical_and(lower_ind != -1, upper_ind != -1):
-        if uncertainty_settings['snap_interpretation']:
-            # Snap to maximum depth
-            interpreted_depth = depth_array[max_ind]
-        uncertainty = depth_array[upper_ind] - depth_array[lower_ind]
-        return interpreted_depth, uncertainty
-    else:
-        return interpreted_depth, np.nan
 
 def plot_borehole_segments(fig, df):
     # Plot each row at a time
@@ -800,17 +603,9 @@ app.layout = html.Div([
                     html.Div([html.H4("Select section"),
                              dcc.Dropdown(id = "section_dropdown",
                                             options=[
-                                                    {'label': 'laterally constrained inversion',
-                                                     'value': 'lci'},
-                                                    {'label': 'garjmcmctdem_utils - p50',
-                                                     'value': 'rj-p50'},
-                                                    {'label': 'garjmcmctdem_utils - p10',
-                                                     'value': 'rj-p10'},
-                                                    {'label': 'garjmcmctdem_utils - p90',
-                                                     'value': 'rj-p90'},
-                                                    {'label': 'garjmcmctdem_utils - layer probability',
-                                                     'value': 'rj-lpp'}],
-                                            value="lci"),
+                                                    {'label': 'layered earth inversion',
+                                                     'value': 'galei'}],
+                                            value="galei"),
 
                              ],className = "three columns"),
                     html.Div([html.H4("Select line"),
@@ -843,16 +638,16 @@ app.layout = html.Div([
                          className = "three columns"),
                 html.Div([html.Div(["Conductivity plotting minimum: ", dcc.Input(
                                     id="vmin", type="number",
-                                    min=0.001, max=10, value = section_settings['vmin'])],
+                                    min=0.0001, max=10, value = section_settings['vmin'])],
                          className = 'row'),
                          html.Div(["Conductivity plotting maximum: ", dcc.Input(
                                     id="vmax", type="number",
                                     min=0.001, max=10, value = section_settings['vmax'])],
                          className='row'),
-                         #html.Div(["AEM layer grid: ", dcc.Input(
-                         #           id="layerGrid", type="number",
-                         #           min=1, max=30, value = 1, step = 1)],
-                         #className='row'),
+                         html.Div(["AEM layer grid: ", dcc.Input(
+                                    id="layerGrid", type="number",
+                                    min=1, max=30, value = 1, step = 1)],
+                         className='row'),
                     ],
                     className = "three columns"),
                 html.Div([
@@ -909,7 +704,6 @@ app.layout = html.Div([
         html.Div([
             dcc.Tabs(id='map_tabs', value='map_plot', children=[
                 dcc.Tab(label='Map plot', value='map_plot'),
-                dcc.Tab(label='Pmap plot', value='pmap_plot'),
             ]),
             html.Div(id='map-tabs-content', style = {'height': '600px'})
         ],
@@ -918,7 +712,6 @@ app.layout = html.Div([
     html.Div(id = 'output', style={'display': 'none'}),
     dcc.Store(id='interp_memory'),
     dcc.Store(id = "model_memory"), # storage for model template file
-    dcc.Store(id = 'pmap_store')
 
 ])
 
@@ -927,8 +720,7 @@ app.layout = html.Div([
 @app.callback(
     [Output('interp_memory', 'data'),
      Output('section_plot', 'figure'),
-     Output('interp_table', 'data'),
-     Output('pmap_store', 'data')],
+     Output('interp_table', 'data')],
     [Input('section_plot', 'clickData'),
      Input('interp_table', 'data_previous'),
      Input('section_dropdown', 'value'),
@@ -940,10 +732,9 @@ app.layout = html.Div([
      [State('interp_table', 'data'),
       State("surface_dropdown", 'value'),
       State("interp_memory", 'data'),
-      State("model_memory", "data"),
-      State('pmap_store', 'data')])
+      State("model_memory", "data")])
 def update_many(clickData, previous_table, section, section_tab, line, vmin, vmax, selected_rows, current_table,
-                        surfaceName, interpreted_points, model, pmap_store):
+                        surfaceName, interpreted_points, model):
     trig_id = find_trigger()
 
     #a bunch of "do nothing" cases here - before doing any data transformations to save
@@ -964,13 +755,9 @@ def update_many(clickData, previous_table, section, section_tab, line, vmin, vma
     else:
         df = pd.DataFrame(interpreted_points).infer_objects()
 
-    pmap_store = pmap_store or {}
 
-    if section == "lci":
-        xarr = pickle2xarray(det.section_path[line])
-    else:
-        xarr = pickle2xarray(rj.section_path[line])
-
+    xarr = pickle2xarray(det.section_path[line])
+  
     if trig_id == 'section_plot.clickData' and section_tab == 'conductivity_section':
         if clickData['points'][0]['curveNumber'] == 1:
             # Get the interpretation data from the click function
@@ -987,23 +774,9 @@ def update_many(clickData, previous_table, section, section_tab, line, vmin, vma
             depth = elevation - eventydata
 
             # Estimate uncertainty
-            if section == "lci":
+            if section == "galei":
                 fid = xy2fid(easting, northing, det)
                 uncertainty = np.nan
-            else:
-                # Find the nearest pmap
-                distances = np.abs(rj.distance_along_line[line]['distance_along_line'] - eventxdata)
-
-                pmap = rj.distance_along_line[line].iloc[np.argmin(distances)]
-                fid = pmap['fiducial']
-                pmap_index = rj.distance_along_line[line].index[np.argmin(distances)]
-
-                if uncertainty_settings and np.min(distances) < uncertainty_settings['maximum_distance']:
-                    # Calculate uncertainty
-                    depth, uncertainty = uncertainty_from_pmap(pmap_index, depth)
-                else:
-                    uncertainty = np.nan
-
 
             # append to the surface object interpreted points
             interp = {'fiducial': fid,
@@ -1038,9 +811,6 @@ def update_many(clickData, previous_table, section, section_tab, line, vmin, vma
                       }
             df_new = pd.DataFrame(interp, index=[0])
             df = pd.DataFrame(interpreted_points).append(df_new).infer_objects()
-        elif clickData['points'][0]['curveNumber'] == 4:
-            pmap_point_idx = int(clickData['points'][0]['hovertext'].split(" = ")[-1])
-            pmap_store = {"point_idx": pmap_point_idx}
 
         else:
             raise PreventUpdate
@@ -1070,8 +840,7 @@ def update_many(clickData, previous_table, section, section_tab, line, vmin, vma
                                         vmin=vmin,
                                         vmax=vmax,
                                         cmap=section_settings['cmap'],
-                                        xarr = xarr,
-                                        pmap_kwargs = pmap_store)
+                                        xarr = xarr)
 
 
         # Check for selected rows which will be plotted differently
@@ -1084,17 +853,17 @@ def update_many(clickData, previous_table, section, section_tab, line, vmin, vma
         if len(df_ss) > 0:
             fig = plot_section_points(fig, line, df_ss, xarr, select_mask=select_mask)
         # Now plot boreholes
-        df_bh_ss = df_bh[df_bh['line'] == line]
-        if len(df_bh_ss) > 0:
+        #df_bh_ss = df_bh[df_bh['line'] == line]
+        #if len(df_bh_ss) > 0:
             # plot the boreholes as segments
-            fig = plot_borehole_segments(fig, df_bh_ss)
+        #    fig = plot_borehole_segments(fig, df_bh_ss)
 
         fig['layout'].update({'uirevision': line})
 
     elif section_tab == 'data_section':
         fig = dash_EM_section(line)
 
-    return df.to_dict('records'), fig, df_ss.to_dict('records'), pmap_store
+    return df.to_dict('records'), fig, df_ss.to_dict('records')
 
 
 # Render map plot
@@ -1103,39 +872,24 @@ def update_many(clickData, previous_table, section, section_tab, line, vmin, vma
                Input("line_dropdown", 'value'),
                Input('vmin', 'value'),
                Input('vmax', 'value'),
-               #Input('layerGrid', 'value'),
+               Input('layerGrid', 'value'),
                Input('section_plot', 'clickData')])
-def update_tab(tab, line, vmin, vmax, #layer,
+def update_tab(tab, line, vmin, vmax, layer,
                clickData):
+    # TODO remove the tab
     if tab == 'map_plot':
         trig_id = find_trigger()
         #do nothing if active tab is the map and we only
         #clicked on the section
         if trig_id == 'section_plot.clickData':
             raise PreventUpdate
-        fig = flightline_map(line, vmin, vmax)#, layer)
+        fig = flightline_map(line, vmin, vmax, layer)
         return html.Div([
             dcc.Graph(
                 id='polylines',
                 figure=fig
             ),
         ])
-    elif tab == 'pmap_plot':
-        if clickData is not None:
-            if clickData['points'][0]['curveNumber'] == 4:
-                point_idx = int(clickData['points'][0]['hovertext'].split(" = ")[-1])
-
-                fig = dash_pmap_plot(point_idx)
-                return html.Div([
-                    dcc.Graph(
-                        id='pmap_plot',
-                        figure=fig
-                    ),
-                ])
-            else:
-                raise PreventUpdate
-        else:
-            return html.Div(["Click on a purple point from the conductivity section to view the probability maps."])
 
 @app.callback(
     Output('export_message', 'children'),

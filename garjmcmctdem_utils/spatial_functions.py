@@ -419,7 +419,7 @@ def interp2scatter(surface, line, gridded_data, easting_col = 'X',
     fids = surface.interpreted_points[mask].index
     return grid_dists, elevs, fids
 
-def sort_variables(var_dict):
+def sort_variables(var_dict, sort_on = 'easting'):
     """Function for sorting a dictionary of variables by fiducial then easting.
     Assumes 'easting' and fiducial are in dictionary
 
@@ -437,7 +437,7 @@ def sort_variables(var_dict):
     # First sort on fiducial
     sort_mask = np.argsort(var_dict['fiducial'])
     # Now sort from east to west if need be
-    if var_dict['easting'][sort_mask][0] > var_dict['easting'][sort_mask][-1]:
+    if var_dict[sort_on][sort_mask][0] > var_dict[sort_on][sort_mask][-1]:
        sort_mask = sort_mask[::-1]
     # now apply the mask to every variable
     for item in var_dict:
@@ -475,3 +475,17 @@ def scale_distance_along_line(xarr1, xarr2):
 
     # get our grid distances
     return np.sum(xarr1['grid_distances'].values[i] * weights, axis=1)
+    
+    
+def layer_centre_2_layer_top_depth(lcd):
+    """
+    lcd array
+    """
+    thickness = np.zeros(shape = lcd.shape, dtype = lcd.dtype)
+    for i in range(len(thickness)):
+        if i == 0:
+            thickness[i] = 2*lcd[i]
+        else:
+            thickness[i] = 2*(lcd[i] - np.sum(thickness))
+
+    return sthickness_to_depth(thickness)

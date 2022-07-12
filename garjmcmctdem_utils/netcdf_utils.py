@@ -58,7 +58,9 @@ def get_lines(dataset, line_numbers, variables):
     @param dataset: netcdf dataset
     @param: list of integer AEM line_numbers:
     @param: list of integer variables)
+    @param: point mask for subsetting lines
     """
+
     # Allow single variable to be given as a string
 
     variables = object2array(variables, str)

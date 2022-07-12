@@ -78,7 +78,7 @@ class AEM_inversion:
             self.data = None
 
     def grid_sections(self, variables, lines, xres, yres, resampling_method = 'linear', return_interpolated = False,
-                      save_to_disk = True, output_dir = None):
+                      save_to_disk = True, output_dir = None, sort_on = 'easting'):
         """A function for gridding AEM inversoin variables into sections.
            This method can handle both 1D and 2D variables
 
@@ -126,7 +126,7 @@ class AEM_inversion:
 
         # First create generators for returning coordinates and variables for the lines
 
-        cond_lines= get_lines(self.data,
+        cond_lines = get_lines(self.data,
                               line_numbers=lines,
                               variables=self.section_variables)
 
@@ -144,8 +144,10 @@ class AEM_inversion:
             # Extract the variables and coordinates for the line in question
             line_no, cond_var_dict = next(cond_lines)
 
-            # Now we need to sort the cond_var_dict and run it east to west
-            cond_var_dict = spatial_functions.sort_variables(cond_var_dict)
+            # Now we need to sort the cond_var_dict and run it in a specific direction
+            cond_var_dict = spatial_functions.sort_variables(cond_var_dict, sort_on = sort_on)
+            
+            ## Now apply a spatial mask TODO
 
             # If there is no 'layer_top_depth' add it
             if np.logical_and('layer_top_depth' not in cond_var_dict,
