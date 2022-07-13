@@ -1,54 +1,29 @@
 general_settings:
   # session settings
-  data_directory: "C:\\Users\\u77932\\Documents\\MORPH\\data\\AEM\\2016_SkyTEM\\dash_data"
+  data_directory: "C:\\Users\\u77932\\Documents\\workshop\\AEM_Perth\\data\\ASEG_gdf"
   # directory with the AEM data
   # The line numbers that we are interested in visualising
-  lines: [  
-            104803, 104804, 104902, 105001, 105002, 105003, 105101, 105201, 105202, 105203,
-            105301, 105401, 105402, 105501, 105503, 105504, 105601, 105701, 105702, 105801,
-            105901, 106003, 106005, 106102, 106104, 106202, 106203, 106301, 106402, 106501,
-            106502, 
-            500101, 500201, 500301, 500401, 500501, 500601, 500701, 500901, 501001,
-            501101, 501201, 501301, 501401, 501501, 501701, 501801, 501901, 502001, 502101,
-            502102, 502201, 502301, 502501, 502601, 502701, 502801, 502901, 503001, 503101,
-            503301, 503401, 503501, 503601, 503701, 503801, 503901, 504101, 504201, 504301,
-            504401, 504501, 504601, 504701, 504901, 505001, 505101, 505201, 505301, 505401,
-            505501, 505701, 505801, 505901, 506001, 506101, 506201, 506301]
-  bounding_polygon: 'Polygon'
+  lines: [1007002, 1025002]
 
 model_settings:
-  name: "Meramangye hydrostratigraphy"
-
+  name: "AusAEM_test"
   # Path to template csv file
-  templateFile: "../data/MusgraveSurfaces.csv"
+  templateFile: "..\\data\\exampleSurface.csv"
   # Path to existing interpretations
-  interpFile: "C://Users//u77932//Documents//MORPH//central_Musgraves//interp//Musgrave_output.csv"
+  interpFile: "..\\data\\blank_interp_example.csv"
 
-AEM_data_settings:
-  name: "Musgrave_AEM-data"
-  # System name
-  system_name: "SkyTEM_312"
-  # Path to netcdf file for AEM data. If this is the file name without a path the app will search for it
-  # in the data directory
-  nc_path: "Musgrave_2016_skytem_galei.nc"
-  # True if you want to grid the AEM data into vertical sections for visualisation false if already done.
-  grid_sections: False
-  # Parameters for gridding
-  grid_variables: [ 'lmz_observed_EM_data', 'lmz_predicted_EM_data', 'hmz_observed_EM_data', 'hmz_predicted_EM_data',
-                    'tx_roll', 'tx_pitch', 'tx_height']
-  section_directory: "section_data_EM_grid"
-
-
-
-deterministic_inversion_settings:
+inversion_settings:
   # deterministic inversion
   inversion_name: "galei"
   # Path to netcdf file for AEM deterministic inversion.
-  nc_path: "Musgrave_2016_skytem_galei.nc"
+  nc_path: "AusAEM_East_Resources_Corridor_GA_vsum_inversion_phase1.nc"
   # True if you want to grid the AEM inversion data into vertical sections for visualisation false if already done.
   grid_sections: False
   # variables to grid
-  grid_variables: ['conductivity', 'phid']
+  geometry_variables: ['fiducial', 'easting', 'northing', 'elevation', 'tx_height', 'txrx_dx', 'txrx_dz']
+  inversion_variables: ['conductivity', 'phid', 'inverted_txrx_dx', 'inverted_txrx_dz']
+  data_variables: ['x_secondary_field_observed', 'z_secondary_field_observed', 'x_secondary_field_predicted',
+                   'z_secondary_field_predicted']
   # horizontal resolution of sections
   horizontal_resolution: 20.
   # Vertical resolution of sections
@@ -56,32 +31,14 @@ deterministic_inversion_settings:
   # section to read or write pickle files
   section_directory: "section_data"
   # A flag for if the user wishes to plot the grid
-  plot_grid: True
+  plot_grid: False
   # Path to the grid
   layer_grid_path: "C://Users//u77932//Documents//MORPH//central_Musgraves//AEM//galei//Meramangye_layer_grids.p"
 
-stochastic_inversion_settings:
-  inlcude: False
-  # stochastic inversion
-  inversion_name: "garjmcmctdem_utils"
-  # Path to netcdf file for AEM stochastic inversion.
-  nc_path: ""
-  grid_sections: False # True if you want to grid the AEM inversion data into vertical sections
-  grid_variables: []
-  # horizontal resolution of sections
-  horizontal_resolution: 50.
-  # Vertical resolution of sections
-  verticaL_resolution: 2.
-  section_directory: "section_data_rj"
-  uncertainty: {estimate: True, # Will estimate depth uncertainty using full width half maximum method if true
-                snap_interpretation: True, # will snap the interpretation to the most likely depth within this window if True
-                snap_window: 20., # The size of the search window for uncertainty interpretation
-                maximum_distance: 200.} # Maximum horizontal distance between pmap and interpretation for uncertainty estimation
-
 visualisation_settings:
-  vmin: 0.0001 # Starting minimum conductivity for colourstretch
+  vmin: 0.001 # Starting minimum conductivity for colourstretch
   vmax: 1. # Starting maximum conductivity for colourstretch
-  cmap: 'viridis' # AEM conductivity section colourstretch
+  cmap: 'jet' # AEM conductivity section colourstretch
   section_plot: 'lci' # Which section to start on
   colourbar_label: 'Conductivity (S/m)'
 

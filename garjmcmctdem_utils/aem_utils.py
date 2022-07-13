@@ -31,7 +31,7 @@ import gc, glob, os
 from shapely.geometry import LineString
 import geopandas as gpd
 import re
-
+import xarray
 
 class AEM_inversion:
     """
@@ -76,8 +76,17 @@ class AEM_inversion:
 
         else:
             self.data = None
+    def getVarsByLine(self, lineNumber=None, variables=None):
+        lineInd = np.where(self.data['line'][:] == lineNumber)[0]
+        lineMask = np.where(self.data['line_index'][:] == lineInd)[0]
+        varDict = {}
+        for var in variables:
+            varDict[var] = self.data[var][lineMask]
+        return varDict
 
-    def grid_sections(self, variables, lines, xres, yres, resampling_method = 'linear', return_interpolated = False,
+
+    def grid_sections(self, geometry_variables, inversion_variables, data_variables,
+                      lines, xres, yres, resampling_method = 'linear', return_interpolated = False,
                       save_to_disk = True, output_dir = None, sort_on = 'easting'):
         """A function for gridding AEM inversoin variables into sections.
            This method can handle both 1D and 2D variables
@@ -114,21 +123,16 @@ class AEM_inversion:
         # Check some of the arguments to ensure they are lists
 
         lines = misc_utils.check_list_arg(lines)
-        variables = misc_utils.check_list_arg(variables)
-
+        self.geometry_variables = misc_utils.check_list_arg(geometry_variables)
+        self.inversion_variables = misc_utils.check_list_arg(inversion_variables)
+        self.data_variables = misc_utils.check_list_arg(data_variables)
 
         # Add key variables if they aren't in the list to grid
         for item in ['easting', 'northing', 'elevation', 'fiducial', 'layer_top_depth', 'layer_centre_depth']:
-            if np.logical_and(item not in variables, item in self.data.variables):
-                variables.append(item)
+            if np.logical_and(item not in geometry_variables, item in self.data.variables):
+                geometry_variables.append(item)
 
-        self.section_variables = variables
-
-        # First create generators for returning coordinates and variables for the lines
-
-        cond_lines = get_lines(self.data,
-                              line_numbers=lines,
-                              variables=self.section_variables)
+        self.section_variables = self.geometry_variables + self.inversion_variables + self.data_variables
 
         # Interpolated results will be added to a dictionary
         interpolated = {}
@@ -139,15 +143,13 @@ class AEM_inversion:
                            'resampling_method': resampling_method}
 
         # Iterate through the lines
-        for i in range(len(lines)):
+        for i, line_no in enumerate(lines):
 
             # Extract the variables and coordinates for the line in question
-            line_no, cond_var_dict = next(cond_lines)
+            cond_var_dict = self.getVarsByLine(lineNumber=line_no, variables=self.section_variables)
 
             # Now we need to sort the cond_var_dict and run it in a specific direction
             cond_var_dict = spatial_functions.sort_variables(cond_var_dict, sort_on = sort_on)
-            
-            ## Now apply a spatial mask TODO
 
             # If there is no 'layer_top_depth' add it
             if np.logical_and('layer_top_depth' not in cond_var_dict,
@@ -155,8 +157,7 @@ class AEM_inversion:
 
                 cond_var_dict['layer_top_depth'] = spatial_functions.layer_centre_to_top(cond_var_dict['layer_centre_depth'])
 
-            interpolated[line_no] =  self.grid_variables(line_no, cond_var_dict,
-                                                         gridding_params)
+            interpolated[line_no] =  self.grid_variables(cond_var_dict, gridding_params)
 
             # Save to hdf5 file if the keyword is passed
             if save_to_disk:
@@ -179,7 +180,7 @@ class AEM_inversion:
         else:
             self.section_data = None
 
-    def grid_variables(self, line, cond_var_dict, gridding_params):
+    def grid_variables(self, cond_var_dict, gridding_params):
         """Function controlling the vertical gridding of 2D and 1D variables.
 
         Parameters
@@ -216,9 +217,9 @@ class AEM_inversion:
             cond_var_dict['ndepth_cells'] = self.data.dimensions['layer'].size
 
         # Interpolate 2D and 1D variables
-
-        vars_2d = [v for v in self.section_variables if cond_var_dict[v].ndim == 2]
+        vars_2d = [v for v in self.inversion_variables if cond_var_dict[v].ndim == 2]
         vars_1d = [v for v in self.section_variables if cond_var_dict[v].ndim == 1]
+        vars_1p5d = [v for v in self.data_variables if cond_var_dict[v].ndim == 2]
 
         # Generator for interpolating 2D variables from the vars_2d list
         interp2d = spatial_functions.interpolate_2d_vars(vars_2d, cond_var_dict,
@@ -240,11 +241,39 @@ class AEM_inversion:
             # Generator yields the interpolated variable array
             interpolated[var] = next(interp1d)
 
+        # Now we griddify the data variables
+        interpolated_utm = np.column_stack((interpolated['easting'], interpolated['northing']))
+
+        interp1p5d = spatial_functions.interpolate_data(vars_1p5d, cond_var_dict, interpolated_utm)
+
+        for var in vars_1p5d:
+            interpolated[var] = next(interp1p5d)
+
         # Create an xarray from the dictionary
 
-        xr = misc_utils.dict2xr(interpolated, dims=['grid_elevations','grid_distances'])
+        coords = {}
+        data_vars = {}
 
-        return xr
+        coords['grid_distances'] = interpolated['grid_distances']
+        coords['grid_elevations'] = interpolated['grid_elevations']
+        coords['windows'] = np.arange(1,interpolated[self.data_variables[0]].shape[1]+1)
+
+        var_list = [e for e in interpolated.keys() if e not in coords.keys()]
+
+        for var in var_list:
+
+            if len(interpolated[var].shape) == 2:
+                if var in self.inversion_variables:
+                    data_vars[var] = (['grid_elevations', 'grid_distances'], interpolated[var])
+                elif var in self.data_variables:
+                    data_vars[var] = (['grid_distances', 'windows'], interpolated[var])
+
+            elif len(interpolated[var].shape) == 1:
+                data_vars[var] = (['grid_distances'], interpolated[var])
+
+        ds = xarray.Dataset(data_vars, coords=coords)
+
+        return ds
 
     def load_lci_layer_grids_from_pickle(self, pickle_file):
         """This is a hack to remove the need for rasterio.

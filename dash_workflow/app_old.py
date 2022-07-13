@@ -49,11 +49,8 @@ def profile(f):
 yaml_file = "interpretation_config.yaml"
 settings = yaml.safe_load(open(yaml_file))
 
-interp_settings, model_settings, AEM_settings, det_inv_settings, stochastic_inv_settings, section_settings,\
+interp_settings, model_settings, AEM_settings, section_settings,\
 borehole_settings, crs = settings.values()
-
-# Set key variables for convenience
-uncertainty_settings = stochastic_inv_settings['uncertainty']
 
 root = interp_settings['data_directory']
 
@@ -65,7 +62,7 @@ em = aem_utils.AEM_data(name = AEM_settings['name'],
                         netcdf_dataset = netCDF4.Dataset(os.path.join(root, AEM_settings['nc_path'])))
 
 # Grid the data if the user wants
-if AEM_settings["grid_sections"]:
+if AEM_settings["inversion_settings"]:
     print("Gridding AEM data. This may take a few minutes.")
     ## TODO add path checking function
     outdir = os.path.join(root, AEM_settings['section_directory'])

@@ -310,6 +310,7 @@ def interpolate_2d_vars(vars_2d, var_dict, xres, yres):
 
         # Yield the generator and the dictionary with added variables
         yield interpolated_var, var_dict
+
 def interpolate_data(data_variables, var_dict, interpolated_utm,
                      resampling_method='linear'):
     """
@@ -321,7 +322,7 @@ def interpolate_data(data_variables, var_dict, interpolated_utm,
     """
 
     # Define coordinates
-    utm_coordinates = var_dict['utm_coordinates']
+    utm_coordinates = np.column_stack((var_dict['easting'], var_dict['northing']))
 
     # Add distance array to dictionary
     distances = coords2distance(utm_coordinates)
@@ -336,9 +337,9 @@ def interpolate_data(data_variables, var_dict, interpolated_utm,
 
     for var in data_variables:
 
-        # Create an empty array for interpolation
+        arr = np.abs(var_dict[var])
 
-        arr = var_dict[var]
+        # Create an empty array for interpolation
 
         interp_arr = np.zeros(shape=(np.shape(interpolated_distances)[0], np.shape(arr)[1]),
                               dtype=var_dict[var].dtype)
@@ -488,4 +489,4 @@ def layer_centre_2_layer_top_depth(lcd):
         else:
             thickness[i] = 2*(lcd[i] - np.sum(thickness))
 
-    return sthickness_to_depth(thickness)
+    return thickness_to_depth(thickness)
