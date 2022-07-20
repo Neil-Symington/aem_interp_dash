@@ -1,0 +1,8 @@
+fiducial,inversion_name,X,Y,DEPTH,ELEVATION,DEM,UNCERTAINTY,Type,BoundaryNm,BoundConf,BasisOfInt,OvrConf,OvrStrtUnt,OvrStrtCod,UndStrtUnt,UndStrtCod,WithinType,WithinStrt,WithinStNo,WithinConf,InterpRef,Comment,SURVEY_LINE,Operator,point_index,Colour,Marker,MarkerSize
+7093,galei,388354,6041697,20,12,32.1,,TOP_Conductor_1,Top_Conductor_1,M,IAEM,M,,,,,,,,,,,1066001,User,217,black,triangle-up,12
+7081.200195,galei,389102,6041750,42,16,58.3,,TOP_Conductor_1,Top_Conductor_1,M,IAEM,M,,,,,,,,,,,1066001,User,232,black,triangle-up,12
+7063,galei,390201,6041738,42,16,58.3,,TOP_Conductor_1,Top_Conductor_1,M,IAEM,M,,,,,,,,,,,1066001,User,254,black,triangle-up,12
+7041.200195,galei,391550,6041696,20,16,36,,TOP_Conductor_1,Top_Conductor_1,M,IAEM,M,,,,,,,,,,,1066001,User,281,black,triangle-up,12
+7093,galei,388354,6041697,64,-32,32.1,,BASE_Conductor_1,Base_Conductor_1,M,IAEM,M,,,,,,,,,,,1066001,User,217,black,triangle-down,12
+7081.200195,galei,389102,6041750,82,-24,58.3,,BASE_Conductor_1,Base_Conductor_1,M,IAEM,M,,,,,,,,,,,1066001,User,232,black,triangle-down,12
+7063,galei,390201,6041738,90,-32,58.3,,BASE_Conductor_1,Base_Conductor_1,M,IAEM,M,,,,,,,,,,,1066001,User,254,black,triangle-down,12

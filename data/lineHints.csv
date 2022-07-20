@@ -1,0 +1,2 @@
+SURVEY_LINE,Hint,Explanation
+1066001,Be very careful interpreting if the data has not been fit and at the bottom of thick conductors.,For this section we have chosen to avoid interpreting in any areas where the phid is greater than 2. We have alos avoided interpreting the base of the thick conductor at either end of the section as the change from conductive may be the return to the reference model beneath the depth of investigation.

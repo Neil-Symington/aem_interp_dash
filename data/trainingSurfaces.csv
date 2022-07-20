@@ -1,0 +1,6 @@
+SurfaceName,Type,BoundaryNm,BoundConf,BasisOfInt,OvrConf,OvrStrtUnt,OvrStrtCod,UndStrtUnt,UndStrtCod,WithinType,WithinStrt,WithinStNo,WithinConf,InterpRef,Comment,Operator,Colour,Marker,MarkerSize
+Top_Conductor_1,TOP_Conductor_1,TopCond1,M,IAEM,M,,,,,,,,,,,User,black,triangle-up,20
+Base_Conductor_1,BASE_Conductor_1,BaseCond1,M,IAEM,M,,,,,,,,,,,User,black,triangle-down,20
+Top_Conductor_2,TOP_Conductor_2,TopCond2,M,IAEM,M,,,,,,,,,,,User,darkgrey,triangle-up-dot,20
+Base_Conductor_2,BASE_Conductor_2,BaseCond2,M,IAEM,M,,,,,,,,,,,User,darkgrey,triangle-down-dot,20
+Fault,FaultVertical,Fault,L,IAEM,,,,,,,,,,,,User,black,line-ns,80

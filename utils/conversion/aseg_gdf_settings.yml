@@ -124,18 +124,29 @@ field_definitions:
     dimensions: low_moment_gate}
   runc_hm_x: {long_name: X-component High Moment gates relative uncertainty, short_name: rel_uncertainty_high_moment_X-component,
     dimensions: high_moment_gate}
-  observed_emsystem_1_zs: { long_name: Z-component Low Moment dB/dt observed data, short_name: lmz_observed_EM_data, units: pV/(A.turns.m4),
-          dimensions: low_moment_gate }
-  observed_emsystem_2_zs: { long_name: Z-component High Moment dB/dt observed data, short_name: hmz_observed_EM_data, units: pV/(A.turns.m4),
-            dimensions: high_moment_gate }
-  predicted_emsystem_1_zs: { long_name: Z-component Low Moment dB/dt predicted data, short_name: lmz_predicted_EM_data, units: pV/(A.turns.m4),
-                            dimensions: low_moment_gate }
-  predicted_emsystem_2_zs: { long_name: Z-component High Moment dB/dt predicted data, short_name: hmz_predicted_EM_data, units: pV/(A.turns.m4),
-                              dimensions: high_moment_gate }
+  #observed_emsystem_1_zs: { long_name: Z-component Low Moment dB/dt observed data, short_name: lmz_observed_EM_data, units: pV/(A.turns.m4),
+  #        dimensions: low_moment_gate }
+  #observed_emsystem_2_zs: { long_name: Z-component High Moment dB/dt observed data, short_name: hmz_observed_EM_data, units: pV/(A.turns.m4),
+  #          dimensions: high_moment_gate }
+  #predicted_emsystem_1_zs: { long_name: Z-component Low Moment dB/dt predicted data, short_name: lmz_predicted_EM_data, units: pV/(A.turns.m4),
+  #                          dimensions: low_moment_gate }
+  #predicted_emsystem_2_zs: { long_name: Z-component High Moment dB/dt predicted data, short_name: hmz_predicted_EM_data, units: pV/(A.turns.m4),
+  #                            dimensions: high_moment_gate }
   noise_emsystem_1_zs: { long_name: Estimated noise for Z-component Low Moment dB/dt data, short_name: lmz_estimated_EM_noise, units: pV/(A.turns.m4),
                           dimensions: low_moment_gate }
   noise_emsystem_2_zs: { long_name: Estimated noise for Z-component High Moment dB/dt data, short_name: hmz_esimataed_EM_noise, units: pV/(A.turns.m4),
                                dimensions: high_moment_gate }
+  observed_emsystem_1_xp: { long_name: Observed EMSystem 1 X-component primary field, short_name: x_primary_field_observed }
+  observed_emsystem_1_xs: { long_name: Observed EMSystem 1 X-component secondary field windows, short_name: x_secondary_field_observed, dimensions: window }
+  observed_emsystem_1_zp: { long_name: Observed EMSystem Z-component primary field, short_name: z_primary_field_observed }
+  observed_emsystem_1_zs: { long_name: Observed EMSystem Z-component secondary field windows, short_name: z_secondary_field_observed, dimensions: window }
+  predicted_emsystem_1_xp: { long_name: Predicted EMsystem 1 X-component primary field, short_name: x_primary_field_predicted }
+  predicted_emsystem_1_xs: { long_name: Predicted EMSystem 1 X-component secondary field windows, short_name: x_secondary_field_predicted, dimensions: window }
+  predicted_emsystem_1_zp: { long_name: Predicted EMSystem Z-component primary field, short_name: z_primary_field_predicted }
+  predicted_emsystem_1_zs: { long_name: Predicted EMSystem Z-component secondary field windows, short_name: z_secondary_field_predicted, dimensions: window }
+
+
+
 
 # Known custom .dfn attributes to write into variable attributes with mappings to new names
 # N.B: Do NOT include standard attributes like "NAME", "UNIT" or "UNITS"
@@ -149,7 +160,7 @@ keywords: geophysics, airborne, AEM, conductivity
 # List of possible dimension field names definining dimension sizes.
 # Uses overridden short_name values (if set)
 # Not used for output - should be defined in .dfn file instead
-dimension_fields: [layer, low_moment_gate, high_moment_gate]
+dimension_fields: [layer, window]
 
 # List of possible index field names to indicate which fields need to be dealt with as value, start & count arrays
 # Uses overridden short_name values (if set)

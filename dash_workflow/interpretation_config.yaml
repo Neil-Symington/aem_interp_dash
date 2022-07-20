@@ -3,20 +3,24 @@ general_settings:
   data_directory: "C:\\Users\\u77932\\Documents\\workshop\\AEM_Perth\\data\\ASEG_gdf"
   # directory with the AEM data
   # The line numbers that we are interested in visualising
-  lines: [1007002, 1025002]
+  lines: [1066001, 1004001, 3045002, 3050001, 3047001]
 
 model_settings:
-  name: "AusAEM_test"
+  name: "AEM interpretation training"
   # Path to template csv file
-  templateFile: "..\\data\\exampleSurface.csv"
+  templateFile: "..\\data\\trainingSurfaces.csv"
   # Path to existing interpretations
   interpFile: "..\\data\\blank_interp_example.csv"
+  # Path to pre-canned answers
+  GAInterpFile: "..\\data\\GA_interp.csv"
+  # Path to pre-canned answers
+  hintsFile: "..\\data\\lineHints.csv"
 
 inversion_settings:
   # deterministic inversion
   inversion_name: "galei"
   # Path to netcdf file for AEM deterministic inversion.
-  nc_path: "AusAEM_East_Resources_Corridor_GA_vsum_inversion_phase1.nc"
+  nc_path: "AEM_workshop_galei.nc"
   # True if you want to grid the AEM inversion data into vertical sections for visualisation false if already done.
   grid_sections: False
   # variables to grid
@@ -25,15 +29,13 @@ inversion_settings:
   data_variables: ['x_secondary_field_observed', 'z_secondary_field_observed', 'x_secondary_field_predicted',
                    'z_secondary_field_predicted']
   # horizontal resolution of sections
-  horizontal_resolution: 20.
+  horizontal_resolution: 50.
   # Vertical resolution of sections
   vertical_resolution: 4.
   # section to read or write pickle files
   section_directory: "section_data"
   # A flag for if the user wishes to plot the grid
   plot_grid: False
-  # Path to the grid
-  layer_grid_path: "C://Users//u77932//Documents//MORPH//central_Musgraves//AEM//galei//Meramangye_layer_grids.p"
 
 visualisation_settings:
   vmin: 0.001 # Starting minimum conductivity for colourstretch
