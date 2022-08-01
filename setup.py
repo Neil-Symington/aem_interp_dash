@@ -22,9 +22,8 @@ from distutils.core import setup
 
 setup(name='garjmcmctdem_utils',
       version='0.1',
-      description='Utilities for processing, visualisation and intrepretation of stochastic '
-                  'AEM inversions for (hydro)geological assessments',
-      url='https://github.com/Neil-Symington/garjmcmctdem_utils',
+      description='Utilities for AEM interpretation using dash',
+      url='https://github.com/Neil-Symington/aem_interp_dash',
       author='Neil Symington',
       author_email='neil.symington@ga.gov.au',
       requires = [

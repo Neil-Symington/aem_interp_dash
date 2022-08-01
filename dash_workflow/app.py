@@ -56,12 +56,14 @@ borehole_settings, crs = settings.values()
 
 root = interp_settings['data_directory']
 
-lines = interp_settings['lines']
 
 # Prepare AEM data
 det = aem_utils.AEM_inversion(name=inversion_settings['inversion_name'],
                               inversion_type='deterministic',
                               netcdf_dataset=netCDF4.Dataset(os.path.join(root, inversion_settings['nc_path'])))
+
+#lines = interp_settings['lines']
+lines = det.data['line'][:]
 
 # Grid the data if the user wants
 if inversion_settings["grid_sections"]:
@@ -83,14 +85,8 @@ else:
 
 # Prepare borehole data
 if borehole_settings['include']:
-    infile = os.path.join(root, borehole_settings['borehole_file'])
-    ## TODO add a chacking function
-    cols = ['WELL', 'TOP_AHD_M', 'BASE_AHD_M', 'GA_UNIT', 'Strat_name',
-            'TOP_MD_M', 'BASE_MD_M', 'fiducial', 'line', 'geometry']
-    df_bh = pd.read_csv(infile)[cols]
-    geom = [wkt.loads(s) for s in df_bh['geometry']]
-    df_bh['easting'] = [coord.x for coord in geom]
-    df_bh['northing'] = [coord.y for coord in geom]
+    infile = borehole_settings['borehole_file']
+    df_bh = pd.read_csv(infile)
     # We need to get these data into the same reference frame as our grids
     df_bh['distance_along_line'] = np.nan
     df_bh['AEM_elevation'] = np.nan
@@ -104,7 +100,22 @@ det.section_path = {}
 for lin in lines:
     det.section_path[lin] = os.path.join(root, inversion_settings['section_directory'],
                                          "{}.pkl".format(str(lin)))
-    ## TODO write a function for read borehole data
+    section_data = pickle2xarray(det.section_path[lin])
+    if borehole_settings['include']:
+        line_mask = df_bh['SURVEY_LINE'] == lin
+        df_bh_ss = df_bh[line_mask]
+        if len(df_bh_ss) > 0:
+            bh_coords = df_bh_ss[['X', 'Y']].values
+            dists_ = spatial_functions.xy_2_var(section_data,
+                                                bh_coords,
+                                                'grid_distances',
+                                                max_distance=500.)
+            df_bh.at[df_bh_ss.index, 'distance_along_line'] = dists_
+            elevs_ = spatial_functions.xy_2_var(section_data,
+                                                bh_coords,
+                                                'elevation',
+                                                max_distance=500.)
+            df_bh.at[df_bh_ss.index, 'AEM_elevation'] = elevs_
 
 # Define colour stretch for em data
 
@@ -155,6 +166,7 @@ def xy2data(x, y, dataset):
     dist, ind = spatial_functions.nearest_neighbours([x, y],
                                                      dataset.coords,
                                                      max_distance=100.)
+
     return dataset.data['x_secondary_field_observed'][ind][0], dataset.data['z_secondary_field_observed'][ind][0], \
            dataset.data['x_secondary_field_predicted'][ind][0], dataset.data['z_secondary_field_predicted'][ind][0]
 
@@ -189,10 +201,7 @@ def dash_conductivity_section(vmin, vmax, cmap, xarr):
                         row_heights=[0.1, 0.1, 0.1, 0.34, 0.35, 0.01])
     vmin = np.log10(vmin)
     vmax = np.log10(vmax)
-
-    # Extract data based on the section plot keyword argument
-    misfit = xarr['phid'].values
-    z = np.log10(xarr['conductivity'].values)
+    maxDepth = 400.
 
     tickvals = np.linspace(vmin, vmax, 5)
     ticktext = [str(np.round(x, 3)) for x in 10 ** tickvals]
@@ -203,14 +212,20 @@ def dash_conductivity_section(vmin, vmax, cmap, xarr):
     easting = xarr['easting'].values
     northing = xarr['northing'].values
 
+    minElev = np.min(elevation)
+    minElevMask = grid_elevations > minElev - maxDepth
+
+    # Extract data based on the section plot keyword argument
+    misfit = xarr['phid'].values
+    z = np.log10(xarr['conductivity'].values)[minElevMask,:]
+    grid_elevations = grid_elevations[minElevMask]
+
     # Subset based on line length to avoid long rendering for plots
     # ss = np.int(math.ceil(np.max(dist_along_line) / 10000.))  ##TODO move subsetting to the yaml file
     grid_distances = dist_along_line[:]
     tx_height = xarr['tx_height'].values[:]
-    data_observed = np.arcsinh(
-        np.sqrt(xarr['x_secondary_field_observed'].values ** 2 + xarr['z_secondary_field_observed'].values ** 2))
-    data_predicted = np.arcsinh(
-        np.sqrt(xarr['x_secondary_field_predicted'].values ** 2 + xarr['z_secondary_field_predicted'].values ** 2))
+    data_observed = np.sqrt(xarr['x_secondary_field_observed'].values ** 2 + xarr['z_secondary_field_observed'].values ** 2)
+    #data_predicted = np.sqrt(xarr['x_secondary_field_predicted'].values ** 2 + xarr['z_secondary_field_predicted'].values ** 2)
     txrx_dx = xarr['txrx_dx'].values
     txrx_dz = xarr['txrx_dz'].values
     inv_txrx_dx = xarr['inverted_txrx_dx'].values
@@ -259,15 +274,15 @@ def dash_conductivity_section(vmin, vmax, cmap, xarr):
                                  },
                                  showlegend=False, hoverinfo="none"),
                       row=4, col=1, )
-        fig.add_trace(go.Scatter(x=grid_distances,
-                                 y=data_predicted[:, j],
-                                 mode='lines',
-                                 line={
-                                     "color": lm_colours[j]
-                                 },
-                                 hovertext=labels,
-                                 showlegend=False, hoverinfo="none"),
-                      row=4, col=1, )
+        #fig.add_trace(go.Scatter(x=grid_distances,
+        #                         y=data_predicted[:, j],
+        #                         mode='lines',
+        #                         line={
+        #                             "color": lm_colours[j]
+        #                         },
+        #                         hovertext=labels,
+        #                         showlegend=False, hoverinfo="none"),
+        #              row=4, col=1, )
 
     fig.add_trace(go.Heatmap(z=z,
                              zmin=vmin,
@@ -407,26 +422,24 @@ def plot_section_points(fig, line, df_interp, xarr, select_mask):
 def plot_borehole_segments(fig, df):
     # Plot each row at a time
     for index, row in df.iterrows():
-        y = row[['AEM_elevation', 'AEM_elevation']].values - row[['TOP_MD_M', 'BASE_MD_M']].values
+        y = row[['AEM_elevation', 'AEM_elevation']].values - row[['depthFrom', 'depthTo']].values
         # For visualisation we will give units with no lower depth a thickness of 4m
-        if np.isnan(y[1]):
-            y[1] = y[0] - 4.
         x = row[['distance_along_line', 'distance_along_line']].values
-        colour = borehole_settings['unit_colours'][row['Strat_name']]
-        labels = [row['GA_UNIT']] * 2
+        colour = row['colour']
+        labels = [row['DrillersLog']] * 2
         fig.add_trace(go.Scatter(x=x,
                                  y=y,
                                  mode='lines+markers',
                                  line={
                                      "color": colour,
-                                     'width': 3.,
+                                     'width': 8.,
                                  },
-                                 marker_size=3.,
                                  marker_symbol='hash',
+                                 marker_size=10.,
                                  hovertext=labels,
                                  name='boreholes',
                                  showlegend=False),
-                      row=3, col=1, )
+                      row=5, col=1, )
     return fig
 
 stylesheet = "https://codepen.io/chriddyp/pen/bWLwgP.css"
@@ -491,7 +504,7 @@ surface_options = list2options(df_model_template['SurfaceName'].values)
 app.layout = html.Div([
     html.Div(
         [
-            html.Div(html.H1(' '.join([str(model_settings['name']), " AEM interpretation app"])),
+            html.Div(html.H1(''.join([str(model_settings['name']), ""])),
                      className="three columns"),
             html.Div([html.H4("Select surface"),
                       dcc.Dropdown(id="surface_dropdown",
@@ -516,8 +529,6 @@ app.layout = html.Div([
     ),
     html.Div(
         [
-            html.Div(html.Div(id='message'),
-                     className="three columns"),
             html.Div(dash_table.DataTable(id='surface_table',
                                           css=[{'selector': '.row', 'rule': 'margin: 0'}],
                                           columns=[{"name": i, "id": i} for i in df_model_template.columns],
@@ -534,17 +545,25 @@ app.layout = html.Div([
                                               'maxWidth': '500px',
                                               'overflowX': 'scroll'}
                                           ),
-                     className="three columns"),
-            html.Div([html.Div(["Conductivity plotting minimum: ", dcc.Input(
+                     className="four columns"),
+            html.Div([html.Div(["Conductivity minimum: ", dcc.Input(
                 id="vmin", type="number",
                 min=0.0001, max=10, value=section_settings['vmin'])],
                                className='row'),
-                      html.Div(["Conductivity plotting maximum: ", dcc.Input(
+                      html.Div(["Conductivity maximum: ", dcc.Input(
                           id="vmax", type="number",
                           min=0.001, max=10, value=section_settings['vmax'])],
                                className='row')
                       ],
-                     className="three columns"),
+                     className="two columns"),
+            html.Div([
+                html.Div(dcc.RadioItems(id='borehole-settings',
+                                        options=[{'label': 'Show boreholes', 'value': 'show'},
+                                                 {'label': 'Hide boreholes', 'value':'hide'}],
+                                        value = 'hide'),
+                         className='row'),
+            ],
+                className="two columns"),
             html.Div([
 
                 html.Div(html.Button('Export results', id='export', n_clicks=0),
@@ -553,14 +572,14 @@ app.layout = html.Div([
                          className='row'),
                 html.Div(id='export_message', className='row')
             ],
-                className="three columns"),
+                className="two columns"),
             html.Div([
 
                 html.Div(html.Button('Hint', id='hint_button', n_clicks=0),
                          className='row'),
                 html.Div(id='hint_message', className='row')
             ],
-                className="three columns")
+                className="two columns")
         ], className="row"),
     html.Div([
         dcc.Tabs(id='section_tabs', value='conductivity_section', children=[
@@ -630,12 +649,13 @@ app.layout = html.Div([
      Input("line_dropdown", 'value'),
      Input('vmin', 'value'),
      Input('vmax', 'value'),
-     Input('interp_table', "derived_virtual_selected_rows"), ],
+     Input('interp_table', "derived_virtual_selected_rows"),
+     Input('borehole-settings', 'value')],
     [State('interp_table', 'data'),
      State("surface_dropdown", 'value'),
      State("interp_memory", 'data'),
      State("model_memory", "data")])
-def update_many(clickData, previous_table, section, section_tab, line, vmin, vmax, selected_rows, current_table,
+def update_many(clickData, previous_table, section, section_tab, line, vmin, vmax, selected_rows, borehole_settings, current_table,
                 surfaceName, interpreted_points, model):
     trig_id = find_trigger()
 
@@ -661,7 +681,7 @@ def update_many(clickData, previous_table, section, section_tab, line, vmin, vma
 
     if trig_id == 'section_plot.clickData' and section_tab == 'conductivity_section':
 
-        if clickData['points'][0]['curveNumber'] == 35:
+        if clickData['points'][0]['curveNumber'] == 20:
             # Get the interpretation data from the click function
             model = model or df_model_template.to_dict('records')
             df_model = pd.DataFrame(model).infer_objects()
@@ -751,11 +771,7 @@ def update_many(clickData, previous_table, section, section_tab, line, vmin, vma
         # PLot section
         if len(df_ss) > 0:
             fig = plot_section_points(fig, line, df_ss, xarr, select_mask=select_mask)
-        # Now plot boreholes
-        # df_bh_ss = df_bh[df_bh['line'] == line]
-        # if len(df_bh_ss) > 0:
-        # plot the boreholes as segments
-        #    fig = plot_borehole_segments(fig, df_bh_ss)
+
 
         fig['layout'].update({'uirevision': line})
 
@@ -769,13 +785,16 @@ def update_many(clickData, previous_table, section, section_tab, line, vmin, vma
         if len(df_ss) > 0:
             fig = plot_section_points(fig, line, df_ss, xarr, select_mask=[])
 
-        # Now plot boreholes
-        # df_bh_ss = df_bh[df_bh['line'] == line]
-        # if len(df_bh_ss) > 0:
-        # plot the boreholes as segments
-        #    fig = plot_borehole_segments(fig, df_bh_ss)
 
         fig['layout'].update({'uirevision': line})
+
+    # Now plot boreholes
+
+    if borehole_settings == 'show':
+        df_bh_ss = df_bh[df_bh['SURVEY_LINE'] == line]
+        if len(df_bh_ss) > 0:
+        # plot the boreholes as segments
+            fig = plot_borehole_segments(fig, df_bh_ss)
 
     return df.to_dict('records'), fig, df_ss.to_dict('records')
 
@@ -836,7 +855,7 @@ def update_tab(clickData, line):
 
     if clickData is None:
         raise PreventUpdate
-    if clickData['points'][0]['curveNumber'] < 35:
+    if clickData['points'][0]['curveNumber'] < 20:
         eventxdata, eventydata = clickData['points'][0]['x'], clickData['points'][0]['y']
         min_idx = np.argmin(np.abs(xarr['grid_distances'].values - eventxdata))
         easting = xarr['easting'].values[min_idx]
@@ -876,4 +895,4 @@ def update_surface(timestamps, interpreted_points, model_store, model_table):
            model_store, [{"name": i, "id": i} for i in df_model.columns], model_store
 
 
-app.run_server(debug=True)
+app.run_server(debug=False)

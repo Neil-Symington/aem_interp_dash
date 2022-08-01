@@ -1,0 +1,14 @@
+fiducial,inversion_name,X,Y,DEPTH,ELEVATION,DEM,UNCERTAINTY,Type,BoundaryNm,BoundConf,BasisOfInt,OvrConf,OvrStrtUnt,OvrStrtCod,UndStrtUnt,UndStrtCod,WithinType,WithinStrt,WithinStNo,WithinConf,InterpRef,Comment,SURVEY_LINE,Operator,point_index,Colour,Marker,MarkerSize
+10844.0,galei,586600,7001014,8,94.3,102.7,,TOP_Cotchin,Top_Cotchin_clay,M,IAEM,M,,,,,,,,,,,1018001,User,232,black,triangle-down,20
+10844.0,galei,586600,7001014,44,58.3,102.7,,TOP_Prestia,Top_Prestia_Sandstone,M,IAEM,M,,,,,,,,,,,1018001,User,232,darkgrey,triangle-up-dot,20
+10844.0,galei,586600,7001014,86,16.3,102.7,,Top_Grimes,Top_Grimes_Siltstone,M,IAEM,M,,,,,,,,,,,1018001,User,232,black,triangle-down-dot,20
+10936.2001953125,galei,580553,7001048,18,76.3,94.2,,TOP_Cotchin,Top_Cotchin_clay,M,IAEM,M,,,,,,,,,,,1018001,User,111,black,triangle-down,20
+10936.2001953125,galei,580553,7001048,30,64.3,94.2,,TOP_Cotchin,Top_Cotchin_clay,M,IAEM,M,,,,,,,,,,,1018001,User,111,black,triangle-down,20
+11475.2001953125,galei,467846,6961294,41,36.4,77.5,,Top_Grimes,Top_Grimes_Siltstone,M,IAEM,M,,,,,,,,,,,1020001,User,157,black,triangle-down-dot,20
+11475.2001953125,galei,467846,6961294,95,-17.6,77.5,,Top_Grimes,Top_Grimes_Siltstone,M,IAEM,M,,,,,,,,,,,1020001,User,157,black,triangle-down-dot,20
+11535.0,galei,463697,6961299,8,42.4,50.9,,TOP_Cotchin,Top_Cotchin_clay,M,IAEM,M,,,,,,,,,,,1020001,User,74,black,triangle-down,20
+11535.0,galei,463697,6961299,68,-17.6,50.9,,TOP_Prestia,Top_Prestia_Sandstone,M,IAEM,M,,,,,,,,,,,1020001,User,74,darkgrey,triangle-up-dot,20
+11535.0,galei,463697,6961299,200,-149.6,50.9,,Top_Grimes,Top_Grimes_Siltstone,M,IAEM,M,,,,,,,,,,,1020001,User,74,black,triangle-down-dot,20
+11535.0,galei,463697,6961299,254,-203.6,50.9,,Top_Grimes,Top_Grimes_Siltstone,M,IAEM,M,,,,,,,,,,,1020001,User,74,black,triangle-down-dot,20
+11387.400390625,galei,473844,6961311,41,96.4,137.1,,TOP_Cotchin,Top_Cotchin_clay,M,IAEM,M,,,,,,,,,,,1020001,User,277,black,triangle-down,20
+11387.400390625,galei,473844,6961311,95,42.4,137.1,,TOP_Cotchin,Top_Cotchin_clay,M,IAEM,M,,,,,,,,,,,1020001,User,277,black,triangle-down,20

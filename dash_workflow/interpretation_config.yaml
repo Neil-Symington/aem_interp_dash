@@ -3,7 +3,7 @@ general_settings:
   data_directory: "C:\\Users\\u77932\\Documents\\workshop\\AEM_Perth\\data\\ASEG_gdf"
   # directory with the AEM data
   # The line numbers that we are interested in visualising
-  lines: [1066001, 1004001, 3045002, 3050001, 3047001]
+  lines: [1004001]
 
 model_settings:
   name: "AEM interpretation training"
@@ -31,7 +31,7 @@ inversion_settings:
   # horizontal resolution of sections
   horizontal_resolution: 50.
   # Vertical resolution of sections
-  vertical_resolution: 4.
+  vertical_resolution: 6.
   # section to read or write pickle files
   section_directory: "section_data"
   # A flag for if the user wishes to plot the grid
@@ -40,16 +40,14 @@ inversion_settings:
 visualisation_settings:
   vmin: 0.001 # Starting minimum conductivity for colourstretch
   vmax: 1. # Starting maximum conductivity for colourstretch
-  cmap: 'jet' # AEM conductivity section colourstretch
+  cmap: 'viridis' # AEM conductivity section colourstretch
   section_plot: 'lci' # Which section to start on
   colourbar_label: 'Conductivity (S/m)'
 
 borehole_settings:
   # If you have borehole data to include True otherwise False
-  include: False
-  borehole_file: ""
-  # colours for plotting borehole stratigraphy. see https://developer.mozilla.org/en-US/docs/Web/CSS/color_value
-  unit_colours: {}
+  include: True
+  borehole_file: "..\\data\\trainingBoreholeData.csv"
 
 crs:
   projected: 'EPSG:28352'
