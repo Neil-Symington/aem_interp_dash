@@ -224,7 +224,7 @@ def dash_conductivity_section(vmin, vmax, cmap, xarr):
     # ss = np.int(math.ceil(np.max(dist_along_line) / 10000.))  ##TODO move subsetting to the yaml file
     grid_distances = dist_along_line[:]
     tx_height = xarr['tx_height'].values[:]
-    data_observed = np.sqrt(xarr['x_secondary_field_observed'].values ** 2 + xarr['z_secondary_field_observed'].values ** 2)
+    data_observed = np.asinh(np.sqrt(xarr['x_secondary_field_observed'].values ** 2 + xarr['z_secondary_field_observed'].values ** 2))
     #data_predicted = np.sqrt(xarr['x_secondary_field_predicted'].values ** 2 + xarr['z_secondary_field_predicted'].values ** 2)
     txrx_dx = xarr['txrx_dx'].values
     txrx_dz = xarr['txrx_dz'].values
@@ -312,7 +312,7 @@ def dash_conductivity_section(vmin, vmax, cmap, xarr):
                              y=tx_height + elevation,
                              line=dict(color='blue', width=1),
                              showlegend=False, hoverinfo='text',
-                             text="tx height"),
+                             text="transmitter elevation"),
                   row=5, col=1, )
 
     # Create a list of easting and northing (strings) for label
@@ -329,8 +329,8 @@ def dash_conductivity_section(vmin, vmax, cmap, xarr):
                   row=6, col=1, )
 
     # Reverse y-axis
-    fig.update_yaxes(autorange=True, row=1, col=1, title_text="elevation (mAHD)")
-    fig.update_yaxes(autorange=True, row=2, col=1, title_text="elevation (mAHD)")
+    fig.update_yaxes(autorange=True, row=1, col=1, title_text="offset (m)")
+    fig.update_yaxes(autorange=True, row=2, col=1, title_text="offset (m)")
     fig.update_yaxes(autorange=True, row=3, col=1, title_text="PhiD", type='log')
     fig.update_yaxes(autorange=True, row=4, col=1, title_text="asinh(fT)")
     fig.update_yaxes(autorange=True, row=5, col=1, title_text="elevation (mAHD)")
@@ -388,7 +388,13 @@ def aem_data_plot(xobs, zobs, xpred, zpred):
     fig.update_yaxes(autorange=True, title_text="B field (fT)", type='log')
     return fig
 
-def plot_section_points(fig, line, df_interp, xarr, select_mask):
+def plot_section_points(fig, line, df_interp, xarr, select_mask, labels = ""):
+    if len(labels) == 0:
+        hoverinfo = "skip"
+        hovertext = []
+    else:
+        hoverinfo = "text"
+        hovertext = list(labels)
     # Create a scatter plot on the section using projection
     interpx, interpz = interp2scatter(line, xarr, df_interp)
 
@@ -406,10 +412,13 @@ def plot_section_points(fig, line, df_interp, xarr, select_mask):
         fig.add_trace(go.Scatter(x=interpx,
                                  y=interpz,
                                  mode='markers',
-                                 hoverinfo='skip',  # labels,
+                                 hoverinfo=hoverinfo,  # labels,
+                                 hovertext = hovertext,
                                  marker={"symbol": markers,
                                          "color": colours,
-                                         "size": markerSize
+                                         "size": markerSize,
+                                         "line": dict(color='black',
+                                                 width=0.5)
                                          },
                                  name='interpretation',
                                  showlegend=True,
@@ -641,7 +650,8 @@ app.layout = html.Div([
 @app.callback(
     [Output('interp_memory', 'data'),
      Output('section_plot', 'figure'),
-     Output('interp_table', 'data')],
+     Output('interp_table', 'data'),
+     Output('section_tabs', 'value')],
     [Input('section_plot', 'clickData'),
      Input('interp_table', 'data_previous'),
      Input('section_dropdown', 'value'),
@@ -665,6 +675,7 @@ def update_many(clickData, previous_table, section, section_tab, line, vmin, vma
         # clicked on the data section so nothing to do
         raise PreventUpdate
 
+
     # Access the data from the store. The or is in case of None callback at initialisation
     interpreted_points = interpreted_points or df_interpreted_points.to_dict('records')
 
@@ -678,6 +689,9 @@ def update_many(clickData, previous_table, section, section_tab, line, vmin, vma
         df = pd.DataFrame(interpreted_points).infer_objects()
 
     xarr = pickle2xarray(det.section_path[line])
+
+    if trig_id == 'line_dropdown.value':
+        section_tab = 'conductivity_section'
 
     if trig_id == 'section_plot.clickData' and section_tab == 'conductivity_section':
 
@@ -783,7 +797,7 @@ def update_many(clickData, previous_table, section, section_tab, line, vmin, vma
                                         cmap=section_settings['cmap'],
                                         xarr=xarr)
         if len(df_ss) > 0:
-            fig = plot_section_points(fig, line, df_ss, xarr, select_mask=[])
+            fig = plot_section_points(fig, line, df_ss, xarr, select_mask=[], labels=df_ss['BoundaryNm'].values)
 
 
         fig['layout'].update({'uirevision': line})
@@ -796,7 +810,7 @@ def update_many(clickData, previous_table, section, section_tab, line, vmin, vma
         # plot the boreholes as segments
             fig = plot_borehole_segments(fig, df_bh_ss)
 
-    return df.to_dict('records'), fig, df_ss.to_dict('records')
+    return df.to_dict('records'), fig, df_ss.to_dict('records'), section_tab
 
 
 @app.callback(

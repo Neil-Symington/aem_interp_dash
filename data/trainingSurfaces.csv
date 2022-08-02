@@ -1,8 +1,7 @@
 SurfaceName,Type,BoundaryNm,BoundConf,BasisOfInt,OvrConf,OvrStrtUnt,OvrStrtCod,UndStrtUnt,UndStrtCod,WithinType,WithinStrt,WithinStNo,WithinConf,InterpRef,Comment,Operator,Colour,Marker,MarkerSize
-Top_Dusty_Sands,TOP_Dusty,TopDusty,M,IAEM,M,,,,,,,,,,,User,black,triangle-up,10
-Top_Cotchin_clay,TOP_Cotchin,TopCotch,M,IAEM,M,,,,,,,,,,,User,black,triangle-down,10
-Top_Prestia_Sandstone,TOP_Prestia,TopPrestia,M,IAEM,M,,,,,,,,,,,User,darkgrey,triangle-up-dot,10
-Top_Grimes_Siltstone,Top_Grimes,TopGrimes,M,IAEM,M,,,,,,,,,,,User,black,triangle-down-dot,10
-Top_Riewoldt_Granite,TOP_Riewoldt,TopRiewoldt,M,IAEM,M,,,,,,,,,,,User,darkgrey,x,10
-Top_Bolton_Mineralisation,TOP_Bolton,TopBolton,M,IAEM,M,,,,,,,,,,,User,pink,diamond,10
+Top_Dusty_Sands,TOP_Dusty,TopDusty,M,IAEM,M,,,,,,,,,,,User,#FDFF89,circle,10
+Top_Cotchin_clay,TOP_Cotchin,TopCotch,M,IAEM,M,,,,,,,,,,,User,#FFDB67,triangle-down,10
+Top_Prestia_Sandstone,TOP_Prestia,TopPrestia,M,IAEM,M,,,,,,,,,,,User,#BDDBF1,triangle-up-dot,10
+Top_Grimes_Siltstone,Top_Grimes,TopGrimes,M,IAEM,M,,,,,,,,,,,User,#92DCB7,triangle-down-dot,10
+Top_Riewoldt_Granite,TOP_Riewoldt,TopRiewoldt,M,IAEM,M,,,,,,,,,,,User,#BDDBF1,x,10
 Fault,FaultVertical,Fault,L,IAEM,M,,,,,,,,,,,User,black,line-ns,80
