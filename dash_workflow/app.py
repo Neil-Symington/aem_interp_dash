@@ -224,7 +224,7 @@ def dash_conductivity_section(vmin, vmax, cmap, xarr):
     # ss = np.int(math.ceil(np.max(dist_along_line) / 10000.))  ##TODO move subsetting to the yaml file
     grid_distances = dist_along_line[:]
     tx_height = xarr['tx_height'].values[:]
-    data_observed = np.asinh(np.sqrt(xarr['x_secondary_field_observed'].values ** 2 + xarr['z_secondary_field_observed'].values ** 2))
+    data_observed = np.arcsinh(np.sqrt(xarr['x_secondary_field_observed'].values ** 2 + xarr['z_secondary_field_observed'].values ** 2))
     #data_predicted = np.sqrt(xarr['x_secondary_field_predicted'].values ** 2 + xarr['z_secondary_field_predicted'].values ** 2)
     txrx_dx = xarr['txrx_dx'].values
     txrx_dz = xarr['txrx_dz'].values
@@ -401,7 +401,7 @@ def plot_section_points(fig, line, df_interp, xarr, select_mask, labels = ""):
     if len(interpx) > 0:
         # labels = ["surface = " + str(x) for x in df_interp['BoundaryNm'].values]
 
-        colours = df_interp["Colour"].values
+        colours = df_interp["colour"].values
         markers = df_interp["Marker"].values
         markerSize = df_interp["MarkerSize"].values
         # To make selected points obvious
@@ -486,11 +486,11 @@ colour, marker, marker_size = [], [], []
 for index, row in df_interpreted_points.iterrows():
     surfName = row['BoundaryNm']
     mask = df_model_template['SurfaceName'] == surfName
-    colour.append(df_model_template[mask]['Colour'].values[0])
+    colour.append(df_model_template[mask]['colour'].values[0])
     marker.append(df_model_template[mask]['Marker'].values[0])
     marker_size.append(df_model_template[mask]['MarkerSize'].values[0])
 
-df_interpreted_points['Colour'] = colour
+df_interpreted_points['colour'] = colour
 df_interpreted_points['Marker'] = marker
 df_interpreted_points['MarkerSize'] = marker_size
 
@@ -739,7 +739,7 @@ def update_many(clickData, previous_table, section, section_tab, line, vmin, vma
                       'SURVEY_LINE': line,
                       'Operator': row.Operator,
                       "point_index": min_idx,
-                      "Colour": row.Colour,
+                      "colour": row.colour,
                       "Marker": row.Marker,
                       "MarkerSize": row.MarkerSize
                       }
