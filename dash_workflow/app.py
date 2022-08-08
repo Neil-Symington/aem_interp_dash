@@ -21,8 +21,6 @@ import dash_html_components as html
 import dash_table
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from matplotlib import cm
-import matplotlib
 import base64, io
 
 # profiling
@@ -414,14 +412,9 @@ df_interpreted_points['Marker'] = marker
 df_interpreted_points['MarkerSize'] = marker_size
 
 msg = dcc.Markdown('''
-        Do your best to interpret the section below using the AEM conductivity data and boreholes where available. 
-        To view the data fit for a single fiducial, simply press the data plot and view the decay at the lower right of the browser.
+        Do your best to interpret the section below using the AEM conductivity data and boreholes where available. Remember to deftly sidestep the common pitfalls we described in the presentation earlier.
 
-        Remember to deftly sidestep the common pitfalls we described in the presentation earlier.
-
-        Press the **Hint** button above for a hint on what to consider when interpreting this section. 
-
-        Click the **GA interpretation** tab to see how we might interpret this section, though remember that all interpretations are wrong including those from GA.
+        Press the **Hint** button above for a hint on what to consider when interpreting this section. Click the **GA interpretation** tab to see how we might interpret this section, though remember that all interpretations are wrong including those released by GA.
     ''')
 
 # for use with the dropdown
@@ -444,11 +437,20 @@ app.layout = html.Div([
                       dcc.Dropdown(id="line_dropdown",
                                    options=line_options,
                                    value=line_options[0]['value']),
-                      ], className="three columns")
+                      ], className="three columns"),
+            html.Div([
+                html.H4("Export interpretation"),
+                html.Div(html.Button('Export results', id='export', n_clicks=0),
+                         className='row'),
+                html.Div(dcc.Input(id='export-path', type='text', placeholder='Input valid output path'),
+                         className='row'),
+                html.Div(id='export_message', className='row')
+            ],
+                className="three columns"),
         ], className='row'
     ),
     html.Div(
-        [
+        [html.H4("Define colour stretch range"),
             html.Div([html.Div(["Conductivity minimum: ", dcc.Input(
                 id="vmin", type="number",
                 min=0.0001, max=10, value=section_settings['vmin'])],
@@ -458,31 +460,27 @@ app.layout = html.Div([
                           min=0.001, max=10, value=section_settings['vmax'])],
                                className='row')
                       ],
-                     className="two columns"),
-            html.Div([
+                     className="three columns"),
+            html.Div(
+                [html.H4("Borehole display"),
                 html.Div(dcc.RadioItems(id='borehole-settings',
-                                        options=[{'label': 'Show boreholes', 'value': 'show'},
-                                                 {'label': 'Hide boreholes', 'value':'hide'}],
+                                        options=[{'label': 'Show borehole data', 'value': 'show'},
+                                                 {'label': 'Hide borehole data', 'value':'hide'}],
                                         value = 'hide'),
                          className='row'),
             ],
-                className="two columns"),
-            html.Div([
+                className="three columns"),
 
-                html.Div(html.Button('Export results', id='export', n_clicks=0),
-                         className='row'),
-                html.Div(dcc.Input(id='export-path', type='text', placeholder='Input valid output path'),
-                         className='row'),
-                html.Div(id='export_message', className='row')
-            ],
-                className="two columns"),
             html.Div([
-
                 html.Div(html.Button('Hint', id='hint_button', n_clicks=0),
                          className='row'),
-                html.Div(id='hint_message', className='row')
+                html.Div(id='hint_message', className='row',
+                         style={
+                             'font-size': '18px',
+                         }
+                         )
             ],
-                className="two columns")
+                className="three columns"),
         ], className="row"),
     html.Div([
         dcc.Tabs(id='section_tabs', value='conductivity_section', children=[
@@ -490,7 +488,13 @@ app.layout = html.Div([
             dcc.Tab(label='GA interpretation', value='GA_interp_section'),
         ]),
         html.Div(id='section_instructions',
-                 children=msg),
+                 children=msg,
+                 style={
+                     'font-size': '18px',
+                     'text-align': 'center',
+                     'marginTop': 20
+                 },
+                 ),
         html.Div([dcc.Graph(
             id='section_plot',
         )], style={'height': '1000'}),
@@ -753,4 +757,4 @@ def reveal_hint(nclicks, line):
         hint = df_hint[df_hint['SURVEY_LINE'] == line]["Hint"].values
         return hint
 
-app.run_server(debug=True)
+app.run_server(debug=False)
