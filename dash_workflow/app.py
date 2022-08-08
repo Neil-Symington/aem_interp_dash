@@ -7,7 +7,6 @@ import numpy as np
 import pandas as pd
 import yaml
 from dash.exceptions import PreventUpdate
-from shapely import wkt
 
 from garjmcmctdem_utils import spatial_functions, aem_utils
 from garjmcmctdem_utils.misc_utils import pickle2xarray
@@ -117,12 +116,6 @@ for lin in lines:
                                                 max_distance=500.)
             df_bh.at[df_bh_ss.index, 'AEM_elevation'] = elevs_
 
-# Define colour stretch for em data
-
-viridis = cm.get_cmap('plasma')
-n_gates = det.data.dimensions['window'].size
-
-lm_colours = [matplotlib.colors.rgb2hex(x) for x in viridis(np.linspace(0, 1, n_gates))]
 
 
 def list2options(list):
@@ -196,9 +189,9 @@ def interp2scatter(line, xarr, interpreted_points, easting_col='X',
 
 def dash_conductivity_section(vmin, vmax, cmap, xarr):
     # Create subplots
-    fig = make_subplots(rows=6, cols=1, shared_xaxes=True,
+    fig = make_subplots(rows=5, cols=1, shared_xaxes=True,
                         vertical_spacing=0.01,
-                        row_heights=[0.1, 0.1, 0.1, 0.34, 0.35, 0.01])
+                        row_heights=[0.15, 0.15, 0.15, 0.5, 0.01])
     vmin = np.log10(vmin)
     vmax = np.log10(vmax)
     maxDepth = 400.
@@ -219,13 +212,8 @@ def dash_conductivity_section(vmin, vmax, cmap, xarr):
     misfit = xarr['phid'].values
     z = np.log10(xarr['conductivity'].values)[minElevMask,:]
     grid_elevations = grid_elevations[minElevMask]
-
-    # Subset based on line length to avoid long rendering for plots
-    # ss = np.int(math.ceil(np.max(dist_along_line) / 10000.))  ##TODO move subsetting to the yaml file
     grid_distances = dist_along_line[:]
     tx_height = xarr['tx_height'].values[:]
-    data_observed = np.arcsinh(np.sqrt(xarr['x_secondary_field_observed'].values ** 2 + xarr['z_secondary_field_observed'].values ** 2))
-    #data_predicted = np.sqrt(xarr['x_secondary_field_predicted'].values ** 2 + xarr['z_secondary_field_predicted'].values ** 2)
     txrx_dx = xarr['txrx_dx'].values
     txrx_dz = xarr['txrx_dz'].values
     inv_txrx_dx = xarr['inverted_txrx_dx'].values
@@ -264,26 +252,6 @@ def dash_conductivity_section(vmin, vmax, cmap, xarr):
 
     # prepare the line data
 
-    for j in range(data_observed.shape[1]):
-        labels = ["Vector sum gate " + str(j)]
-        fig.add_trace(go.Scatter(x=grid_distances,
-                                 y=data_observed[:, j],
-                                 mode='lines',
-                                 line={
-                                     "color": 'black'
-                                 },
-                                 showlegend=False, hoverinfo="none"),
-                      row=4, col=1, )
-        #fig.add_trace(go.Scatter(x=grid_distances,
-        #                         y=data_predicted[:, j],
-        #                         mode='lines',
-        #                         line={
-        #                             "color": lm_colours[j]
-        #                         },
-        #                         hovertext=labels,
-        #                         showlegend=False, hoverinfo="none"),
-        #              row=4, col=1, )
-
     fig.add_trace(go.Heatmap(z=z,
                              zmin=vmin,
                              zmax=vmax,
@@ -298,7 +266,7 @@ def dash_conductivity_section(vmin, vmax, cmap, xarr):
                              hoverinfo="none",
                              name="section"
                              ),
-                  row=5, col=1
+                  row=4, col=1
                   )
 
     # Add the elevation
@@ -306,14 +274,14 @@ def dash_conductivity_section(vmin, vmax, cmap, xarr):
                              y=elevation,
                              line=dict(color='black', width=3),
                              showlegend=False, hoverinfo='skip'),
-                  row=5, col=1, )
+                  row=4, col=1, )
 
     fig.add_trace(go.Scatter(x=dist_along_line,
                              y=tx_height + elevation,
                              line=dict(color='blue', width=1),
                              showlegend=False, hoverinfo='text',
                              text="transmitter elevation"),
-                  row=5, col=1, )
+                  row=4, col=1, )
 
     # Create a list of easting and northing (strings) for label
     labels = []
@@ -326,66 +294,17 @@ def dash_conductivity_section(vmin, vmax, cmap, xarr):
                              hovertext=labels,
                              showlegend=False,
                              name="coordinates"),
-                  row=6, col=1, )
+                  row=5, col=1, )
 
     # Reverse y-axis
-    fig.update_yaxes(autorange=True, row=1, col=1, title_text="offset (m)")
-    fig.update_yaxes(autorange=True, row=2, col=1, title_text="offset (m)")
+    fig.update_yaxes(autorange=True, row=1, col=1, title_text="horizontal offset (m)")
+    fig.update_yaxes(autorange=True, row=2, col=1, title_text="vertical offset (m)")
     fig.update_yaxes(autorange=True, row=3, col=1, title_text="PhiD", type='log')
-    fig.update_yaxes(autorange=True, row=4, col=1, title_text="asinh(fT)")
-    fig.update_yaxes(autorange=True, row=5, col=1, title_text="elevation (mAHD)")
+    fig.update_yaxes(autorange=True, row=4, col=1, title_text="elevation (mAHD)")
     fig.update_yaxes(visible=False, showticklabels=False, row=6, col=1)
 
     fig.update_xaxes(title_text="distance along line " + " (m)", row=3, col=1)
     fig['layout'].update({'height': 1000})
-    return fig
-
-def aem_data_plot(xobs, zobs, xpred, zpred):
-    multiplicative_noise = 0.02
-
-    Hx_add_noise = np.array([0.010619, 0.009453, 0.008506, 0.006687, 0.007244, 0.005554, 0.004701, 0.004353, 0.003539,
-                             0.003493, 0.003035, 0.002875, 0.002343, 0.001613, 0.001304])
-
-    Hz_add_noise = np.array([0.005554, 0.005280, 0.004101, 0.003093, 0.002969, 0.002723, 0.002696, 0.002429, 0.002377,
-                             0.002188, 0.002018, 0.001818, 0.001557, 0.001106, 0.000906])
-
-    window_times = np.array([1.15470343e-05, 3.94405263e-05, 6.63324807e-05, 1.04774925e-04, 1.70098025e-04,
-                             2.73495887e-04, 4.42166350e-04, 7.03483404e-04, 1.09542484e-03, 1.69410746e-03,
-                             2.63014149e-03, 4.09949049e-03, 6.40149636e-03, 9.96138991e-03, 1.57496229e-02])
-    fig = go.Figure()
-
-    obs_data = np.sqrt(xobs ** 2 + zobs ** 2)
-    pred_data = np.sqrt(xpred ** 2 + zpred ** 2)
-
-    dat_error = np.sqrt(Hx_add_noise ** 2 + Hz_add_noise ** 2) + multiplicative_noise * obs_data
-
-    fig.add_trace(go.Scatter(x=window_times,
-                             y=obs_data,
-                             # error_y=dat_err_z,
-                             mode='markers',
-                             hoverinfo='text',  # labels,
-                             marker={"symbol": 'circle',
-                                     "color": 'black',
-                                     "size": 8
-                                     },
-                             error_y=dict(
-                                 type='data',  # value of error bar given in data coordinates
-                                 array=dat_error,
-                                 visible=True),
-                             showlegend=True))
-
-    fig.add_trace(go.Scatter(x=window_times,
-                             y=pred_data,
-                             # error_y=dat_err_z,
-                             mode='markers',
-                             hoverinfo='text',  # labels,
-                             marker={"symbol": 'circle',
-                                     "color": 'red',
-                                     "size": 6
-                                     },
-                             showlegend=True))
-
-    fig.update_yaxes(autorange=True, title_text="B field (fT)", type='log')
     return fig
 
 def plot_section_points(fig, line, df_interp, xarr, select_mask, labels = ""):
@@ -422,8 +341,8 @@ def plot_section_points(fig, line, df_interp, xarr, select_mask, labels = ""):
                                          },
                                  name='interpretation',
                                  showlegend=True,
-                                 xaxis='x5',
-                                 yaxis='y5')
+                                 xaxis='x4',
+                                 yaxis='y4')
                       )
         fig.update_layout()
     return fig
@@ -448,7 +367,7 @@ def plot_borehole_segments(fig, df):
                                  hovertext=labels,
                                  name='boreholes',
                                  showlegend=False),
-                      row=5, col=1, )
+                      row=4, col=1, )
     return fig
 
 stylesheet = "https://codepen.io/chriddyp/pen/bWLwgP.css"
@@ -521,14 +440,6 @@ app.layout = html.Div([
                                    value=(surface_options[0]['label']))
 
                       ], className="three columns"),
-            html.Div([html.H4("Select section"),
-                      dcc.Dropdown(id="section_dropdown",
-                                   options=[
-                                       {'label': 'layered earth inversion',
-                                        'value': 'galei'}],
-                                   value="galei"),
-
-                      ], className="three columns"),
             html.Div([html.H4("Select line"),
                       dcc.Dropdown(id="line_dropdown",
                                    options=line_options,
@@ -538,23 +449,6 @@ app.layout = html.Div([
     ),
     html.Div(
         [
-            html.Div(dash_table.DataTable(id='surface_table',
-                                          css=[{'selector': '.row', 'rule': 'margin: 0'}],
-                                          columns=[{"name": i, "id": i} for i in df_model_template.columns],
-                                          data=df_model_template.to_dict('records'),
-                                          editable=True,
-                                          fixed_columns={'headers': True},
-                                          sort_action="native",
-                                          sort_mode="multi",
-                                          row_selectable=False,
-                                          row_deletable=False,
-                                          style_table={
-                                              'maxHeight': '100px',
-                                              'overflowY': 'scroll',
-                                              'maxWidth': '500px',
-                                              'overflowX': 'scroll'}
-                                          ),
-                     className="four columns"),
             html.Div([html.Div(["Conductivity minimum: ", dcc.Input(
                 id="vmin", type="number",
                 min=0.0001, max=10, value=section_settings['vmin'])],
@@ -654,7 +548,6 @@ app.layout = html.Div([
      Output('section_tabs', 'value')],
     [Input('section_plot', 'clickData'),
      Input('interp_table', 'data_previous'),
-     Input('section_dropdown', 'value'),
      Input('section_tabs', 'value'),
      Input("line_dropdown", 'value'),
      Input('vmin', 'value'),
@@ -665,7 +558,7 @@ app.layout = html.Div([
      State("surface_dropdown", 'value'),
      State("interp_memory", 'data'),
      State("model_memory", "data")])
-def update_many(clickData, previous_table, section, section_tab, line, vmin, vmax, selected_rows, borehole_settings, current_table,
+def update_many(clickData, previous_table, section_tab, line, vmin, vmax, selected_rows, borehole_settings, current_table,
                 surfaceName, interpreted_points, model):
     trig_id = find_trigger()
 
@@ -695,7 +588,7 @@ def update_many(clickData, previous_table, section, section_tab, line, vmin, vma
 
     if trig_id == 'section_plot.clickData' and section_tab == 'conductivity_section':
 
-        if clickData['points'][0]['curveNumber'] == 20:
+        if clickData['points'][0]['curveNumber'] == 5:
             # Get the interpretation data from the click function
             model = model or df_model_template.to_dict('records')
             df_model = pd.DataFrame(model).infer_objects()
@@ -714,7 +607,7 @@ def update_many(clickData, previous_table, section, section_tab, line, vmin, vma
 
             # append to the surface object interpreted points
             interp = {'fiducial': fid,
-                      'inversion_name': section,
+                      'inversion_name': "galei",
                       'X': np.round(easting, 0),
                       'Y': np.round(northing, 0),
                       'DEPTH': np.round(depth, 0),
@@ -791,7 +684,6 @@ def update_many(clickData, previous_table, section, section_tab, line, vmin, vma
 
     elif section_tab == 'GA_interp_section':
         df_ss = df_GA_interpreted_points[df_GA_interpreted_points['SURVEY_LINE'] == line]
-        ## TODO put in function and add precanned interpretation
         fig = dash_conductivity_section(vmin=vmin,
                                         vmax=vmax,
                                         cmap=section_settings['cmap'],
@@ -861,52 +753,4 @@ def reveal_hint(nclicks, line):
         hint = df_hint[df_hint['SURVEY_LINE'] == line]["Hint"].values
         return hint
 
-@app.callback(Output('data_plot', 'children'),
-              [Input('section_plot', 'clickData')],
-              [State("line_dropdown", 'value')])
-def update_tab(clickData, line):
-    xarr = pickle2xarray(det.section_path[line])
-
-    if clickData is None:
-        raise PreventUpdate
-    if clickData['points'][0]['curveNumber'] < 20:
-        eventxdata, eventydata = clickData['points'][0]['x'], clickData['points'][0]['y']
-        min_idx = np.argmin(np.abs(xarr['grid_distances'].values - eventxdata))
-        easting = xarr['easting'].values[min_idx]
-        northing = xarr['northing'].values[min_idx]
-        # new get the data
-        xobs, zobs, xpred, zpred = xy2data(easting, northing, det)
-        fig = aem_data_plot(xobs, zobs, xpred, zpred)
-        data_tab = html.Div([
-            dcc.Graph(
-                id='fid_data',
-                figure=fig
-            ),
-        ])
-        return data_tab
-    else:
-        raise PreventUpdate
-
-
-@app.callback([Output("surface_dropdown", 'value'),
-               Output("surface_dropdown", 'options'),
-               Output("model_memory", "data"),
-               Output("surface_table", "columns"),
-               Output("surface_table", "data")],
-              [Input('surface_table', 'data_timestamp')],
-              [State("interp_memory", 'data'),
-               State("model_memory", "data"),
-               State('surface_table', 'data')])
-def update_surface(timestamps, interpreted_points, model_store, model_table):
-    trig_id = find_trigger()
-
-    model_store = model_store or df_model_template.to_dict("records")
-    # Update the model store
-    df_model = pd.DataFrame(model_table).infer_objects()
-
-    model_store = df_model.to_dict('records')
-    return df_model['SurfaceName'][0], list2options(df_model['SurfaceName'].values), \
-           model_store, [{"name": i, "id": i} for i in df_model.columns], model_store
-
-
-app.run_server(debug=False)
+app.run_server(debug=True)
