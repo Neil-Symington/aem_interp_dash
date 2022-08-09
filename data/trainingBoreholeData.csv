@@ -33,7 +33,7 @@ SURVEY_LINE,X,Y,depthFrom,depthTo,DrillersLog,colour
 2036001,338506,6963766,1,31,sands - Dusty,#EFFA06
 2036001,338506,6963766,31,61,silts and clay - Cotchin fm,#FE020E
 2036001,338506,6963766,115,120,weathered Riewoldt granite ,#BDDBF1
-2036001,341056,6963801,2,38,Cotchin clays,#EFFA06
+2036001,341056,6963801,2,38,Cotchin clays,#FE020E
 2036001,341056,6963801,38,56,weathered Riewoldt granite ,#BDDBF1
 3044002,891796,7111755,84,186,basal channel sands - Prestia ss,#B884FE
 3044002,891796,7111755,24,82,palaeovalley clays and silts - Cotchin fm,#FE020E
@@ -46,7 +46,6 @@ SURVEY_LINE,X,Y,depthFrom,depthTo,DrillersLog,colour
 3045002,751110,7138896,41,71,sandy clay - Cotchin fm,#FE020E
 3045002,756705,7138691,0,5,playa sediments,#EFFA06
 3045002,761096,7138469,2,26,dusty sands,#EFFA06
-3045002,761096,7138469,182,190,granite,#BDDBF1
 3045002,761096,7138469,50,110,qtz sandstone - Prestia,#B884FE
 3045002,761096,7138469,110,182,siltstone - Grimes,#0EFE03
 3045002,761096,7138469,26,50,silty clay - Cotchin fm,#FE020E

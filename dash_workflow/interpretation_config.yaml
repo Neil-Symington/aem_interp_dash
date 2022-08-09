@@ -1,7 +1,7 @@
 general_settings:
   # session settings
-  data_directory: "C:\\Users\\u77932\\Documents\\workshop\\AEM_Perth\\data\\ASEG_gdf"
-  #data_directory: "C:\\AEM_interpretation\\dash_data"
+  #data_directory: "C:\\Users\\u77932\\Documents\\workshop\\AEM_Perth\\data\\ASEG_gdf"
+  data_directory: "C:\\AEM_interpretation\\dash_data"
   # directory with the AEM data
   # The line numbers that we are interested in visualising
   lines: [1004001]

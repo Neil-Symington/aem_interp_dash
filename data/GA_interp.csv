@@ -1,6 +1,5 @@
 fiducial,inversion_name,X,Y,DEPTH,ELEVATION,DEM,Type,BoundaryNm,SURVEY_LINE,Operator,point_index,polyline,colour,Marker,MarkerSize
 11400.40039,galei,472995,6961317,71,42.4,113.5,FaultVertical,Fault,1020001,User,260,1,black,line-ns,20
-4976.200195,galei,834400,7161233,81,378,459.1,FaultVertical,Fault,3046002,User,188,1,black,line-ns,12
 11002.7998,galei,576204,7001053,6,100.3,106.2,TOP_Cotchin,Top_Cotchin_clay,1018001,User,24,1,#FE020E,triangle-down,12
 10971.7998,galei,578203,7001040,10,88.3,98.8,TOP_Cotchin,Top_Cotchin_clay,1018001,User,64,1,#FE020E,triangle-down,12
 10935.40039,galei,580603,7001048,18,76.3,94.3,TOP_Cotchin,Top_Cotchin_clay,1018001,User,112,1,#FE020E,triangle-down,12
