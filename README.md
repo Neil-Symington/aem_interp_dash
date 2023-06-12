@@ -39,7 +39,7 @@ This package itself has a host of dependencies and we use a seperate conda envir
 Scripts for converting the EM data and deterministic inversion can be found in the 
 "utils/conversion" directory.
 
-The probabilistic inversions are handles differently. AEM soundings are inverted on a point
+The probabilistic inversions are handled differently. AEM soundings are inverted on a point
 by point basis, with each inversion creating a single netcdf file. The 
 "utils/conversion/concatenate_netcdf_file.py" script demonstrates how to compile the netcdf
 files into a single file containing just the important information. We rely very heavily 
@@ -54,7 +54,7 @@ the interpretation_config.yanl file. More information on how this works can be f
 the wiki.
 
 Once the data is prepared and the settings are satisfactory, run the app (app.py) 
-using thw python from the conda environment. If gridding sections, the app may take a
+using the python from the conda environment. If gridding sections, the app may take a
  while to run. Once the preprocessing is done, the terminal should return a message 
  similar to the following:
  
