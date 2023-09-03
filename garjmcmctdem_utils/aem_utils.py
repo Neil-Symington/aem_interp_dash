@@ -256,7 +256,8 @@ class AEM_inversion:
 
         coords['grid_distances'] = interpolated['grid_distances']
         coords['grid_elevations'] = interpolated['grid_elevations']
-        coords['windows'] = np.arange(1,interpolated[self.data_variables[0]].shape[1]+1)
+        if len(self.data_variables) > 0:
+            coords['windows'] = np.arange(1,interpolated[self.data_variables[0]].shape[1]+1)
 
         var_list = [e for e in interpolated.keys() if e not in coords.keys()]
 
